@@ -135,6 +135,46 @@ function Get-MsBuild {
 	return ""
 }
 
+function Find-ProjectGenerator {
+	param([string]$OfRoot)
+	$candidates = @(
+		(Join-Path $OfRoot "projectGenerator\resources\app\app\projectGenerator.exe"),
+		(Join-Path $OfRoot "projectGenerator\projectGenerator.exe"),
+		(Join-Path $OfRoot "projectGenerator-jan2026\resources\app\app\projectGenerator.exe"),
+		(Join-Path $OfRoot "projectGenerator-jan2026\projectGenerator.exe")
+	)
+	foreach ($candidate in $candidates) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $candidate).Path
+		}
+	}
+	return ""
+}
+
+function Ensure-GeneratedVisualStudioProject {
+	param(
+		[string]$ExampleName,
+		[string]$ExamplePath,
+		[string]$OfRoot
+	)
+	if (!(Test-WindowsHost)) {
+		return
+	}
+	$project = Join-Path $ExamplePath "$ExampleName.vcxproj"
+	if (Test-Path -LiteralPath $project -PathType Leaf) {
+		return
+	}
+	$projectGenerator = Find-ProjectGenerator -OfRoot $OfRoot
+	if ([string]::IsNullOrWhiteSpace($projectGenerator)) {
+		throw "Visual Studio project not found and projectGenerator.exe was not found under $OfRoot."
+	}
+	Write-Step "Generating $ExampleName Visual Studio project"
+	& $projectGenerator "-o$OfRoot" "-aofxGgmlCore,ofxGgmlLlama,ofxImGui" "-pvs" $ExamplePath
+	if ($LASTEXITCODE -ne 0) {
+		throw "projectGenerator failed with exit code $LASTEXITCODE"
+	}
+}
+
 function Test-GeneratedAddonPath {
 	param([string]$Path)
 	if ([string]::IsNullOrWhiteSpace($Path)) {
@@ -435,6 +475,7 @@ function Get-AddonIncludeDirectories {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
+$ofRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
 $exampleDir = Join-Path $addonRoot $Example
 if (!(Test-Path -LiteralPath $exampleDir)) {
 	throw "Example directory not found: $exampleDir"
@@ -442,6 +483,7 @@ if (!(Test-Path -LiteralPath $exampleDir)) {
 Normalize-WindowsPathEnvironment
 
 if (Test-WindowsHost) {
+	Ensure-GeneratedVisualStudioProject -ExampleName $Example -ExamplePath $exampleDir -OfRoot $ofRoot
 	$project = Join-Path $exampleDir "$Example.vcxproj"
 	if (!(Test-Path -LiteralPath $project)) {
 		throw "Visual Studio project not found: $project. Generate it with the openFrameworks projectGenerator first."
