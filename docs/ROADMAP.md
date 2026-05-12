@@ -11,9 +11,9 @@
 - Add migration notes for projects that previously included Core llama adapter
   headers directly.
 - Add a small release checklist for `clone -> build-llama-server -> run chat`.
+- Add focused tests for release checklist command examples.
 
 ## Next Milestones
 
-- Add focused tests for release checklist command examples.
 - Decide whether release tags should be mirrored across Core and companion
   addons or remain per-addon.

@@ -74,6 +74,7 @@ foreach ($scriptName in @(
 	"run-embedding-example.ps1",
 	"test-addon.ps1",
 	"test-launch-utils.ps1",
+	"test-release-checklist.ps1",
 	"test-launch-dry-run.ps1",
 	"test-artifact-hygiene.ps1")) {
 	Assert-Path (Join-Path $scriptRoot $scriptName) "$scriptName"
@@ -89,6 +90,12 @@ Write-Step "Checking launch utility helpers"
 & (Join-Path $scriptRoot "test-launch-utils.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch utility helper tests failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking release checklist commands"
+& (Join-Path $scriptRoot "test-release-checklist.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Release checklist command tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking launch dry-runs"
