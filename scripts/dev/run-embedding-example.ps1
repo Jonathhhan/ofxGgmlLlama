@@ -13,8 +13,8 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Split-Path -Parent $scriptRoot
-$exampleRoot = Join-Path $addonRoot "example-emb"
-$exampleExe = Join-Path $exampleRoot "bin\example-emb.exe"
+$exampleRoot = Join-Path $addonRoot "ofxGgmlEmbeddingExample"
+$exampleExe = Join-Path $exampleRoot "bin\ofxGgmlEmbeddingExample.exe"
 . (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
@@ -50,7 +50,7 @@ if ([string]::IsNullOrWhiteSpace($Model)) {
 	$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 		-AddonRoot $addonRoot `
 		-ExampleRoot $exampleRoot `
-		-ExtraExampleNames @("example-text", "example-chat"))
+		-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 }
 
 $env:OFXGGML_EMBEDDING_SERVER_URL = $ServerUrl
@@ -84,6 +84,6 @@ Start-OfxGgmlBundledLlamaServerIfNeeded `
 	-NoAutoServer:$NoAutoServer `
 	-Embeddings
 
-Write-OfxGgmlStep "Starting example-emb"
+Write-OfxGgmlStep "Starting ofxGgmlEmbeddingExample"
 & $exampleExe
 exit $LASTEXITCODE

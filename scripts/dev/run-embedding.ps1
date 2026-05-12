@@ -91,12 +91,12 @@ if ([string]::IsNullOrWhiteSpace($EmbeddingExe)) {
 
 if ([string]::IsNullOrWhiteSpace($ModelPath)) {
 	$ModelPath = Find-FirstModel @(
-		(Join-Path $addonRoot "example-text\bin\data\models"),
-		(Join-Path $addonRoot "example-text\bin\data"),
-		(Join-Path $addonRoot "example-text\models"),
-		(Join-Path $addonRoot "example-chat\bin\data\models"),
-		(Join-Path $addonRoot "example-chat\bin\data"),
-		(Join-Path $addonRoot "example-chat\models"),
+		(Join-Path $addonRoot "ofxGgmlTextExample\bin\data\models"),
+		(Join-Path $addonRoot "ofxGgmlTextExample\bin\data"),
+		(Join-Path $addonRoot "ofxGgmlTextExample\models"),
+		(Join-Path $addonRoot "ofxGgmlChatExample\bin\data\models"),
+		(Join-Path $addonRoot "ofxGgmlChatExample\bin\data"),
+		(Join-Path $addonRoot "ofxGgmlChatExample\models"),
 		(Join-Path $addonRoot "models"),
 		(Join-Path (Split-Path -Parent $addonRoot) "models")
 	)

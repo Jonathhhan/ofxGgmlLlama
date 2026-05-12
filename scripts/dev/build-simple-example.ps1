@@ -1,7 +1,7 @@
 param(
 	[string]$Configuration = "Release",
 	[string]$Platform = "x64",
-	[string]$Example = "example-text",
+	[string]$Example = "ofxGgmlTextExample",
 	[switch]$Clean,
 	[switch]$RepairOnly
 )

@@ -50,10 +50,10 @@ function Get-UniqueDirectories {
 
 $directories = Get-UniqueDirectories (Get-OfxGgmlModelSearchDirectories `
 	-AddonRoot $addonRoot `
-	-ExampleRoot (Join-Path $addonRoot "example-text") `
+	-ExampleRoot (Join-Path $addonRoot "ofxGgmlTextExample") `
 	-ExtraExampleNames @(
-		"example-chat",
-		"example-emb"))
+		"ofxGgmlChatExample",
+		"ofxGgmlEmbeddingExample"))
 
 $models = New-Object System.Collections.Generic.List[object]
 foreach ($directory in $directories) {

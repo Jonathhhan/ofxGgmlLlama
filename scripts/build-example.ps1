@@ -13,10 +13,10 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $buildScript = Join-Path $scriptRoot "dev\build-simple-example.ps1"
 
 $exampleName = switch ($Example) {
-	"text" { "example-text" }
-	"chat" { "example-chat" }
-	"embedding" { "example-emb" }
-	"emb" { "example-emb" }
+	"text" { "ofxGgmlTextExample" }
+	"chat" { "ofxGgmlChatExample" }
+	"embedding" { "ofxGgmlEmbeddingExample" }
+	"emb" { "ofxGgmlEmbeddingExample" }
 }
 
 $arguments = @{

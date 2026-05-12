@@ -33,7 +33,11 @@ $canonicalExample = switch ($Example) {
 	"emb" { "embedding" }
 }
 $isEmbedding = $canonicalExample -eq "embedding"
-$exampleName = if ($isEmbedding) { "example-emb" } else { "example-$canonicalExample" }
+$exampleName = switch ($canonicalExample) {
+	"text" { "ofxGgmlTextExample" }
+	"chat" { "ofxGgmlChatExample" }
+	"embedding" { "ofxGgmlEmbeddingExample" }
+}
 $exampleRoot = Join-Path $addonRoot $exampleName
 $exampleExe = Join-Path $exampleRoot "bin\$exampleName.exe"
 
@@ -73,7 +77,7 @@ if ($isEmbedding) {
 		$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 			-AddonRoot $addonRoot `
 			-ExampleRoot $exampleRoot `
-			-ExtraExampleNames @("example-text", "example-chat"))
+			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
 
 	$env:OFXGGML_EMBEDDING_SERVER_URL = $ServerUrl

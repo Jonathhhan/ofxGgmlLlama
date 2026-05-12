@@ -280,9 +280,9 @@ function Get-RuntimeProcesses {
 		"llama-server",
 		"llama-cli",
 		"llama-embedding",
-		"example-text",
-		"example-chat",
-		"example-emb"
+		"ofxGgmlTextExample",
+		"ofxGgmlChatExample",
+		"ofxGgmlEmbeddingExample"
 	)
 	$addonPath = (Resolve-Path -LiteralPath $addonRoot).Path
 	return @(Get-Process -Name $processNames -ErrorAction SilentlyContinue |

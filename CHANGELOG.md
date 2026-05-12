@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- Renamed examples to Project Generator-safe folders: `example-text`,
-  `example-chat`, and `example-emb`.
+- Restored conventional openFrameworks example folder names:
+  `ofxGgmlTextExample`, `ofxGgmlChatExample`, and
+  `ofxGgmlEmbeddingExample`.
 - Made addon source lists explicit so generated Visual Studio projects do not
   pull CMake build-cache sources from dependency folders.
 - Reduced the public script surface to server/model/validation commands plus

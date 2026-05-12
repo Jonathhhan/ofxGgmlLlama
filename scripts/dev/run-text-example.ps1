@@ -15,8 +15,8 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Split-Path -Parent $scriptRoot
-$exampleRoot = Join-Path $addonRoot "example-text"
-$exampleExe = Join-Path $exampleRoot "bin\example-text.exe"
+$exampleRoot = Join-Path $addonRoot "ofxGgmlTextExample"
+$exampleExe = Join-Path $exampleRoot "bin\ofxGgmlTextExample.exe"
 . (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
@@ -102,6 +102,6 @@ if ($DryRun) {
 	return
 }
 
-Write-OfxGgmlStep "Starting example-text"
+Write-OfxGgmlStep "Starting ofxGgmlTextExample"
 & $exampleExe
 exit $LASTEXITCODE
