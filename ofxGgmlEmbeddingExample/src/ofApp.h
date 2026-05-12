@@ -33,6 +33,7 @@ private:
 	std::string inputB;
 	std::string inputAEdit;
 	std::string inputBEdit;
+	std::string modelPath;
 	std::string status;
 	std::string error;
 	std::vector<std::vector<float>> embeddings;
