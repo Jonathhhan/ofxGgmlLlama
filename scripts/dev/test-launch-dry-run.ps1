@@ -112,7 +112,7 @@ function Assert-NotContains {
 	}
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $scratchDir = Join-Path $addonRoot "build\launch-dry-run-smoke"
 New-Item -ItemType Directory -Force -Path $scratchDir | Out-Null
@@ -136,8 +136,9 @@ if (!(Test-Path -LiteralPath $llamaEmbeddingExe -PathType Leaf)) {
 
 $textOutput = Invoke-DryRun `
 	-Label "Text example dry-run" `
-	-Script (Join-Path $scriptRoot "run-text-example.ps1") `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
 	-Parameters @{
+		Example = "text"
 		DryRun = $true
 		NoAutoServer = $true
 		ServerUrl = "http://127.0.0.1:9080"
@@ -155,8 +156,9 @@ Assert-NotContains $textOutput "Starting example-text" "Text dry-run"
 
 $textCliOutput = Invoke-DryRun `
 	-Label "Text example CLI dry-run" `
-	-Script (Join-Path $scriptRoot "run-text-example.ps1") `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
 	-Parameters @{
+		Example = "text"
 		DryRun = $true
 		Backend = "cli"
 		LlamaCli = $llamaCliExe
@@ -173,8 +175,9 @@ Assert-NotContains $textCliOutput "Starting example-text" "Text CLI dry-run"
 
 $chatOutput = Invoke-DryRun `
 	-Label "Chat example dry-run" `
-	-Script (Join-Path $scriptRoot "run-chat-example.ps1") `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
 	-Parameters @{
+		Example = "chat"
 		DryRun = $true
 		NoAutoServer = $true
 		ServerUrl = "http://127.0.0.1:9080"
@@ -192,8 +195,9 @@ Assert-NotContains $chatOutput "Starting example-chat" "Chat dry-run"
 
 $chatCliOutput = Invoke-DryRun `
 	-Label "Chat example CLI dry-run" `
-	-Script (Join-Path $scriptRoot "run-chat-example.ps1") `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
 	-Parameters @{
+		Example = "chat"
 		DryRun = $true
 		Backend = "cli"
 		LlamaCli = $llamaCliExe
@@ -210,8 +214,9 @@ Assert-NotContains $chatCliOutput "Starting example-chat" "Chat CLI dry-run"
 
 $embeddingOutput = Invoke-DryRun `
 	-Label "Embedding example dry-run" `
-	-Script (Join-Path $scriptRoot "run-embedding-example.ps1") `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
 	-Parameters @{
+		Example = "embedding"
 		DryRun = $true
 		NoAutoServer = $true
 		ServerUrl = "http://127.0.0.1:9081"
@@ -229,7 +234,7 @@ Assert-NotContains $embeddingOutput "Starting example-emb" "Embedding dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `
-	-Script (Join-Path $scriptRoot "run-embedding.ps1") `
+	-Script (Join-Path $scriptRoot "dev\run-embedding.ps1") `
 	-Parameters @{
 		DryRun = $true
 		EmbeddingExe = $llamaEmbeddingExe

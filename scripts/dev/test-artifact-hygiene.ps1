@@ -53,7 +53,7 @@ function Assert-Ignored {
 $null = $Configuration
 $null = $Platform
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 Push-Location $repoRoot
 try {

@@ -72,22 +72,28 @@ macOS/Linux:
 Text:
 
 ```powershell
-scripts\run-text-example.bat -Build -Model C:\path\to\model.gguf
+scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 ```
 
 Chat:
 
 ```powershell
-scripts\run-chat-example.bat -Build -Model C:\path\to\model.gguf
+scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
 ```
 
 Embeddings:
 
 ```powershell
-scripts\run-embedding-example.bat -Build -Model C:\path\to\embedding-model.gguf
+scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
 ```
 
 For macOS/Linux, use the matching `.sh` scripts.
+
+```sh
+./scripts/run-example.sh text -Build -Model /path/to/model.gguf
+./scripts/run-example.sh chat -Build -Model /path/to/model.gguf
+./scripts/run-example.sh embedding -Build -Model /path/to/embedding-model.gguf
+```
 
 Expected behavior:
 
@@ -116,13 +122,13 @@ launch dry-runs, and headless C++ tests.
 For a pre-tag release candidate gate, run:
 
 ```powershell
-scripts\release-candidate.bat
+scripts\dev\release-candidate.bat
 ```
 
 macOS/Linux:
 
 ```sh
-./scripts/release-candidate.sh
+./scripts/dev/release-candidate.sh
 ```
 
 ## Before Tagging

@@ -69,55 +69,54 @@ foreach ($example in @("example-text", "example-chat", "example-emb")) {
 }
 
 foreach ($scriptName in @(
+	"build-example.ps1",
 	"build-llama-server.ps1",
-	"release-candidate.ps1",
 	"start-llama-server.ps1",
 	"stop-llama-server.ps1",
 	"status-llama-server.ps1",
 	"list-models.ps1",
-	"run-text-example.ps1",
-	"run-chat-example.ps1",
-	"run-embedding-example.ps1",
-	"test-addon.ps1",
-	"test-launch-utils.ps1",
-	"test-release-checklist.ps1",
-	"test-launch-dry-run.ps1",
-	"test-artifact-hygiene.ps1")) {
+	"run-example.ps1",
+	"dev\release-candidate.ps1",
+	"dev\test-addon.ps1",
+	"dev\test-launch-utils.ps1",
+	"dev\test-release-checklist.ps1",
+	"dev\test-launch-dry-run.ps1",
+	"dev\test-artifact-hygiene.ps1")) {
 	Assert-Path (Join-Path $scriptRoot $scriptName) "$scriptName"
 }
 
 Write-Step "Checking generated artifact hygiene"
-& (Join-Path $scriptRoot "test-artifact-hygiene.ps1")
+& (Join-Path $scriptRoot "dev\test-artifact-hygiene.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Artifact hygiene failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking launch utility helpers"
-& (Join-Path $scriptRoot "test-launch-utils.ps1")
+& (Join-Path $scriptRoot "dev\test-launch-utils.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch utility helper tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking release checklist commands"
-& (Join-Path $scriptRoot "test-release-checklist.ps1")
+& (Join-Path $scriptRoot "dev\test-release-checklist.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Release checklist command tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking generated project repair"
-& (Join-Path $scriptRoot "test-example-project-repair.ps1")
+& (Join-Path $scriptRoot "dev\test-example-project-repair.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Generated project repair tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking launch dry-runs"
-& (Join-Path $scriptRoot "test-launch-dry-run.ps1")
+& (Join-Path $scriptRoot "dev\test-launch-dry-run.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch dry-runs failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Running headless tests"
-& (Join-Path $scriptRoot "test-addon.ps1")
+& (Join-Path $scriptRoot "dev\test-addon.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Headless tests failed with exit code $LASTEXITCODE"
 }

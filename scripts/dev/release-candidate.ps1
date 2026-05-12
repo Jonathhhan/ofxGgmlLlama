@@ -31,7 +31,7 @@ function Get-GitLines {
 	return @($output | ForEach-Object { $_.ToString() })
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 
 Push-Location $addonRoot
@@ -63,7 +63,7 @@ try {
 	}
 
 	Write-Step "Checking generated artifact status"
-	Invoke-Checked "Artifact hygiene" (Join-Path $scriptRoot "test-artifact-hygiene.ps1")
+	Invoke-Checked "Artifact hygiene" (Join-Path $scriptRoot "dev\test-artifact-hygiene.ps1")
 
 	Write-Step "Release candidate pass completed"
 } finally {

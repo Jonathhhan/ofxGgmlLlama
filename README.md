@@ -33,9 +33,9 @@ git clone https://github.com/Jonathhhan/ofxGgmlLlama.git
 cd ofxGgmlLlama
 scripts\build-llama-server.bat
 scripts\list-models.bat
-scripts\run-text-example.bat -Build -Model C:\path\to\model.gguf
-scripts\run-chat-example.bat -Build -Model C:\path\to\model.gguf
-scripts\run-embedding-example.bat -Build -Model C:\path\to\embedding-model.gguf
+scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
+scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
+scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
 ```
 
 Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
@@ -67,6 +67,23 @@ Tagging and compatibility policy is in
 [`docs/RELEASE_POLICY.md`](docs/RELEASE_POLICY.md).
 Release history is tracked in [`CHANGELOG.md`](CHANGELOG.md).
 Prepared release notes are in [`docs/releases/v1.0.1.md`](docs/releases/v1.0.1.md).
+
+## Scripts
+
+The public script surface is intentionally small:
+
+```text
+scripts/build-example.*
+scripts/run-example.*
+scripts/build-llama-server.*
+scripts/start-llama-server.*
+scripts/stop-llama-server.*
+scripts/status-llama-server.*
+scripts/list-models.*
+scripts/validate-local.*
+```
+
+Maintainer-only checks and compatibility wrappers live under `scripts/dev`.
 
 ## Boundary
 

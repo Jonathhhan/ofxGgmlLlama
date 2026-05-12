@@ -6,19 +6,19 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$buildScript = Join-Path $scriptRoot "build-simple-example.ps1"
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
+$buildScript = Join-Path $scriptRoot "build-example.ps1"
 
 if ($Clean) {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example "example-text" `
+		-Example "text" `
 		-Clean
 } else {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example "example-text"
+		-Example "text"
 }
 exit $LASTEXITCODE

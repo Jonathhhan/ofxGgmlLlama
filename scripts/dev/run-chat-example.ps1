@@ -13,10 +13,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Split-Path -Parent $scriptRoot
-$exampleRoot = Join-Path $addonRoot "example-text"
-$exampleExe = Join-Path $exampleRoot "bin\example-text.exe"
+$exampleRoot = Join-Path $addonRoot "example-chat"
+$exampleExe = Join-Path $exampleRoot "bin\example-chat.exe"
 . (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
@@ -26,7 +26,7 @@ if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
 }
 
 if ($Build) {
-	& (Join-Path $scriptRoot "build-text-example.ps1") -Configuration $Configuration -Platform $Platform
+	& (Join-Path $scriptRoot "build-example.ps1") -Example "chat" -Configuration $Configuration -Platform $Platform
 	if ($LASTEXITCODE -ne 0) {
 		exit $LASTEXITCODE
 	}
@@ -36,9 +36,9 @@ if ((Test-Path -LiteralPath $exampleExe -PathType Leaf)) {
 	$exampleExeExists = $true
 } elseif ($DryRun) {
 	$exampleExeExists = $false
-	Write-Warning "Text example executable was not found: $exampleExe"
+	Write-Warning "Chat example executable was not found: $exampleExe"
 } else {
-	throw "Text example executable was not found: $exampleExe. Run scripts\run-text-example.bat -Build or scripts\build-text-example.bat first."
+	throw "Chat example executable was not found: $exampleExe. Run scripts\run-example.bat chat -Build first."
 }
 
 $LlamaCli = Normalize-OfxGgmlPathText $LlamaCli
@@ -102,6 +102,6 @@ if ($DryRun) {
 	return
 }
 
-Write-OfxGgmlStep "Starting example-text"
+Write-OfxGgmlStep "Starting example-chat"
 & $exampleExe
 exit $LASTEXITCODE

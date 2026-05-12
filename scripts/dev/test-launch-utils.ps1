@@ -2,7 +2,7 @@ param()
 
 $ErrorActionPreference = "Stop"
 
-. (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "ofxGgml-launch-utils.ps1")
+. (Join-Path (Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")) "ofxGgml-launch-utils.ps1")
 
 function Write-Step {
 	param([string]$Message)
@@ -30,7 +30,7 @@ function Assert-True {
 	}
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $scratchRoot = Join-Path $addonRoot "build\launch-utils-smoke"
 if (Test-Path -LiteralPath $scratchRoot) {

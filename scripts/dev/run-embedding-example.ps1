@@ -11,7 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Split-Path -Parent $scriptRoot
 $exampleRoot = Join-Path $addonRoot "example-emb"
 $exampleExe = Join-Path $exampleRoot "bin\example-emb.exe"
@@ -24,7 +24,7 @@ if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
 }
 
 if ($Build) {
-	& (Join-Path $scriptRoot "build-embedding-example.ps1") -Configuration $Configuration -Platform $Platform
+	& (Join-Path $scriptRoot "build-example.ps1") -Example "embedding" -Configuration $Configuration -Platform $Platform
 	if ($LASTEXITCODE -ne 0) {
 		exit $LASTEXITCODE
 	}
@@ -36,7 +36,7 @@ if ((Test-Path -LiteralPath $exampleExe -PathType Leaf)) {
 	$exampleExeExists = $false
 	Write-Warning "Embedding example executable was not found: $exampleExe"
 } else {
-	throw "Embedding example executable was not found: $exampleExe. Run scripts\run-embedding-example.bat -Build or scripts\build-embedding-example.bat first."
+	throw "Embedding example executable was not found: $exampleExe. Run scripts\run-example.bat embedding -Build first."
 }
 
 $Model = Normalize-OfxGgmlPathText $Model

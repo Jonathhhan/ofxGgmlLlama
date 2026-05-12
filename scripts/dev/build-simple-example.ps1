@@ -514,7 +514,7 @@ function Get-AddonIncludeDirectories {
 	return @($includeDirs)
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $ofRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
 $exampleDir = Join-Path $addonRoot $Example

@@ -6,12 +6,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Split-Path -Parent $scriptRoot
 $ofRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
 $exampleName = "example-chat"
 $exampleDir = Join-Path $addonRoot $exampleName
-$buildScript = Join-Path $scriptRoot "build-simple-example.ps1"
+$buildScript = Join-Path $scriptRoot "build-example.ps1"
 
 function Find-ProjectGenerator {
 	$candidates = @(
@@ -53,12 +53,12 @@ if ($Clean) {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example $exampleName `
+		-Example "chat" `
 		-Clean
 } else {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example $exampleName
+		-Example "chat"
 }
 exit $LASTEXITCODE

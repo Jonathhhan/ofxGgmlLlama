@@ -67,7 +67,7 @@ function Get-VisualStudioDevCmd {
 	return ""
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $testsDir = Join-Path $addonRoot "tests"
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {

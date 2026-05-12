@@ -6,6 +6,8 @@
   `example-chat`, and `example-emb`.
 - Made addon source lists explicit so generated Visual Studio projects do not
   pull CMake build-cache sources from dependency folders.
+- Reduced the public script surface to server/model/validation commands plus
+  unified `build-example` and `run-example` entrypoints.
 
 ## v1.0.1 - 2026-05-12
 

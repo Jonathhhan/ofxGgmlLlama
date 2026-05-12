@@ -42,13 +42,13 @@ function Assert-GuardedPostBuild {
 	}
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $examples = @("example-text", "example-chat", "example-emb")
 
 foreach ($example in $examples) {
 	Write-Step "Repairing $example generated metadata"
-	& (Join-Path $scriptRoot "build-simple-example.ps1") `
+	& (Join-Path $scriptRoot "dev\build-simple-example.ps1") `
 		-Example $example `
 		-Configuration $Configuration `
 		-Platform $Platform `

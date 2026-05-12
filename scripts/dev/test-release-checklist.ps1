@@ -7,7 +7,7 @@ function Write-Step {
 	Write-Host "==> $Message"
 }
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $checklistPath = Join-Path $addonRoot "docs\RELEASE_CHECKLIST.md"
 
@@ -16,7 +16,7 @@ if (!(Test-Path -LiteralPath $checklistPath -PathType Leaf)) {
 }
 
 $content = Get-Content -LiteralPath $checklistPath -Raw
-$matches = [regex]::Matches($content, '(?<![\w./-])(?:\.\/)?scripts[\\/][A-Za-z0-9_.-]+')
+$matches = [regex]::Matches($content, '(?<![\w./-])(?:\.\/)?scripts(?:[\\/][A-Za-z0-9_.-]+)+')
 $scriptRefs = @($matches | ForEach-Object {
 	$_.Value.TrimStart(".", "/", "\") -replace "/", "\"
 } | Sort-Object -Unique)
@@ -38,9 +38,8 @@ foreach ($required in @(
 	"scripts\build-llama-server.sh",
 	"scripts\list-models.bat",
 	"scripts\list-models.sh",
-	"scripts\run-text-example.bat",
-	"scripts\run-chat-example.bat",
-	"scripts\run-embedding-example.bat",
+	"scripts\run-example.bat",
+	"scripts\run-example.sh",
 	"scripts\validate-local.bat",
 	"scripts\validate-local.sh")) {
 	if ($scriptRefs -notcontains $required) {
