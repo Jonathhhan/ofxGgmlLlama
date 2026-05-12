@@ -57,6 +57,8 @@ On macOS/Linux:
 
 Release smoke checks are listed in
 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+Tagging and compatibility policy is in
+[`docs/RELEASE_POLICY.md`](docs/RELEASE_POLICY.md).
 
 ## Boundary
 

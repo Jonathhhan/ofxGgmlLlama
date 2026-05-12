@@ -119,4 +119,5 @@ launch dry-runs, and headless C++ tests.
 - no GGUF models, llama.cpp source/build trees, binaries, or generated OF
   project files are staged
 - `docs/MIGRATION.md` matches the current Core/Llama boundary
+- `docs/RELEASE_POLICY.md` matches the intended tag and compatibility policy
 - `README.md` first-run commands still match the scripts

@@ -12,8 +12,9 @@
   headers directly.
 - Add a small release checklist for `clone -> build-llama-server -> run chat`.
 - Add focused tests for release checklist command examples.
+- Decide whether release tags should be mirrored across Core and companion
+  addons or remain per-addon.
 
 ## Next Milestones
 
-- Decide whether release tags should be mirrored across Core and companion
-  addons or remain per-addon.
+- Add version constants or metadata once public releases start.
