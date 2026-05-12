@@ -45,8 +45,8 @@ Use `docs/RELEASE_NOTES_TEMPLATE.md` for the release body and keep
 
 Before tagging:
 
-1. Run `scripts\validate-local.bat` on Windows.
-2. Run `./scripts/validate-local.sh` on macOS or Linux when available.
+1. Run `scripts\release-candidate.bat` on Windows.
+2. Run `./scripts/release-candidate.sh` on macOS or Linux when available.
 3. Complete `docs/RELEASE_CHECKLIST.md`.
 4. Update `CHANGELOG.md`.
 5. Confirm no generated artifacts or models are staged.

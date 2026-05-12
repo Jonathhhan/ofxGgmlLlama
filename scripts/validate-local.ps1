@@ -68,6 +68,7 @@ foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbed
 
 foreach ($scriptName in @(
 	"build-llama-server.ps1",
+	"release-candidate.ps1",
 	"start-llama-server.ps1",
 	"stop-llama-server.ps1",
 	"status-llama-server.ps1",

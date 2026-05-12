@@ -16,7 +16,8 @@
   addons or remain per-addon.
 - Add version constants for public releases.
 - Add changelog/release-note template.
+- Exercise one full release candidate pass before tagging.
 
 ## Next Milestones
 
-- Exercise one full release candidate pass before tagging.
+- Run the release candidate gate after the current changes are committed.

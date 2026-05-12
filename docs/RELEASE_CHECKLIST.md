@@ -113,6 +113,18 @@ macOS/Linux:
 This checks addon layout, generated artifact hygiene, launch helper behavior,
 launch dry-runs, and headless C++ tests.
 
+For a pre-tag release candidate gate, run:
+
+```powershell
+scripts\release-candidate.bat
+```
+
+macOS/Linux:
+
+```sh
+./scripts/release-candidate.sh
+```
+
 ## Before Tagging
 
 - `git status --short --ignored` shows only expected ignored build outputs
