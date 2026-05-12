@@ -50,6 +50,8 @@ Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaVer
 Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaCliTextBackend.h" "public header"
 Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerTextBackend.h" "public header"
 Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerEmbeddingBackend.h" "public header"
+Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "ADDON_DEPENDENCIES\s*\+=\s*ofxGgmlCore" "addon config"
+Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "\.\./ofxGgmlCore/src" "addon config"
 Assert-Path (Join-Path $addonRoot "tests\CMakeLists.txt") "test CMakeLists"
 Assert-Path (Join-Path $addonRoot "tests\test_main.cpp") "test source"
 
@@ -100,6 +102,12 @@ Write-Step "Checking release checklist commands"
 & (Join-Path $scriptRoot "test-release-checklist.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Release checklist command tests failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking generated project repair"
+& (Join-Path $scriptRoot "test-example-project-repair.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Generated project repair tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking launch dry-runs"

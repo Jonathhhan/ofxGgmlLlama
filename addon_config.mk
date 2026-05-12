@@ -8,6 +8,7 @@ meta:
 common:
 	ADDON_DEPENDENCIES += ofxGgmlCore
 	ADDON_INCLUDES += src
+	ADDON_INCLUDES += ../ofxGgmlCore/src
 	ADDON_SOURCES_EXCLUDE += build/%
 	ADDON_SOURCES_EXCLUDE += libs/llama.cpp/.source/%
 	ADDON_SOURCES_EXCLUDE += libs/llama.cpp/build/%

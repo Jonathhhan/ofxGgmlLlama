@@ -164,15 +164,30 @@ function Ensure-GeneratedVisualStudioProject {
 	if (Test-Path -LiteralPath $project -PathType Leaf) {
 		return
 	}
-	$projectGenerator = Find-ProjectGenerator -OfRoot $OfRoot
-	if ([string]::IsNullOrWhiteSpace($projectGenerator)) {
-		throw "Visual Studio project not found and projectGenerator.exe was not found under $OfRoot."
+
+	$templateRoot = Join-Path $OfRoot "scripts\templates\winvs"
+	$templateProject = Join-Path $templateRoot "emptyExample.vcxproj"
+	if (!(Test-Path -LiteralPath $templateProject -PathType Leaf)) {
+		throw "Visual Studio project not found and openFrameworks winvs template is missing: $templateProject"
 	}
-	Write-Step "Generating $ExampleName Visual Studio project"
-	& $projectGenerator "-o$OfRoot" "-aofxGgmlCore,ofxGgmlLlama,ofxImGui" "-pvs" $ExamplePath
-	if ($LASTEXITCODE -ne 0) {
-		throw "projectGenerator failed with exit code $LASTEXITCODE"
+	$copies = @(
+		@{ Source = "emptyExample.vcxproj"; Target = "$ExampleName.vcxproj" },
+		@{ Source = "emptyExample.vcxproj.filters"; Target = "$ExampleName.vcxproj.filters" },
+		@{ Source = "emptyExample.vcxproj.user"; Target = "$ExampleName.vcxproj.user" },
+		@{ Source = "emptyExample.sln"; Target = "$ExampleName.sln" },
+		@{ Source = "icon.rc"; Target = "icon.rc" }
+	)
+	foreach ($copy in $copies) {
+		$source = Join-Path $templateRoot $copy.Source
+		$target = Join-Path $ExamplePath $copy.Target
+		if (!(Test-Path -LiteralPath $source -PathType Leaf)) {
+			continue
+		}
+		$text = Get-Content -LiteralPath $source -Raw
+		$text = $text.Replace("emptyExample", $ExampleName)
+		Set-Content -LiteralPath $target -Value $text -NoNewline
 	}
+	Write-Step "Initialized generated Visual Studio project metadata from openFrameworks template"
 }
 
 function Test-GeneratedAddonPath {
@@ -422,6 +437,17 @@ function Repair-VisualStudioProjectFile {
 		$changed = $true
 	}
 
+	foreach ($node in @($doc.SelectNodes("//msb:PostBuildEvent/msb:Command", $namespace))) {
+		if ($node.InnerText -match '\$\(ProjectDir\)dll\\([^\\]+)\\\*\.dll') {
+			$platformName = $matches[1]
+			$guardedCommand = "if exist `"`$(ProjectDir)dll\$platformName\*.dll`" xcopy /Y /E `"`$(ProjectDir)dll\$platformName\*.dll`" `"`$(TargetDir)`""
+			if ($node.InnerText -ne $guardedCommand) {
+				$node.InnerText = $guardedCommand
+				$changed = $true
+			}
+		}
+	}
+
 	if ($changed) {
 		$doc.Save($Path)
 		Write-Step "Updated generated project metadata in $(Split-Path -Leaf $Path)"
@@ -459,6 +485,12 @@ function Get-AddonDefines {
 
 function Get-AddonIncludeDirectories {
 	$includeDirs = New-Object System.Collections.Generic.List[string]
+	foreach ($path in @(
+		"..\src",
+		"..\..\ofxGgmlCore\src"
+	)) {
+		$includeDirs.Add($path)
+	}
 	if (Test-ExampleUsesAddon -ExampleDir $exampleDir -AddonName "ofxImGui") {
 		foreach ($path in @(
 			"..\..\ofxImGui\src",
