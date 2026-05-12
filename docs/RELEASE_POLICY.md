@@ -33,6 +33,7 @@ Each release note should include:
 
 - tested openFrameworks version
 - minimum `ofxGgmlCore` version or commit
+- `OFXGGML_LLAMA_VERSION_STRING`
 - llama.cpp revision used by `scripts/build-llama-server.*`
 - supported local backends tested for the runtime tools
 - validation command result

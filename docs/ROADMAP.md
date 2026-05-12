@@ -14,7 +14,8 @@
 - Add focused tests for release checklist command examples.
 - Decide whether release tags should be mirrored across Core and companion
   addons or remain per-addon.
+- Add version constants for public releases.
 
 ## Next Milestones
 
-- Add version constants or metadata once public releases start.
+- Add changelog/release-note template.

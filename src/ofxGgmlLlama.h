@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ofxGgmlLlamaVersion.h"
 #include "ofxGgmlText.h"
 #include "ofxGgmlEmbedding.h"
 #include "inference/ofxGgmlLlamaCliTextBackend.h"
