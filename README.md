@@ -2,10 +2,10 @@
 
 `ofxGgmlLlama` is the companion addon for llama.cpp workflows on top of
 `ofxGgmlCore`: local text generation, chat, embeddings, `llama-server`
-lifecycle scripts, and focused openFrameworks examples.
+lifecycle scripts, concrete llama adapters, and focused openFrameworks examples.
 
-`ofxGgmlCore` stays the dependency. This addon owns llama.cpp-specific tooling
-and examples so core can stay small and boring.
+`ofxGgmlCore` stays the dependency. This addon owns llama.cpp-specific adapters,
+tooling, and examples so core can stay small and boring.
 
 Family map: https://jonathhhan.github.io/ofxGgmlCore/
 
