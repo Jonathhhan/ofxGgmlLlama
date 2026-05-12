@@ -120,4 +120,6 @@ launch dry-runs, and headless C++ tests.
   project files are staged
 - `docs/MIGRATION.md` matches the current Core/Llama boundary
 - `docs/RELEASE_POLICY.md` matches the intended tag and compatibility policy
+- `docs/RELEASE_NOTES_TEMPLATE.md` has been copied into the release notes
+- `CHANGELOG.md` has an entry for the release
 - `README.md` first-run commands still match the scripts

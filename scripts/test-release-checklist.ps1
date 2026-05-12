@@ -48,4 +48,25 @@ foreach ($required in @(
 	}
 }
 
+Write-Step "Checking release checklist document references"
+foreach ($requiredDoc in @(
+	"CHANGELOG.md",
+	"docs\MIGRATION.md",
+	"docs\RELEASE_CHECKLIST.md",
+	"docs\RELEASE_NOTES_TEMPLATE.md",
+	"docs\RELEASE_POLICY.md")) {
+	$path = Join-Path $addonRoot $requiredDoc
+	if (!(Test-Path -LiteralPath $path -PathType Leaf)) {
+		throw "Required release document is missing: $requiredDoc"
+	}
+	if ($requiredDoc -eq "docs\RELEASE_CHECKLIST.md") {
+		continue
+	}
+	$markdownRef = $requiredDoc -replace "\\", "/"
+	if ($content -notlike "*$markdownRef*" -and
+		$content -notlike "*$requiredDoc*") {
+		throw "Release checklist does not reference required document: $requiredDoc"
+	}
+}
+
 Write-Step "Release checklist command coverage passed"

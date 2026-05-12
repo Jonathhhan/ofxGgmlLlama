@@ -61,6 +61,7 @@ Release smoke checks are listed in
 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 Tagging and compatibility policy is in
 [`docs/RELEASE_POLICY.md`](docs/RELEASE_POLICY.md).
+Release history is tracked in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Boundary
 

@@ -38,6 +38,9 @@ Each release note should include:
 - supported local backends tested for the runtime tools
 - validation command result
 
+Use `docs/RELEASE_NOTES_TEMPLATE.md` for the release body and keep
+`CHANGELOG.md` updated before tagging.
+
 ## Pre-Release Gate
 
 Before tagging:
@@ -45,4 +48,5 @@ Before tagging:
 1. Run `scripts\validate-local.bat` on Windows.
 2. Run `./scripts/validate-local.sh` on macOS or Linux when available.
 3. Complete `docs/RELEASE_CHECKLIST.md`.
-4. Confirm no generated artifacts or models are staged.
+4. Update `CHANGELOG.md`.
+5. Confirm no generated artifacts or models are staged.

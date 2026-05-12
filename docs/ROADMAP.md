@@ -15,7 +15,8 @@
 - Decide whether release tags should be mirrored across Core and companion
   addons or remain per-addon.
 - Add version constants for public releases.
+- Add changelog/release-note template.
 
 ## Next Milestones
 
-- Add changelog/release-note template.
+- Exercise one full release candidate pass before tagging.
