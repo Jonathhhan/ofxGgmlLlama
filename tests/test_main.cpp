@@ -3,6 +3,10 @@
 #include <iostream>
 #include <string>
 
+static_assert(sizeof(ofxGgmlLlamaCliTextBackend) > 0);
+static_assert(sizeof(ofxGgmlLlamaServerTextBackend) > 0);
+static_assert(sizeof(ofxGgmlLlamaServerEmbeddingBackend) > 0);
+
 int main() {
 	ofxGgmlTextRequest request;
 	request.prompt = "hello";
