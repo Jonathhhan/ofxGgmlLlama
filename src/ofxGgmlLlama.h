@@ -7,5 +7,4 @@
 #include "inference/ofxGgmlLlamaServerTextBackend.h"
 
 // Companion umbrella for llama.cpp text, chat, and embedding workflows.
-// Stable request/result APIs currently live in ofxGgmlCore; transitional
-// llama adapter headers are included explicitly until they move here.
+// Stable request/result APIs live in ofxGgmlCore; llama.cpp adapters live here.

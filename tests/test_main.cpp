@@ -1,26 +1,18 @@
-#include "ofxGgmlLlama.h"
+#include "test_harness.h"
 
+#include <exception>
 #include <iostream>
-#include <string>
-
-static_assert(sizeof(ofxGgmlLlamaCliTextBackend) > 0);
-static_assert(sizeof(ofxGgmlLlamaServerTextBackend) > 0);
-static_assert(sizeof(ofxGgmlLlamaServerEmbeddingBackend) > 0);
 
 int main() {
-	ofxGgmlTextRequest request;
-	request.prompt = "hello";
-	if (request.prompt != "hello") {
-		std::cerr << "text request was not writable\n";
-		return 1;
+	int failed = 0;
+	for (const auto & test : ofxGgmlTests()) {
+		try {
+			test.run();
+			std::cout << "[ok] " << test.name << "\n";
+		} catch (const std::exception & e) {
+			++failed;
+			std::cerr << "[fail] " << test.name << ": " << e.what() << "\n";
+		}
 	}
-
-	ofxGgmlEmbeddingRequest embedding;
-	embedding.input = "openFrameworks";
-	if (embedding.input.empty()) {
-		std::cerr << "embedding request was not writable\n";
-		return 1;
-	}
-
-	return 0;
+	return failed == 0 ? 0 : 1;
 }
