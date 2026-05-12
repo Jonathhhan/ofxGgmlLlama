@@ -18,8 +18,8 @@
 - Add changelog/release-note template.
 - Exercise one full release candidate pass before tagging.
 - Run the committed release candidate gate on a clean tracked working tree.
+- Prepare v1.0.1 release notes from `docs/RELEASE_NOTES_TEMPLATE.md`.
 
 ## Next Milestones
 
-- Prepare v1.0.1 release notes from `docs/RELEASE_NOTES_TEMPLATE.md`.
 - Tag v1.0.1 after the release notes are reviewed.

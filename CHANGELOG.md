@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- No changes yet.
+
+## v1.0.1 - 2026-05-12
+
 - Added independent `ofxGgmlLlama` version metadata.
 - Moved concrete llama.cpp adapters into `ofxGgmlLlama`.
 - Added migration, release checklist, and release policy docs.
