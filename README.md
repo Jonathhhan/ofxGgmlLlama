@@ -40,7 +40,8 @@ scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
 
 Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
-embedding server on `8081`.
+embedding server on `8081`. `run-example` starts the bundled server when needed
+and waits until it is ready before opening the example.
 
 ## Dependencies
 

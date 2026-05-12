@@ -226,15 +226,17 @@ if ($Detached) {
 		Write-Host "Command line saved in $LogDir"
 	}
 	if (!$NoHealthCheck -and $StartupTimeoutSeconds -gt 0) {
-		Write-Host "Checking llama-server health once..."
-		Start-Sleep -Milliseconds 500
-		$health = Test-LlamaServer $serverUrl
+		Write-Host "Waiting up to $StartupTimeoutSeconds seconds for llama-server readiness..."
+		$health = Wait-LlamaServer -ServerUrl $serverUrl -TimeoutSeconds $StartupTimeoutSeconds
 		if ($health.Ready) {
 			Write-Host "llama-server is ready at $serverUrl"
-		} elseif ($health.Reachable) {
-			Write-Warning "llama-server is reachable but still loading (HTTP $($health.StatusCode))."
 		} else {
-			Write-Warning "llama-server is still starting. Check $serverUrl/health in a moment."
+			$detail = if ($health.Reachable) {
+				"HTTP $($health.StatusCode) $($health.Message)"
+			} else {
+				$health.Message
+			}
+			throw "llama-server did not become ready at $serverUrl within $StartupTimeoutSeconds seconds. $detail"
 		}
 	}
 	Write-Output "OFXGGML_LLAMA_SERVER_PID=$($process.Id)"

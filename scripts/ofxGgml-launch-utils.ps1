@@ -181,6 +181,7 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$LogDir,
 		[string]$MissingModelWarning,
 		[string]$StartMessage,
+		[int]$StartupTimeoutSeconds = 120,
 		[switch]$NoAutoServer,
 		[switch]$Embeddings
 	)
@@ -200,6 +201,7 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		"-HostName", $endpoint.HostName,
 		"-Port", $endpoint.Port,
 		"-Detached",
+		"-StartupTimeoutSeconds", $StartupTimeoutSeconds,
 		"-LogDir", $LogDir
 	)
 	if ($Embeddings) {

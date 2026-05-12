@@ -99,6 +99,7 @@ Expected behavior:
 
 - text and chat start or connect to `llama-server` on `http://127.0.0.1:8080`
 - embeddings start or connect to embedding mode on `http://127.0.0.1:8081`
+- launcher waits for server readiness before opening the example
 - examples open with an editable UI and no missing-addon errors
 - cancel/streaming controls work for server-backed text and chat
 

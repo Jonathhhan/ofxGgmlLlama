@@ -278,7 +278,12 @@ void ofApp::runEmbeddingWorker() {
 		}
 		ofLogNotice("example-emb") << log.str();
 	} else {
-		ofLogError("example-emb") << "output error\n" << result.error;
+		std::string resultError = result.error;
+		if (resultError.find("llama-server is not reachable") != std::string::npos) {
+			resultError +=
+				"\nStart the embedding example with scripts\\run-example.bat embedding -Build -Model C:\\path\\to\\embedding-model.gguf.";
+		}
+		ofLogError("example-emb") << "output error\n" << resultError;
 	}
 
 	std::lock_guard<std::mutex> lock(stateMutex);
@@ -292,10 +297,15 @@ void ofApp::runEmbeddingWorker() {
 		status = "complete via " + result.backendName + " in " +
 			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
 	} else {
+		std::string resultError = result.error;
+		if (resultError.find("llama-server is not reachable") != std::string::npos) {
+			resultError +=
+				"\nStart the embedding example with scripts\\run-example.bat embedding -Build -Model C:\\path\\to\\embedding-model.gguf.";
+		}
 		embeddings.clear();
 		similarity = 0.0f;
 		hasSimilarity = false;
-		error = result.error;
+		error = resultError;
 		status = "embedding error";
 	}
 	running = false;

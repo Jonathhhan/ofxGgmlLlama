@@ -109,6 +109,7 @@ if ($isEmbedding) {
 		-LogDir (Join-Path $addonRoot "build\llama-embedding-server") `
 		-MissingModelWarning "No GGUF model found. Put an embedding GGUF under addons\models or pass -Model C:\path\to\embedding-model.gguf." `
 		-StartMessage "embedding llama-server is not responding; starting bundled server" `
+		-StartupTimeoutSeconds 180 `
 		-NoAutoServer:$NoAutoServer `
 		-Embeddings
 } else {
@@ -154,6 +155,7 @@ if ($isEmbedding) {
 				-LogDir (Join-Path $addonRoot "build\llama-server") `
 				-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
 				-StartMessage "llama-server is not responding; starting bundled server" `
+				-StartupTimeoutSeconds 120 `
 				-NoAutoServer:$NoAutoServer
 		}
 	} elseif (![string]::IsNullOrWhiteSpace($LlamaCli)) {
