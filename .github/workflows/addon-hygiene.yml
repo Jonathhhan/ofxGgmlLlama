@@ -6,25 +6,4 @@ on:
 
 jobs:
   hygiene:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Verify addon structure
-        run: |
-          test -f addon_config.mk
-          test -f README.md
-          test -d src
-          test -d scripts
-
-      - name: Reject artifacts
-        run: |
-          if find . \( -iname "*.gguf" -o -iname "*.dll" -o -iname "*.so" -o -iname "*.dylib" \) | grep -q .; then
-            echo "Forbidden artifact detected"
-            exit 1
-          fi
-
-      - name: Verify Codex guidance
-        run: |
-          test -f AGENTS.md
+    uses: Jonathhhan/ofxGgmlWorkflows/.github/workflows/addon-hygiene.yml@main
