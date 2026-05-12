@@ -54,4 +54,5 @@ private:
 	int selectedModelIndex = -1;
 	bool running = false;
 	bool scrollToBottom = true;
+	bool allowCliFallback = true;
 };

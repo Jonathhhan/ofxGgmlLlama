@@ -256,6 +256,12 @@ void ofApp::setup() {
 	const std::string backend = normalizeEnvPath(envValue("OFXGGML_TEXT_BACKEND"));
 	if (backend == "cli") {
 		settings.useServerBackend = false;
+		allowCliFallback = false;
+	} else if (backend == "server") {
+		settings.useServerBackend = true;
+		allowCliFallback = false;
+	} else {
+		allowCliFallback = true;
 	}
 	configureGenerator();
 
@@ -575,10 +581,12 @@ void ofApp::runChatWorker() {
 	std::string requestModelPath;
 	std::string systemPrompt;
 	std::vector<ofxGgmlTextMessage> messages;
+	bool allowCliFallbackSnapshot = false;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestSettings = settings;
 		requestModelPath = modelPath;
+		allowCliFallbackSnapshot = allowCliFallback;
 		systemPrompt = trimCopy(systemBuffer.data());
 		for (std::size_t i = 0; i < chat.size(); ++i) {
 			if (i == pendingAssistantIndex && chat[i].content.empty()) {
@@ -656,6 +664,29 @@ void ofApp::runChatWorker() {
 	}
 	ofLogNotice("ofxGgmlChatExample") << "prompt\n" << consolePrompt;
 	auto result = generator.generate(request, onTextChunk);
+	if (!result &&
+		requestSettings.useServerBackend &&
+		allowCliFallbackSnapshot &&
+		!requestSettings.executablePath.empty() &&
+		fileExists(requestSettings.executablePath) &&
+		!requestModelPath.empty() &&
+		fileExists(requestModelPath) &&
+		!cancelRequested) {
+		ofLogWarning("ofxGgmlChatExample")
+			<< "llama-server request failed; retrying with llama.cpp CLI\n"
+			<< result.error;
+		{
+			std::lock_guard<std::mutex> lock(stateMutex);
+			status = "server unavailable; retrying via llama.cpp CLI...";
+		}
+		auto cliSettings = requestSettings;
+		cliSettings.useServerBackend = false;
+		cliSettings.stream = false;
+		request.settings = cliSettings;
+		ofxGgmlTextGenerator fallbackGenerator;
+		fallbackGenerator.setBackend(std::make_shared<ofxGgmlLlamaCliTextBackend>());
+		result = fallbackGenerator.generate(request, cancelOnlyChunk);
+	}
 	if (result) {
 		ofLogNotice("ofxGgmlChatExample") << "output\n" << result.text;
 	} else {
