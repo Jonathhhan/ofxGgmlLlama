@@ -55,6 +55,9 @@ On macOS/Linux:
 ./scripts/validate-local.sh
 ```
 
+Release smoke checks are listed in
+[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
 ## Boundary
 
 Keep llama.cpp process management, server launch, prompt/chat/embedding
