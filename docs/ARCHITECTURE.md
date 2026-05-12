@@ -4,6 +4,11 @@
 the stable text and embedding request/result APIs and keeps process/server
 tooling out of core.
 
+During the first split, the transitional C++ adapter implementations still live
+in `ofxGgmlCore`, but this companion includes those adapter headers explicitly
+through `src/ofxGgmlLlama.h`. Generic Core headers must not be relied on to
+re-export llama-specific adapters.
+
 ## Dependency Direction
 
 ```text
@@ -21,6 +26,7 @@ No dependency should point from `ofxGgmlCore` back to `ofxGgmlLlama`.
 - text, chat, and embedding example apps
 - model discovery helpers for llama workflows
 - CLI fallback and server launch workflow documentation
+- the public companion umbrella that exposes transitional llama adapters
 
 ## Not Owned Here
 

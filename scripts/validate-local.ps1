@@ -23,6 +23,18 @@ function Assert-Path {
 	}
 }
 
+function Assert-FileContains {
+	param(
+		[string]$Path,
+		[string]$Pattern,
+		[string]$Label
+	)
+	$content = Get-Content -LiteralPath $Path -Raw
+	if ($content -notmatch $Pattern) {
+		throw "$Label did not contain expected pattern: $Pattern"
+	}
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Split-Path -Parent $scriptRoot
 $addonsRoot = Split-Path -Parent $addonRoot
@@ -32,6 +44,9 @@ Assert-Path (Join-Path $addonRoot "addon_config.mk") "addon config"
 Assert-Path (Join-Path $addonRoot "README.md") "README"
 Assert-Path (Join-Path $addonRoot "LICENSE") "license"
 Assert-Path (Join-Path $addonRoot "src\ofxGgmlLlama.h") "public header"
+Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaCliTextBackend.h" "public header"
+Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerTextBackend.h" "public header"
+Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerEmbeddingBackend.h" "public header"
 Assert-Path (Join-Path $addonRoot "tests\CMakeLists.txt") "test CMakeLists"
 Assert-Path (Join-Path $addonRoot "tests\test_main.cpp") "test source"
 
