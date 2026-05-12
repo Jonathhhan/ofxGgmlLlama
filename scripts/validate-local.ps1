@@ -73,6 +73,7 @@ foreach ($scriptName in @(
 	"run-chat-example.ps1",
 	"run-embedding-example.ps1",
 	"test-addon.ps1",
+	"test-launch-utils.ps1",
 	"test-launch-dry-run.ps1",
 	"test-artifact-hygiene.ps1")) {
 	Assert-Path (Join-Path $scriptRoot $scriptName) "$scriptName"
@@ -82,6 +83,12 @@ Write-Step "Checking generated artifact hygiene"
 & (Join-Path $scriptRoot "test-artifact-hygiene.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Artifact hygiene failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking launch utility helpers"
+& (Join-Path $scriptRoot "test-launch-utils.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Launch utility helper tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking launch dry-runs"
