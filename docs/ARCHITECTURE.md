@@ -1,13 +1,12 @@
 # Architecture
 
-`ofxGgmlLlama` owns llama.cpp-specific workflow code. It uses `ofxGgmlCore` for
-the stable text and embedding request/result APIs and keeps process/server
-tooling out of core.
+`ofxGgmlLlama` owns llama.cpp-specific workflow code and concrete adapter
+implementations. It uses `ofxGgmlCore` for the stable text and embedding
+request/result APIs and keeps process/server tooling out of core.
 
-During the first split, the transitional C++ adapter implementations still live
-in `ofxGgmlCore`, but this companion includes those adapter headers explicitly
-through `src/ofxGgmlLlama.h`. Generic Core headers must not be relied on to
-re-export llama-specific adapters.
+Apps that need llama.cpp backends should include `ofxGgmlLlama.h` and depend on
+both `ofxGgmlCore` and `ofxGgmlLlama`. Generic Core headers do not re-export
+llama-specific adapters.
 
 ## Dependency Direction
 
@@ -26,7 +25,8 @@ No dependency should point from `ofxGgmlCore` back to `ofxGgmlLlama`.
 - text, chat, and embedding example apps
 - model discovery helpers for llama workflows
 - CLI fallback and server launch workflow documentation
-- the public companion umbrella that exposes transitional llama adapters
+- llama CLI, server text, and server embedding adapters
+- the public companion umbrella that exposes llama adapters
 
 ## Not Owned Here
 

@@ -61,3 +61,6 @@ Keep llama.cpp process management, server launch, prompt/chat/embedding
 examples, and llama-specific user workflow here. Move code down into
 `ofxGgmlCore` only when it becomes a stable, domain-neutral primitive with
 focused tests.
+
+Projects migrating from the earlier Core-hosted llama adapters should follow
+[`docs/MIGRATION.md`](docs/MIGRATION.md).
