@@ -140,6 +140,7 @@ if ($Embeddings -and !$PSBoundParameters.ContainsKey("Port")) {
 }
 
 $serverUrl = Get-ServerUrl $HostName $Port
+$serverUrlEnvName = if ($Embeddings) { "OFXGGML_EMBEDDING_SERVER_URL" } else { "OFXGGML_TEXT_SERVER_URL" }
 if (!$NoHealthCheck -and !$DryRun) {
 	$existing = Test-LlamaServer $serverUrl
 	if ($existing.Reachable -and !$ForceNew) {
@@ -151,7 +152,7 @@ if (!$NoHealthCheck -and !$DryRun) {
 		}
 		Write-Host ""
 		Write-Host "Reusing the existing server. Pass -ForceNew to start another process anyway."
-		Write-Host "Use OFXGGML_TEXT_SERVER_URL=$serverUrl"
+		Write-Host "Use $serverUrlEnvName=$serverUrl"
 		return
 	}
 }
@@ -221,7 +222,7 @@ if ($Detached) {
 	}
 	Write-Host ""
 	Write-Host "llama-server started in the background (PID $($process.Id))."
-	Write-Host "Use OFXGGML_TEXT_SERVER_URL=$serverUrl"
+	Write-Host "Use $serverUrlEnvName=$serverUrl"
 	if (![string]::IsNullOrWhiteSpace($LogDir)) {
 		Write-Host "Command line saved in $LogDir"
 	}
@@ -243,6 +244,6 @@ if ($Detached) {
 } else {
 	Write-Host ""
 	Write-Host "llama-server is running in this console. Press Ctrl+C to stop it."
-	Write-Host "Use OFXGGML_TEXT_SERVER_URL=$serverUrl"
+	Write-Host "Use $serverUrlEnvName=$serverUrl"
 	& $ServerExe @arguments
 }
