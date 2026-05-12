@@ -30,3 +30,18 @@ Direct adapter includes are still available from this addon when needed:
 Generic request/result types remain in `ofxGgmlCore`, so code that only uses
 `ofxGgmlTextRequest`, `ofxGgmlTextResult`, `ofxGgmlEmbeddingRequest`, or
 `ofxGgmlEmbeddingResult` can continue to include Core headers only.
+
+## Example Folder Rename
+
+The example project folders were renamed for openFrameworks Project Generator
+compatibility on Windows:
+
+```text
+ofxGgmlTextExample      -> example-text
+ofxGgmlChatExample      -> example-chat
+ofxGgmlEmbeddingExample -> example-emb
+```
+
+Update any local shortcuts, `.sln` paths, and scripts that referenced the old
+example folder names. Generated Visual Studio files can be recreated with the
+Project Generator or the addon build scripts.

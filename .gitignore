@@ -29,6 +29,15 @@ ofxGgml*Example/*.vcxproj.filters
 ofxGgml*Example/*.vcxproj.user
 ofxGgml*Example/config.make
 ofxGgml*Example/icon.rc
+example-*/bin/
+example-*/obj/
+example-*/.vs/
+example-*/*.sln
+example-*/*.vcxproj
+example-*/*.vcxproj.filters
+example-*/*.vcxproj.user
+example-*/config.make
+example-*/icon.rc
 
 models/
 data/models/

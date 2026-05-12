@@ -255,7 +255,7 @@ void ofApp::runEmbeddingWorker() {
 	request.inputs = { requestInputA, requestInputB };
 	request.settings = requestSettings;
 
-	ofLogNotice("ofxGgmlEmbeddingExample")
+	ofLogNotice("example-emb")
 		<< "input A\n" << requestInputA
 		<< "\ninput B\n" << requestInputB;
 
@@ -276,9 +276,9 @@ void ofApp::runEmbeddingWorker() {
 					result.embeddings[1])
 				<< "\n";
 		}
-		ofLogNotice("ofxGgmlEmbeddingExample") << log.str();
+		ofLogNotice("example-emb") << log.str();
 	} else {
-		ofLogError("ofxGgmlEmbeddingExample") << "output error\n" << result.error;
+		ofLogError("example-emb") << "output error\n" << result.error;
 	}
 
 	std::lock_guard<std::mutex> lock(stateMutex);

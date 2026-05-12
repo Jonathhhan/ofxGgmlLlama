@@ -151,7 +151,7 @@ Assert-Contains $textOutput "Using server model: dry-text-model" "Text dry-run"
 Assert-Contains $textOutput "Using text model: $modelPath" "Text dry-run"
 Assert-Contains $textOutput "Executable:" "Text dry-run"
 Assert-Contains $textOutput "Auto server: off" "Text dry-run"
-Assert-NotContains $textOutput "Starting ofxGgmlTextExample" "Text dry-run"
+Assert-NotContains $textOutput "Starting example-text" "Text dry-run"
 
 $textCliOutput = Invoke-DryRun `
 	-Label "Text example CLI dry-run" `
@@ -169,7 +169,7 @@ Assert-Contains $textCliOutput "Using text model: $modelPath" "Text CLI dry-run"
 Assert-Contains $textCliOutput "Executable:" "Text CLI dry-run"
 Assert-Contains $textCliOutput "Auto server: off" "Text CLI dry-run"
 Assert-NotContains $textCliOutput "Using llama-server:" "Text CLI dry-run"
-Assert-NotContains $textCliOutput "Starting ofxGgmlTextExample" "Text CLI dry-run"
+Assert-NotContains $textCliOutput "Starting example-text" "Text CLI dry-run"
 
 $chatOutput = Invoke-DryRun `
 	-Label "Chat example dry-run" `
@@ -188,7 +188,7 @@ Assert-Contains $chatOutput "Using server model: dry-chat-model" "Chat dry-run"
 Assert-Contains $chatOutput "Using text model: $modelPath" "Chat dry-run"
 Assert-Contains $chatOutput "Executable:" "Chat dry-run"
 Assert-Contains $chatOutput "Auto server: off" "Chat dry-run"
-Assert-NotContains $chatOutput "Starting ofxGgmlChatExample" "Chat dry-run"
+Assert-NotContains $chatOutput "Starting example-chat" "Chat dry-run"
 
 $chatCliOutput = Invoke-DryRun `
 	-Label "Chat example CLI dry-run" `
@@ -206,7 +206,7 @@ Assert-Contains $chatCliOutput "Using text model: $modelPath" "Chat CLI dry-run"
 Assert-Contains $chatCliOutput "Executable:" "Chat CLI dry-run"
 Assert-Contains $chatCliOutput "Auto server: off" "Chat CLI dry-run"
 Assert-NotContains $chatCliOutput "Using llama-server:" "Chat CLI dry-run"
-Assert-NotContains $chatCliOutput "Starting ofxGgmlChatExample" "Chat CLI dry-run"
+Assert-NotContains $chatCliOutput "Starting example-chat" "Chat CLI dry-run"
 
 $embeddingOutput = Invoke-DryRun `
 	-Label "Embedding example dry-run" `
@@ -225,7 +225,7 @@ Assert-Contains $embeddingOutput "Using server model: dry-embedding-model" "Embe
 Assert-Contains $embeddingOutput "Using embedding model: $modelPath" "Embedding dry-run"
 Assert-Contains $embeddingOutput "Executable:" "Embedding dry-run"
 Assert-Contains $embeddingOutput "Auto server: off" "Embedding dry-run"
-Assert-NotContains $embeddingOutput "Starting ofxGgmlEmbeddingExample" "Embedding dry-run"
+Assert-NotContains $embeddingOutput "Starting example-emb" "Embedding dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `

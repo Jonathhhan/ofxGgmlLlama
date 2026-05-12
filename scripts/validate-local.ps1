@@ -59,7 +59,7 @@ Write-Step "Checking dependency layout"
 Assert-Path (Join-Path $addonsRoot "ofxGgmlCore") "sibling ofxGgmlCore addon" -Directory
 
 Write-Step "Checking example layout"
-foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample")) {
+foreach ($example in @("example-text", "example-chat", "example-emb")) {
 	$exampleRoot = Join-Path $addonRoot $example
 	Assert-Path $exampleRoot "$example root" -Directory
 	Assert-Path (Join-Path $exampleRoot "addons.make") "$example addons.make"

@@ -44,7 +44,7 @@ function Assert-GuardedPostBuild {
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$examples = @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample")
+$examples = @("example-text", "example-chat", "example-emb")
 
 foreach ($example in $examples) {
 	Write-Step "Repairing $example generated metadata"
@@ -53,8 +53,8 @@ foreach ($example in $examples) {
 		-Configuration $Configuration `
 		-Platform $Platform `
 		-RepairOnly
-	if ($LASTEXITCODE -ne 0) {
-		throw "$example project repair failed with exit code $LASTEXITCODE"
+	if (!$?) {
+		throw "$example project repair failed"
 	}
 	$project = Join-Path $addonRoot "$example\$example.vcxproj"
 	Assert-IncludeDirectory -Project $project -IncludeDirectory "..\src"

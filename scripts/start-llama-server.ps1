@@ -114,11 +114,11 @@ if ([string]::IsNullOrWhiteSpace($ModelPath) -and $Embeddings -and $env:OFXGGML_
 }
 
 if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-	$primaryExample = if ($Embeddings) { "ofxGgmlEmbeddingExample" } else { "ofxGgmlTextExample" }
+	$primaryExample = if ($Embeddings) { "example-emb" } else { "example-text" }
 	$extraExamples = if ($Embeddings) {
-		@("ofxGgmlTextExample", "ofxGgmlChatExample")
+		@("example-text", "example-chat")
 	} else {
-		@("ofxGgmlChatExample")
+		@("example-chat")
 	}
 	$ModelPath = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 		-AddonRoot $addonRoot `

@@ -234,12 +234,12 @@ std::string discoverTextModel() {
 			"data/models",
 			"models",
 			"../models",
-			"ofxGgmlChatExample/bin/data",
-			"ofxGgmlChatExample/bin/data/models",
-			"ofxGgmlChatExample/models",
-			"ofxGgmlTextExample/bin/data",
-			"ofxGgmlTextExample/bin/data/models",
-			"ofxGgmlTextExample/models"
+			"example-chat/bin/data",
+			"example-chat/bin/data/models",
+			"example-chat/models",
+			"example-text/bin/data",
+			"example-text/bin/data/models",
+			"example-text/models"
 		},
 		".gguf");
 	return models.empty() ? std::string() : models.front();
@@ -373,12 +373,12 @@ std::vector<std::string> discoverTextModels() {
 			"data/models",
 			"models",
 			"../models",
-			"ofxGgmlChatExample/bin/data",
-			"ofxGgmlChatExample/bin/data/models",
-			"ofxGgmlChatExample/models",
-			"ofxGgmlTextExample/bin/data",
-			"ofxGgmlTextExample/bin/data/models",
-			"ofxGgmlTextExample/models"
+			"example-chat/bin/data",
+			"example-chat/bin/data/models",
+			"example-chat/models",
+			"example-text/bin/data",
+			"example-text/bin/data/models",
+			"example-text/models"
 		},
 		".gguf");
 }
@@ -763,7 +763,7 @@ void ofApp::runChatWorker() {
 					std::lock_guard<std::mutex> lock(stateMutex);
 					status = "starting bundled llama-server...";
 				}
-				ofLogNotice("ofxGgmlChatExample")
+				ofLogNotice("example-chat")
 					<< "starting llama-server\n"
 					<< "exe: " << serverExe << "\n"
 					<< "model: " << requestModelPath << "\n"
@@ -846,7 +846,7 @@ void ofApp::runChatWorker() {
 			break;
 		}
 	}
-	ofLogNotice("ofxGgmlChatExample") << "prompt\n" << consolePrompt;
+	ofLogNotice("example-chat") << "prompt\n" << consolePrompt;
 	auto result = generator.generate(request, onTextChunk);
 	if (!result &&
 		requestSettings.useServerBackend &&
@@ -856,7 +856,7 @@ void ofApp::runChatWorker() {
 		!requestModelPath.empty() &&
 		fileExists(requestModelPath) &&
 		!cancelRequested) {
-		ofLogWarning("ofxGgmlChatExample")
+		ofLogWarning("example-chat")
 			<< "llama-server request failed; retrying with llama.cpp CLI\n"
 			<< result.error;
 		{
@@ -872,9 +872,9 @@ void ofApp::runChatWorker() {
 		result = fallbackGenerator.generate(request, cancelOnlyChunk);
 	}
 	if (result) {
-		ofLogNotice("ofxGgmlChatExample") << "output\n" << result.text;
+		ofLogNotice("example-chat") << "output\n" << result.text;
 	} else {
-		ofLogError("ofxGgmlChatExample") << "output error\n" << result.error;
+		ofLogError("example-chat") << "output error\n" << result.error;
 	}
 
 	std::lock_guard<std::mutex> lock(stateMutex);

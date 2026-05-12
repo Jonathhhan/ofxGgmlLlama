@@ -1,7 +1,7 @@
 param(
 	[string]$Configuration = "Release",
 	[string]$Platform = "x64",
-	[string]$Example = "ofxGgmlSimpleExample",
+	[string]$Example = "example-text",
 	[switch]$Clean,
 	[switch]$RepairOnly
 )
@@ -243,9 +243,14 @@ function Add-VisualStudioProjectItem {
 		[string]$Include,
 		[string]$Filter = ""
 	)
-	$existing = $Doc.SelectSingleNode("//msb:$Tag[@Include='$Include']", $Namespace)
-	if ($existing) {
-		return $false
+	$normalizedInclude = ($Include -replace "/", "\")
+	$existingNodes = @($Doc.SelectNodes("//msb:$Tag[@Include]", $Namespace))
+	foreach ($existing in $existingNodes) {
+		if (([string]$existing.Include -replace "/", "\").Equals(
+			$normalizedInclude,
+			[System.StringComparison]::OrdinalIgnoreCase)) {
+			return $false
+		}
 	}
 	$itemGroup = Get-FirstItemGroup -Doc $Doc -Namespace $Namespace -PreferredTag $Tag
 	if (!$itemGroup) {
@@ -366,13 +371,17 @@ function Repair-VisualStudioProjectFile {
 
 	foreach ($tag in @("ClCompile", "ClInclude", "None", "CustomBuild", "CudaCompile", "Filter")) {
 		$nodes = @($doc.SelectNodes("//msb:$tag[@Include]", $namespace))
+		$seenIncludes = @{}
 		foreach ($node in $nodes) {
-			$extension = [System.IO.Path]::GetExtension(($node.Include -replace "/", "\"))
-			$headerCompiledAsSource =
-				$tag -eq "ClCompile" -and $extension -in @(".h", ".hpp")
-			if ((Test-GeneratedAddonPath $node.Include) -or $headerCompiledAsSource) {
+			$normalizedInclude = ([string]$node.Include -replace "/", "\")
+			$extension = [System.IO.Path]::GetExtension($normalizedInclude)
+			$headerCompiledAsSource = $tag -eq "ClCompile" -and $extension -in @(".h", ".hpp")
+			$duplicateInclude = $seenIncludes.ContainsKey($normalizedInclude.ToLowerInvariant())
+			if ((Test-GeneratedAddonPath $node.Include) -or $headerCompiledAsSource -or $duplicateInclude) {
 				[void]$node.ParentNode.RemoveChild($node)
 				$changed = $true
+			} else {
+				$seenIncludes[$normalizedInclude.ToLowerInvariant()] = $true
 			}
 		}
 	}

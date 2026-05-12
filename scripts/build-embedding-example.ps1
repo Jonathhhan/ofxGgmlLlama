@@ -13,12 +13,12 @@ if ($Clean) {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example "ofxGgmlEmbeddingExample" `
+		-Example "example-emb" `
 		-Clean
 } else {
 	& $buildScript `
 		-Configuration $Configuration `
 		-Platform $Platform `
-		-Example "ofxGgmlEmbeddingExample"
+		-Example "example-emb"
 }
 exit $LASTEXITCODE

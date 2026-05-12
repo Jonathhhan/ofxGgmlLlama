@@ -15,8 +15,8 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Split-Path -Parent $scriptRoot
-$exampleRoot = Join-Path $addonRoot "ofxGgmlChatExample"
-$exampleExe = Join-Path $exampleRoot "bin\ofxGgmlChatExample.exe"
+$exampleRoot = Join-Path $addonRoot "example-chat"
+$exampleExe = Join-Path $exampleRoot "bin\example-chat.exe"
 . (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 if ($env:OFXGGML_LAUNCH_DRY_RUN_ONLY -eq "1") {
@@ -102,6 +102,6 @@ if ($DryRun) {
 	return
 }
 
-Write-OfxGgmlStep "Starting ofxGgmlChatExample"
+Write-OfxGgmlStep "Starting example-chat"
 & $exampleExe
 exit $LASTEXITCODE

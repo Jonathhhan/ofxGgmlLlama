@@ -27,9 +27,9 @@ function Get-TargetProcesses {
 	$names = @("llama-server")
 	if ($IncludeExamples) {
 		$names += @(
-			"ofxGgmlTextExample",
-			"ofxGgmlChatExample",
-			"ofxGgmlEmbeddingExample"
+			"example-text",
+			"example-chat",
+			"example-emb"
 		)
 	}
 

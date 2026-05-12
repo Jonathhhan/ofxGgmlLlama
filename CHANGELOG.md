@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- No changes yet.
+- Renamed examples to Project Generator-safe folders: `example-text`,
+  `example-chat`, and `example-emb`.
+- Made addon source lists explicit so generated Visual Studio projects do not
+  pull CMake build-cache sources from dependency folders.
 
 ## v1.0.1 - 2026-05-12
 

@@ -83,8 +83,8 @@ try {
 		"libs/llama.cpp/build/CMakeCache.txt",
 		"libs/llama/bin/llama-server.exe",
 		"models/model.gguf",
-		"ofxGgmlTextExample/ofxGgmlTextExample.vcxproj",
-		"ofxGgmlTextExample/bin/ofxGgmlTextExample.exe"
+		"example-text/example-text.vcxproj",
+		"example-text/bin/example-text.exe"
 	)
 } finally {
 	Pop-Location

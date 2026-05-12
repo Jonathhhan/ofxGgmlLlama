@@ -232,9 +232,9 @@ std::string discoverTextModel() {
 			"data",
 			"data/models",
 			"models",
-			"ofxGgmlTextExample/bin/data",
-			"ofxGgmlTextExample/bin/data/models",
-			"ofxGgmlTextExample/models"
+			"example-text/bin/data",
+			"example-text/bin/data/models",
+			"example-text/models"
 		},
 		".gguf");
 	return models.empty() ? std::string() : models.front();
@@ -249,12 +249,12 @@ std::vector<std::string> discoverTextModels() {
 			"data/models",
 			"models",
 			"../models",
-			"ofxGgmlTextExample/bin/data",
-			"ofxGgmlTextExample/bin/data/models",
-			"ofxGgmlTextExample/models",
-			"ofxGgmlChatExample/bin/data",
-			"ofxGgmlChatExample/bin/data/models",
-			"ofxGgmlChatExample/models"
+			"example-text/bin/data",
+			"example-text/bin/data/models",
+			"example-text/models",
+			"example-chat/bin/data",
+			"example-chat/bin/data/models",
+			"example-chat/models"
 		},
 		".gguf");
 }
@@ -608,12 +608,12 @@ void ofApp::runPromptWorker() {
 		onTextChunk = cancelOnlyChunk;
 	}
 
-	ofLogNotice("ofxGgmlTextExample") << "prompt\n" << request.prompt;
+	ofLogNotice("example-text") << "prompt\n" << request.prompt;
 	auto result = generator.generate(request, onTextChunk);
 	if (result) {
-		ofLogNotice("ofxGgmlTextExample") << "output\n" << result.text;
+		ofLogNotice("example-text") << "output\n" << result.text;
 	} else {
-		ofLogError("ofxGgmlTextExample") << "output error\n" << result.error;
+		ofLogError("example-text") << "output error\n" << result.error;
 	}
 
 	std::lock_guard<std::mutex> lock(stateMutex);

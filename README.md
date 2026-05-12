@@ -15,9 +15,13 @@ Family map: https://jonathhhan.github.io/ofxGgmlCore/
 
 | Example | Use it for | Server |
 | --- | --- | --- |
-| `ofxGgmlTextExample` | One editable prompt and one streamed response. | `8080` |
-| `ofxGgmlChatExample` | Interactive chat with history and sampling controls. | `8080` |
-| `ofxGgmlEmbeddingExample` | Compare two texts with cosine similarity. | `8081` |
+| `example-text` | One editable prompt and one streamed response. | `8080` |
+| `example-chat` | Interactive chat with history and sampling controls. | `8080` |
+| `example-emb` | Compare two texts with cosine similarity. | `8081` |
+
+The example folders intentionally use short names. openFrameworks Project
+Generator `0.104.0` crashes in this Windows setup with longer example project
+names and with the old `ofx*Example` folder pattern.
 
 ## First Run
 

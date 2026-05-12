@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Split-Path -Parent $scriptRoot
 $ofRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
-$exampleName = "ofxGgmlChatExample"
+$exampleName = "example-chat"
 $exampleDir = Join-Path $addonRoot $exampleName
 $buildScript = Join-Path $scriptRoot "build-simple-example.ps1"
 
