@@ -71,11 +71,13 @@ foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbed
 foreach ($scriptName in @(
 	"build-example.ps1",
 	"build-llama-server.ps1",
+	"doctor-llama.ps1",
 	"start-llama-server.ps1",
 	"stop-llama-server.ps1",
 	"status-llama-server.ps1",
 	"list-models.ps1",
 	"run-example.ps1",
+	"test-doctor-llama.ps1",
 	"dev\release-candidate.ps1",
 	"dev\test-addon.ps1",
 	"dev\test-launch-utils.ps1",
@@ -113,6 +115,12 @@ Write-Step "Checking launch dry-runs"
 & (Join-Path $scriptRoot "dev\test-launch-dry-run.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch dry-runs failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking Llama doctor"
+& (Join-Path $scriptRoot "test-doctor-llama.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Llama doctor smoke test failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Running headless tests"

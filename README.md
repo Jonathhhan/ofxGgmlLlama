@@ -53,12 +53,14 @@ and waits until it is ready before opening the example.
 ## Validate
 
 ```powershell
+scripts\doctor-llama.bat
 scripts\validate-local.bat
 ```
 
 On macOS/Linux:
 
 ```sh
+./scripts/doctor-llama.sh
 ./scripts/validate-local.sh
 ```
 
@@ -77,6 +79,7 @@ The public script surface is intentionally small:
 scripts/build-example.*
 scripts/run-example.*
 scripts/build-llama-server.*
+scripts/doctor-llama.*
 scripts/start-llama-server.*
 scripts/stop-llama-server.*
 scripts/status-llama-server.*
