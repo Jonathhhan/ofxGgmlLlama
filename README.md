@@ -38,6 +38,9 @@ scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
 ```
 
+Embedding mode prefers embedding-oriented GGUF filenames (for example bge/e5/nomic/jina/embedding).
+If no embedding model is found, it falls back to the first available GGUF and prints a warning.
+
 Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
 embedding server on `8081`. `run-example` starts the bundled server when needed

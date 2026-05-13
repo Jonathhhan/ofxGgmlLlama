@@ -74,10 +74,17 @@ if ($isEmbedding) {
 		$Model = if ($env:OFXGGML_EMBEDDING_MODEL) { $env:OFXGGML_EMBEDDING_MODEL } elseif ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
 	}
 	if ([string]::IsNullOrWhiteSpace($Model)) {
-		$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
+		$searchDirs = Get-OfxGgmlModelSearchDirectories `
 			-AddonRoot $addonRoot `
 			-ExampleRoot $exampleRoot `
-			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
+			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample")
+		$Model = Find-OfxGgmlFirstModelByRole $searchDirs @("embedding")
+		if ([string]::IsNullOrWhiteSpace($Model)) {
+			$Model = Find-OfxGgmlFirstModel $searchDirs
+			if (![string]::IsNullOrWhiteSpace($Model)) {
+				Write-Warning "No embedding-focused GGUF found. Falling back to first GGUF: $Model. Prefer naming with bge/e5/nomic/jina/embedding."
+			}
+		}
 	}
 
 	$env:OFXGGML_EMBEDDING_SERVER_URL = $ServerUrl

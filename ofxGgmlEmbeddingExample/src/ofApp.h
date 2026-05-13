@@ -43,4 +43,5 @@ private:
 	std::thread worker;
 	std::mutex stateMutex;
 	bool running = false;
+	bool embeddingModelWarningLogged = false;
 };
