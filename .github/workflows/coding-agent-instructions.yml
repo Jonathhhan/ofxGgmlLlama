@@ -1,0 +1,12 @@
+name: coding-agent-instructions
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  coding-agent-instructions:
+    uses: Jonathhhan/ofxGgmlWorkflows/.github/workflows/coding-agent-instructions.yml@main
+    with:
+      require_addon_config: true
+      require_scripts: true
