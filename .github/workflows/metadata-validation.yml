@@ -1,0 +1,11 @@
+name: metadata-validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ofxggml-addon.json
+
+jobs:
+  metadata-validation:
+    uses: Jonathhhan/ofxGgmlWorkflows/.github/workflows/metadata-validation.yml@main
