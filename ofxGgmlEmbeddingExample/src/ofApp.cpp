@@ -54,20 +54,6 @@ bool fileExists(const std::string & path) {
 	return !path.empty() && ofFile::doesFileExist(path, false);
 }
 
-bool isLikelyEmbeddingModel(const std::string & modelPath) {
-	std::string lowerName = std::filesystem::path(modelPath).filename().string();
-	for (char & value : lowerName) {
-		value = static_cast<char>(std::tolower(static_cast<unsigned char>(value)));
-	}
-	const std::string & modelLower = lowerName;
-	return modelLower.find("embed") != std::string::npos ||
-		modelLower.find("bge") != std::string::npos ||
-		modelLower.find("e5") != std::string::npos ||
-		modelLower.find("gte") != std::string::npos ||
-		modelLower.find("nomic") != std::string::npos ||
-		modelLower.find("jina") != std::string::npos;
-}
-
 std::filesystem::path executableDirectory() {
 #if defined(_WIN32)
 	std::wstring buffer(MAX_PATH, L'\0');
@@ -225,11 +211,6 @@ std::string discoverEmbeddingModel() {
 			"ofxGgmlChatExample/models"
 		},
 		".gguf");
-	for (const auto & model : models) {
-		if (isLikelyEmbeddingModel(model)) {
-			return model;
-		}
-	}
 	return models.empty() ? std::string() : models.front();
 }
 
@@ -369,14 +350,6 @@ void ofApp::setup() {
 	if (modelPath.empty()) {
 		modelPath = discoverEmbeddingModel();
 	}
-	if (!modelPath.empty() && !isLikelyEmbeddingModel(modelPath)) {
-		status = "Using fallback GGUF (non-embedding-style name). Prefer bge/e5/nomic/jina or pass -Model.";
-		ofLogWarning("example-emb")
-			<< "Using fallback GGUF model for embeddings: " << modelPath
-			<< "\nPrefer embedding-style filenames (bge/e5/gte/nomic/jina/embedding) "
-			<< "or pass OFXGGML_EMBEDDING_MODEL.";
-		embeddingModelWarningLogged = true;
-	}
 	configureGenerator();
 
 	inputA = "openFrameworks local inference";
@@ -388,13 +361,6 @@ void ofApp::setup() {
 
 	std::lock_guard<std::mutex> lock(stateMutex);
 	status = "ready";
-	if (!modelPath.empty() && !isLikelyEmbeddingModel(modelPath)) {
-		status = "ready (fallback: non-embedding model name)";
-	}
-	ofLogNotice("example-emb")
-		<< "setup complete | backend: llama-server | url: " << settings.serverUrl
-		<< " | server model: " << (settings.serverModel.empty() ? "(auto)" : settings.serverModel)
-		<< " | model: " << (modelPath.empty() ? "(unset)" : modelPath);
 }
 
 void ofApp::draw() {
@@ -467,7 +433,6 @@ void ofApp::draw() {
 			if (ImGui::InputText("Local model path", &modelPathEdit)) {
 				std::lock_guard<std::mutex> lock(stateMutex);
 				modelPath = normalizeEnvText(modelPathEdit);
-				embeddingModelWarningLogged = false;
 			}
 			if (runningSnapshot) {
 				ImGui::EndDisabled();
@@ -592,13 +557,8 @@ void ofApp::runEmbeddingWorker() {
 		requestInputB = inputB;
 		requestModelPath = modelPath;
 	}
-	ofLogNotice("example-emb")
-		<< "embedding request starting | server: " << requestSettings.serverUrl
-		<< " | server model: " << (requestSettings.serverModel.empty() ? "(auto)" : requestSettings.serverModel)
-		<< " | model: " << (requestModelPath.empty() ? "(unset)" : requestModelPath);
 
 	if (requestSettings.serverUrl.empty()) {
-		ofLogError("example-emb") << "No embedding server URL configured.";
 		std::lock_guard<std::mutex> lock(stateMutex);
 		status = "embedding error";
 		error = "No embedding server URL configured.";
@@ -608,17 +568,7 @@ void ofApp::runEmbeddingWorker() {
 
 	if (isLocalServerUrl(requestSettings.serverUrl) &&
 		!isLlamaServerReady(requestSettings.serverUrl)) {
-		if (!requestModelPath.empty() && !isLikelyEmbeddingModel(requestModelPath) && !embeddingModelWarningLogged) {
-			ofLogWarning("example-emb")
-				<< "Using fallback GGUF model for embeddings: " << requestModelPath
-				<< "\nPrefer embedding-style filenames (bge/e5/gte/nomic/jina/embedding) "
-				<< "or pass OFXGGML_EMBEDDING_MODEL.";
-			embeddingModelWarningLogged = true;
-		}
 		if (requestModelPath.empty() || !fileExists(requestModelPath)) {
-			ofLogError("example-emb")
-				<< "No usable local GGUF model for local server startup: "
-				<< (requestModelPath.empty() ? "(empty)" : requestModelPath);
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "No GGUF model found for the local embedding server. Set OFXGGML_EMBEDDING_MODEL or place one under addons\\models.";
@@ -627,7 +577,6 @@ void ofApp::runEmbeddingWorker() {
 		}
 		const std::string serverExe = discoverLlamaServer();
 		if (serverExe.empty()) {
-			ofLogError("example-emb") << "No bundled llama-server executable found for embedding fallback.";
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "No bundled llama-server found. Run scripts\\build-llama-server.bat first.";
@@ -647,10 +596,6 @@ void ofApp::runEmbeddingWorker() {
 			serverExe,
 			requestModelPath,
 			requestSettings.serverUrl)) {
-			ofLogError("example-emb")
-				<< "Failed to start bundled llama-server. exe: " << serverExe
-				<< " model: " << requestModelPath
-				<< " url: " << requestSettings.serverUrl;
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "Failed to start bundled embedding llama-server.";
@@ -662,15 +607,12 @@ void ofApp::runEmbeddingWorker() {
 			status = "waiting for embedding server...";
 		}
 		if (!waitForLlamaServerReady(requestSettings.serverUrl, 180)) {
-			ofLogError("example-emb")
-				<< "Embedding llama-server readiness check timed out at " << requestSettings.serverUrl;
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "Embedding llama-server did not become ready at " + requestSettings.serverUrl + ".";
 			running = false;
 			return;
 		}
-		ofLogNotice("example-emb") << "Embedding llama-server ready at " << requestSettings.serverUrl;
 	}
 
 	ofxGgmlEmbeddingRequest request;
@@ -705,7 +647,7 @@ void ofApp::runEmbeddingWorker() {
 			resultError +=
 				"\nStart the embedding example with scripts\\run-example.bat embedding -Build -Model C:\\path\\to\\embedding-model.gguf.";
 		}
-		ofLogError("example-emb") << "output error (" << requestModelPath << ")\n" << resultError;
+		ofLogError("example-emb") << "output error\n" << resultError;
 	}
 
 	std::lock_guard<std::mutex> lock(stateMutex);
@@ -730,19 +672,12 @@ void ofApp::runEmbeddingWorker() {
 		error = resultError;
 		status = "embedding error";
 	}
-	ofLogNotice("example-emb")
-		<< "embedding result | backend: " << result.backendName
-		<< " | elapsed: " << (result ? result.elapsedMs : 0.0f) << " ms"
-		<< " | vectors: " << embeddings.size();
 	running = false;
 }
 
 void ofApp::configureGenerator() {
 	generator.setBackend(
 		std::make_shared<ofxGgmlLlamaServerEmbeddingBackend>(settings.serverUrl));
-	ofLogNotice("example-emb")
-		<< "configured backend: llama-server-embeddings | url: "
-		<< (settings.serverUrl.empty() ? "(unset)" : settings.serverUrl);
 }
 
 std::string ofApp::normalizeEnvText(const std::string & text) {

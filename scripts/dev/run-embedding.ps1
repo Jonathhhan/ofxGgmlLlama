@@ -90,7 +90,7 @@ if ([string]::IsNullOrWhiteSpace($EmbeddingExe)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-	$modelDirs = @(
+	$ModelPath = Find-FirstModel @(
 		(Join-Path $addonRoot "ofxGgmlTextExample\bin\data\models"),
 		(Join-Path $addonRoot "ofxGgmlTextExample\bin\data"),
 		(Join-Path $addonRoot "ofxGgmlTextExample\models"),
@@ -100,10 +100,6 @@ if ([string]::IsNullOrWhiteSpace($ModelPath)) {
 		(Join-Path $addonRoot "models"),
 		(Join-Path (Split-Path -Parent $addonRoot) "models")
 	)
-	$ModelPath = Find-OfxGgmlFirstModelByRole $modelDirs @("embedding")
-	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-		$ModelPath = Find-FirstModel $modelDirs
-	}
 }
 if ([string]::IsNullOrWhiteSpace($ModelPath)) {
 	throw "Could not find a GGUF model. Pass -ModelPath or set OFXGGML_EMBEDDING_MODEL."

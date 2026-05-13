@@ -291,14 +291,6 @@ void ofApp::setup() {
 		status = "ready";
 		rebuildLinesLocked();
 	}
-	ofLogNotice("example-text")
-		<< "setup complete | backend: "
-		<< (settings.useServerBackend ? "llama-server" : "llama-cli")
-		<< " | server: " << settings.serverUrl
-		<< " | executable: "
-		<< (settings.executablePath.empty() ? "(auto-discovery)" : settings.executablePath)
-		<< " | model: "
-		<< (modelPath.empty() ? "(server-managed)" : modelPath);
 }
 
 void ofApp::draw() {
@@ -551,38 +543,26 @@ void ofApp::runPromptWorker() {
 		requestModelPath = modelPath;
 		requestPrompt = prompt;
 	}
-	ofLogNotice("example-text")
-		<< "text request starting | backend: "
-		<< (requestSettings.useServerBackend ? "llama-server" : "llama-cli")
-		<< " | server: " << requestSettings.serverUrl
-		<< " | model: " << (requestModelPath.empty() ? "(unset)" : requestModelPath)
-		<< " | executable: "
-		<< (requestSettings.executablePath.empty() ? "(unset)" : requestSettings.executablePath);
 
 	if (requestSettings.useServerBackend) {
 		if (requestSettings.serverUrl.empty()) {
-			ofLogError("example-text") << "No llama-server URL configured.";
 			fail("No llama-server URL configured. Set OFXGGML_TEXT_SERVER_URL.");
 			return;
 		}
 	} else {
 		if (requestSettings.executablePath.empty()) {
-			ofLogError("example-text") << "CLI backend requested but executable is not configured.";
 			fail("No llama.cpp CLI found. Set OFXGGML_LLAMA_CLI or use OFXGGML_TEXT_BACKEND=server.");
 			return;
 		}
 		if (!fileExists(requestSettings.executablePath)) {
-			ofLogError("example-text") << "Configured CLI executable not found: " << requestSettings.executablePath;
 			fail("OFXGGML_LLAMA_CLI was not found: " + requestSettings.executablePath);
 			return;
 		}
 		if (requestModelPath.empty()) {
-			ofLogError("example-text") << "No GGUF model for CLI backend.";
 			fail("No GGUF model found. Set OFXGGML_TEXT_MODEL or place one under bin/data/models.");
 			return;
 		}
 		if (!fileExists(requestModelPath)) {
-			ofLogError("example-text") << "Configured GGUF model not found: " << requestModelPath;
 			fail("OFXGGML_TEXT_MODEL was not found: " + requestModelPath);
 			return;
 		}
@@ -631,10 +611,7 @@ void ofApp::runPromptWorker() {
 	ofLogNotice("example-text") << "prompt\n" << request.prompt;
 	auto result = generator.generate(request, onTextChunk);
 	if (result) {
-		ofLogNotice("example-text")
-			<< "output (" << result.backendName << ") in "
-			<< std::to_string(static_cast<int>(result.elapsedMs))
-			<< " ms\n" << result.text;
+		ofLogNotice("example-text") << "output\n" << result.text;
 	} else {
 		ofLogError("example-text") << "output error\n" << result.error;
 	}
@@ -685,14 +662,8 @@ void ofApp::rebuildLinesLocked() {
 void ofApp::configureGenerator() {
 	if (settings.useServerBackend) {
 		generator.setBackend(std::make_shared<ofxGgmlLlamaServerTextBackend>(settings.serverUrl));
-		ofLogNotice("example-text")
-			<< "configured backend: llama-server | url: "
-			<< (settings.serverUrl.empty() ? "(unset)" : settings.serverUrl);
 	} else {
 		generator.setBackend(std::make_shared<ofxGgmlLlamaCliTextBackend>());
-		ofLogNotice("example-text")
-			<< "configured backend: llama-cli | executable: "
-			<< (settings.executablePath.empty() ? "(auto-discovery)" : settings.executablePath);
 	}
 }
 

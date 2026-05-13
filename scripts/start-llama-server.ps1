@@ -120,16 +120,10 @@ if ([string]::IsNullOrWhiteSpace($ModelPath)) {
 	} else {
 		@("ofxGgmlChatExample")
 	}
-	$modelSearchDirs = Get-OfxGgmlModelSearchDirectories `
+	$ModelPath = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 		-AddonRoot $addonRoot `
 		-ExampleRoot (Join-Path $addonRoot $primaryExample) `
-		-ExtraExampleNames $extraExamples
-	if ($Embeddings) {
-		$ModelPath = Find-OfxGgmlFirstModelByRole $modelSearchDirs @("embedding")
-	}
-	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-		$ModelPath = Find-OfxGgmlFirstModel $modelSearchDirs
-	}
+		-ExtraExampleNames $extraExamples)
 }
 if ([string]::IsNullOrWhiteSpace($ModelPath)) {
 	$modelEnv = if ($Embeddings) { "OFXGGML_EMBEDDING_MODEL" } else { "OFXGGML_TEXT_MODEL" }

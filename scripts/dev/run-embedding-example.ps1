@@ -47,17 +47,10 @@ if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($Model)) {
-	$searchDirs = Get-OfxGgmlModelSearchDirectories `
+	$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 		-AddonRoot $addonRoot `
 		-ExampleRoot $exampleRoot `
-		-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample")
-	$Model = Find-OfxGgmlFirstModelByRole $searchDirs @("embedding")
-	if ([string]::IsNullOrWhiteSpace($Model)) {
-		$Model = Find-OfxGgmlFirstModel $searchDirs
-		if (![string]::IsNullOrWhiteSpace($Model)) {
-			Write-Warning "No embedding-focused GGUF found. Falling back to first GGUF: $Model. Prefer naming with bge/e5/nomic/jina/embedding."
-		}
-	}
+		-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 }
 
 $env:OFXGGML_EMBEDDING_SERVER_URL = $ServerUrl

@@ -423,13 +423,6 @@ void ofApp::setup() {
 		"You are a concise local assistant running inside an openFrameworks example.";
 	std::copy(defaultSystem.begin(), defaultSystem.end(), systemBuffer.begin());
 	status = "ready";
-	ofLogNotice("example-chat")
-		<< "setup complete | backend: "
-		<< (settings.useServerBackend ? "llama-server" : "llama-cli")
-		<< " | server: " << settings.serverUrl
-		<< " | executable: "
-		<< (settings.executablePath.empty() ? "(auto-discovery)" : settings.executablePath)
-		<< " | model: " << (modelPath.empty() ? "(server-managed)" : modelPath);
 }
 
 void ofApp::draw() {
@@ -729,7 +722,6 @@ void ofApp::clearChat() {
 
 void ofApp::runChatWorker() {
 	auto fail = [this](std::string message) {
-		ofLogError("example-chat") << message;
 		std::lock_guard<std::mutex> lock(stateMutex);
 		if (pendingAssistantIndex < chat.size() && chat[pendingAssistantIndex].content.empty()) {
 			chat[pendingAssistantIndex].content = message;
@@ -760,7 +752,6 @@ void ofApp::runChatWorker() {
 
 	if (requestSettings.useServerBackend) {
 		if (requestSettings.serverUrl.empty()) {
-			ofLogError("example-chat") << "No llama-server URL configured.";
 			fail("No llama-server URL configured. Set OFXGGML_TEXT_SERVER_URL.");
 			return;
 		}
@@ -796,22 +787,18 @@ void ofApp::runChatWorker() {
 		}
 	} else {
 		if (requestSettings.executablePath.empty()) {
-			ofLogError("example-chat") << "No llama.cpp CLI found for chat backend.";
 			fail("No llama.cpp CLI found. Set OFXGGML_LLAMA_CLI or use OFXGGML_TEXT_BACKEND=server.");
 			return;
 		}
 		if (!fileExists(requestSettings.executablePath)) {
-			ofLogError("example-chat") << "Configured llama-cli not found: " << requestSettings.executablePath;
 			fail("OFXGGML_LLAMA_CLI was not found: " + requestSettings.executablePath);
 			return;
 		}
 		if (requestModelPath.empty()) {
-			ofLogError("example-chat") << "No GGUF model found for chat CLI backend.";
 			fail("No GGUF model found. Set OFXGGML_TEXT_MODEL or place one under bin/data/models.");
 			return;
 		}
 		if (!fileExists(requestModelPath)) {
-			ofLogError("example-chat") << "Configured chat GGUF model not found: " << requestModelPath;
 			fail("OFXGGML_TEXT_MODEL was not found: " + requestModelPath);
 			return;
 		}
@@ -823,13 +810,6 @@ void ofApp::runChatWorker() {
 			? "requesting llama-server..."
 			: "running llama.cpp CLI...";
 	}
-	ofLogNotice("example-chat")
-		<< "chat request starting | backend: "
-		<< (requestSettings.useServerBackend ? "llama-server" : "llama-cli")
-		<< " | server: " << requestSettings.serverUrl
-		<< " | model: " << (requestModelPath.empty() ? "(unset)" : requestModelPath)
-		<< " | executable: "
-		<< (requestSettings.executablePath.empty() ? "(unset)" : requestSettings.executablePath);
 
 	ofxGgmlTextRequest request;
 	request.modelPath = requestModelPath;
@@ -912,24 +892,14 @@ void ofApp::runChatWorker() {
 		}
 	}
 	running = false;
-	ofLogNotice("example-chat")
-		<< "chat request end | running="
-		<< (running ? "yes" : "no")
-		<< " | state=" << status;
 	scrollToBottom = true;
 }
 
 void ofApp::configureGenerator() {
 	if (settings.useServerBackend) {
 		generator.setBackend(std::make_shared<ofxGgmlLlamaServerTextBackend>(settings.serverUrl));
-		ofLogNotice("example-chat")
-			<< "configured backend: llama-server | url: "
-			<< (settings.serverUrl.empty() ? "(unset)" : settings.serverUrl);
 	} else {
 		generator.setBackend(std::make_shared<ofxGgmlLlamaCliTextBackend>());
-		ofLogNotice("example-chat")
-			<< "configured backend: llama-cli | executable: "
-			<< (settings.executablePath.empty() ? "(auto-discovery)" : settings.executablePath);
 	}
 }
 
