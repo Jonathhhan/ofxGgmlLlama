@@ -1,0 +1,26 @@
+{
+  "name": "ofxGgmlLlama",
+  "lane": "text-chat-embeddings",
+  "coreBaseline": "v1.0.1",
+  "requires": [
+    "ofxGgmlCore"
+  ],
+  "owns": [
+    "llama.cpp",
+    "text generation",
+    "chat",
+    "embeddings",
+    "server integration"
+  ],
+  "platforms": [
+    "windows",
+    "macos",
+    "linux"
+  ],
+  "backends": [
+    "cpu",
+    "cuda",
+    "metal",
+    "vulkan"
+  ]
+}
