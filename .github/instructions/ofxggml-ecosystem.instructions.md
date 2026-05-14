@@ -14,4 +14,5 @@ applyTo: "**"
 - Do not edit addon runtime behavior unless the user explicitly asks for addon behavior.
 - Keep companion changes inside this repository's lane and keep ofxGgmlCore as the shared base.
 - Preserve generated artifact hygiene: no binaries, build folders, IDE metadata, model weights, downloaded runtimes, caches, media dumps, or memory indexes.
+- Use openFrameworks ofLogNotice, ofLogWarning, ofLogError, or module-scoped ofLog(...) for addon runtime/example logging; keep raw stdout/stderr only for tests and CLI tools with machine-readable output contracts.
 - Validate before handoff with scripts\validate-local.ps1; for cross-repo planning also report the Core readiness or planning command used.
