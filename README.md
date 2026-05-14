@@ -23,6 +23,9 @@ The examples use conventional openFrameworks addon example names. The helper
 scripts repair generated Visual Studio metadata when Project Generator includes
 stale build-cache paths.
 
+For llama-lane planning and backend boundaries, see
+[`docs/LLAMA_WORKFLOWS.md`](docs/LLAMA_WORKFLOWS.md).
+
 ## First Run
 
 From the openFrameworks `addons` folder:

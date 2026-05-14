@@ -33,3 +33,7 @@ No dependency should point from `ofxGgmlCore` back to `ofxGgmlLlama`.
 - ggml runtime setup and backend selection
 - generic tensor, graph, model metadata, and result types
 - SAM, music, speech, diffusion, RAG, or agent workflows
+
+See `docs/LLAMA_WORKFLOWS.md` before expanding this lane. It defines the
+planning handoff, generated-artifact boundaries, backend-path split, and
+validation ladder for CLI, server text, chat, and embedding work.
