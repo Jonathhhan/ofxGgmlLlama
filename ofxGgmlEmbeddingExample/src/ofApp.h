@@ -36,6 +36,8 @@ private:
 	std::string modelPath;
 	std::string status;
 	std::string error;
+	std::string loadedModel;
+	std::string loadedBackend;
 	std::vector<std::vector<float>> embeddings;
 	float similarity = 0.0f;
 	bool hasSimilarity = false;

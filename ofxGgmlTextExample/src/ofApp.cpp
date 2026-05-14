@@ -427,7 +427,9 @@ void ofApp::draw() {
 				modelPathSnapshot.empty() || modelPathSnapshot == "(server-managed)"
 					? "server-managed"
 					: (fileExists(modelPathSnapshot) ? "found" : "missing"));
-			ImGui::TextWrapped("CLI: %s", executableSnapshot.c_str());
+			if (!useServerSnapshot) {
+				ImGui::TextWrapped("CLI: %s", executableSnapshot.c_str());
+			}
 		}
 
 		ImGui::Spacing();
@@ -641,7 +643,9 @@ void ofApp::rebuildLinesLocked() {
 	lines.push_back("backend: " + std::string(settings.useServerBackend ? "llama-server" : "llama-cli"));
 	lines.push_back("server: " + (settings.serverUrl.empty() ? "(unset)" : settings.serverUrl));
 	lines.push_back("server model: " + (settings.serverModel.empty() ? "(auto)" : settings.serverModel));
-	lines.push_back("executable: " + (settings.executablePath.empty() ? "(optional)" : settings.executablePath));
+	if (!settings.useServerBackend) {
+		lines.push_back("executable: " + (settings.executablePath.empty() ? "(optional)" : settings.executablePath));
+	}
 	lines.push_back("model: " + (modelPath.empty() ? "(server-managed)" : modelPath));
 	lines.push_back("");
 	lines.push_back("prompt:");
