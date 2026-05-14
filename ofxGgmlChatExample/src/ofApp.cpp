@@ -570,7 +570,9 @@ void ofApp::draw() {
 				modelPathSnapshot.empty() || modelPathSnapshot == "(server-managed)"
 					? "server-managed"
 					: (fileExists(modelPathSnapshot) ? "found" : "missing"));
-			ImGui::TextWrapped("CLI: %s", executableSnapshot.c_str());
+			if (!useServer) {
+				ImGui::TextWrapped("CLI: %s", executableSnapshot.c_str());
+			}
 		}
 
 		ImGui::TextUnformatted("System");

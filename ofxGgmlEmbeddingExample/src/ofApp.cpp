@@ -322,6 +322,19 @@ bool startBundledEmbeddingServer(
 #endif
 }
 
+std::string modelDisplayName(
+	const std::string & serverModel,
+	const std::string & localModelPath,
+	bool localModelWasStarted) {
+	if (!serverModel.empty()) {
+		return serverModel;
+	}
+	if (localModelWasStarted && !localModelPath.empty()) {
+		return localModelPath;
+	}
+	return "server default";
+}
+
 ImVec2 fitWindowSize(float preferredWidth, float preferredHeight) {
 	const ImVec2 display = ImGui::GetIO().DisplaySize;
 	const float availableWidth = std::max(420.0f, display.x - 32.0f);
@@ -361,6 +374,8 @@ void ofApp::setup() {
 
 	std::lock_guard<std::mutex> lock(stateMutex);
 	status = "ready";
+	loadedModel = "not loaded";
+	loadedBackend = "not loaded";
 }
 
 void ofApp::draw() {
@@ -369,6 +384,8 @@ void ofApp::draw() {
 	std::string serverUrlSnapshot;
 	std::string serverModelSnapshot;
 	std::string modelPathSnapshot;
+	std::string loadedModelSnapshot;
+	std::string loadedBackendSnapshot;
 	std::vector<std::vector<float>> embeddingsSnapshot;
 	float similaritySnapshot = 0.0f;
 	bool hasSimilaritySnapshot = false;
@@ -380,6 +397,8 @@ void ofApp::draw() {
 		serverUrlSnapshot = settings.serverUrl;
 		serverModelSnapshot = settings.serverModel;
 		modelPathSnapshot = modelPath;
+		loadedModelSnapshot = loadedModel;
+		loadedBackendSnapshot = loadedBackend;
 		embeddingsSnapshot = embeddings;
 		similaritySnapshot = similarity;
 		hasSimilaritySnapshot = hasSimilarity;
@@ -409,7 +428,8 @@ void ofApp::draw() {
 			: ImVec4(0.70f, 0.92f, 0.70f, 1.0f);
 		ImGui::TextColored(statusColor, "%s", statusSnapshot.c_str());
 		ImGui::Text("State: %s", runningSnapshot ? "running" : "idle");
-		ImGui::Text("Backend: llama-server embeddings");
+		ImGui::TextWrapped("Loaded model: %s", loadedModelSnapshot.c_str());
+		ImGui::TextWrapped("Loaded backend: %s", loadedBackendSnapshot.c_str());
 
 		if (ImGui::CollapsingHeader("Runtime", ImGuiTreeNodeFlags_DefaultOpen)) {
 			std::string serverUrlEdit = serverUrlSnapshot;
@@ -539,6 +559,8 @@ void ofApp::startEmbedding() {
 		error.clear();
 		embeddings.clear();
 		hasSimilarity = false;
+		loadedModel = "loading...";
+		loadedBackend = "llama-server embeddings";
 		running = true;
 	}
 
@@ -557,11 +579,14 @@ void ofApp::runEmbeddingWorker() {
 		requestInputB = inputB;
 		requestModelPath = modelPath;
 	}
+	bool startedBundledServer = false;
 
 	if (requestSettings.serverUrl.empty()) {
 		std::lock_guard<std::mutex> lock(stateMutex);
 		status = "embedding error";
 		error = "No embedding server URL configured.";
+		loadedModel = "not loaded";
+		loadedBackend = "not loaded";
 		running = false;
 		return;
 	}
@@ -572,6 +597,8 @@ void ofApp::runEmbeddingWorker() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "No GGUF model found for the local embedding server. Set OFXGGML_EMBEDDING_MODEL or place one under addons\\models.";
+			loadedModel = "not loaded";
+			loadedBackend = "llama-server embeddings @ " + requestSettings.serverUrl;
 			running = false;
 			return;
 		}
@@ -580,6 +607,8 @@ void ofApp::runEmbeddingWorker() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "No bundled llama-server found. Run scripts\\build-llama-server.bat first.";
+			loadedModel = "not loaded";
+			loadedBackend = "llama-server embeddings @ " + requestSettings.serverUrl;
 			running = false;
 			return;
 		}
@@ -599,9 +628,12 @@ void ofApp::runEmbeddingWorker() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "Failed to start bundled embedding llama-server.";
+			loadedModel = "not loaded";
+			loadedBackend = "llama-server embeddings @ " + requestSettings.serverUrl;
 			running = false;
 			return;
 		}
+		startedBundledServer = true;
 		{
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "waiting for embedding server...";
@@ -610,6 +642,8 @@ void ofApp::runEmbeddingWorker() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			status = "embedding error";
 			error = "Embedding llama-server did not become ready at " + requestSettings.serverUrl + ".";
+			loadedModel = "not loaded";
+			loadedBackend = "llama-server embeddings @ " + requestSettings.serverUrl;
 			running = false;
 			return;
 		}
@@ -658,6 +692,11 @@ void ofApp::runEmbeddingWorker() {
 			? ofxGgmlEmbeddingUtils::cosineSimilarity(embeddings[0], embeddings[1])
 			: 0.0f;
 		error.clear();
+		loadedModel = modelDisplayName(
+			requestSettings.serverModel,
+			requestModelPath,
+			startedBundledServer);
+		loadedBackend = result.backendName + " @ " + requestSettings.serverUrl;
 		status = "complete via " + result.backendName + " in " +
 			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
 	} else {
@@ -670,6 +709,10 @@ void ofApp::runEmbeddingWorker() {
 		similarity = 0.0f;
 		hasSimilarity = false;
 		error = resultError;
+		loadedModel = "not loaded";
+		loadedBackend = result.backendName.empty()
+			? "llama-server embeddings @ " + requestSettings.serverUrl
+			: result.backendName + " @ " + requestSettings.serverUrl;
 		status = "embedding error";
 	}
 	running = false;
