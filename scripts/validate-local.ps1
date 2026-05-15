@@ -64,7 +64,7 @@ Write-Step "Checking dependency layout"
 Assert-Path (Join-Path $addonsRoot "ofxGgmlCore") "sibling ofxGgmlCore addon" -Directory
 
 Write-Step "Checking example layout"
-foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample")) {
+foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample", "ofxGgmlLlamaCodexLocalExample")) {
 	$exampleRoot = Join-Path $addonRoot $example
 	Assert-Path $exampleRoot "$example root" -Directory
 	Assert-Path (Join-Path $exampleRoot "addons.make") "$example addons.make"
@@ -72,6 +72,11 @@ foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbed
 	Assert-Path (Join-Path $exampleRoot "src\ofApp.h") "$example ofApp.h"
 	Assert-Path (Join-Path $exampleRoot "src\ofApp.cpp") "$example ofApp.cpp"
 }
+Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "Codex local example README"
+Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "llama-server" "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "wire_api" "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'wire_api = "responses"' "Codex local example config"
 
 foreach ($scriptName in @(
 	"build-example.ps1",
