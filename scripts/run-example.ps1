@@ -1,6 +1,6 @@
 param(
 	[Parameter(Position = 0)]
-	[ValidateSet("text", "chat", "embedding", "emb")]
+	[ValidateSet("text", "chat", "embedding", "emb", "codex")]
 	[string]$Example = "text",
 	[string]$Backend = $(if ($env:OFXGGML_TEXT_BACKEND) { $env:OFXGGML_TEXT_BACKEND } else { "server" }),
 	[string]$ServerUrl = "",
@@ -31,12 +31,15 @@ $canonicalExample = switch ($Example) {
 	"chat" { "chat" }
 	"embedding" { "embedding" }
 	"emb" { "embedding" }
+	"codex" { "codex" }
 }
 $isEmbedding = $canonicalExample -eq "embedding"
+$isCodex = $canonicalExample -eq "codex"
 $exampleName = switch ($canonicalExample) {
 	"text" { "ofxGgmlTextExample" }
 	"chat" { "ofxGgmlChatExample" }
 	"embedding" { "ofxGgmlEmbeddingExample" }
+	"codex" { "ofxGgmlLlamaCodexLocalExample" }
 }
 $exampleRoot = Join-Path $addonRoot $exampleName
 $exampleExe = Join-Path $exampleRoot "bin\$exampleName.exe"
@@ -63,7 +66,23 @@ $Model = Normalize-OfxGgmlPathText $Model
 $ServerUrl = Normalize-OfxGgmlPathText $ServerUrl
 $ServerModel = Normalize-OfxGgmlPathText $ServerModel
 
-if ($isEmbedding) {
+if ($isCodex) {
+	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
+		$ServerUrl = if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }
+	}
+	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
+		$ServerModel = if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "unsloth/GLM-4.7-Flash" }
+	}
+	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
+	$env:OFXGGML_CODEX_MODEL = $ServerModel
+	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
+	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
+	if ($DryRun) {
+		Write-OfxGgmlStep "Executable: $exampleExe"
+		Write-OfxGgmlStep "Auto server: off"
+		return
+	}
+} elseif ($isEmbedding) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 		$ServerUrl = if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }
 	}

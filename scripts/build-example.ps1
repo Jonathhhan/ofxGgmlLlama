@@ -1,6 +1,6 @@
 param(
 	[Parameter(Position = 0)]
-	[ValidateSet("text", "chat", "embedding", "emb")]
+	[ValidateSet("text", "chat", "embedding", "emb", "codex")]
 	[string]$Example = "text",
 	[string]$Configuration = "Release",
 	[string]$Platform = "x64",
@@ -17,6 +17,7 @@ $exampleName = switch ($Example) {
 	"chat" { "ofxGgmlChatExample" }
 	"embedding" { "ofxGgmlEmbeddingExample" }
 	"emb" { "ofxGgmlEmbeddingExample" }
+	"codex" { "ofxGgmlLlamaCodexLocalExample" }
 }
 
 $arguments = @{

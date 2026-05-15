@@ -27,6 +27,8 @@ function Invoke-DryRun {
 	$previousEmbeddingModel = $env:OFXGGML_EMBEDDING_MODEL
 	$previousEmbeddingServerUrl = $env:OFXGGML_EMBEDDING_SERVER_URL
 	$previousEmbeddingServerModel = $env:OFXGGML_EMBEDDING_SERVER_MODEL
+	$previousCodexBaseUrl = $env:OFXGGML_CODEX_BASE_URL
+	$previousCodexModel = $env:OFXGGML_CODEX_MODEL
 	$env:OFXGGML_LAUNCH_DRY_RUN_ONLY = "1"
 	try {
 		$output = & $Script @Parameters *>&1 | ForEach-Object { $_.ToString() }
@@ -83,6 +85,16 @@ function Invoke-DryRun {
 			Remove-Item Env:\OFXGGML_EMBEDDING_SERVER_MODEL -ErrorAction SilentlyContinue
 		} else {
 			$env:OFXGGML_EMBEDDING_SERVER_MODEL = $previousEmbeddingServerModel
+		}
+		if ($null -eq $previousCodexBaseUrl) {
+			Remove-Item Env:\OFXGGML_CODEX_BASE_URL -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_BASE_URL = $previousCodexBaseUrl
+		}
+		if ($null -eq $previousCodexModel) {
+			Remove-Item Env:\OFXGGML_CODEX_MODEL -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_MODEL = $previousCodexModel
 		}
 	}
 	return @($output)
@@ -231,6 +243,23 @@ Assert-Contains $embeddingOutput "Using embedding model: $modelPath" "Embedding 
 Assert-Contains $embeddingOutput "Executable:" "Embedding dry-run"
 Assert-Contains $embeddingOutput "Auto server: off" "Embedding dry-run"
 Assert-NotContains $embeddingOutput "Starting ofxGgmlEmbeddingExample" "Embedding dry-run"
+
+$codexOutput = Invoke-DryRun `
+	-Label "Codex local example dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		ServerModel = "dry-codex-model"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
+Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
+Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
+Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `

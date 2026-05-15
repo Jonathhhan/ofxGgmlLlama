@@ -44,7 +44,7 @@ function Assert-GuardedPostBuild {
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$examples = @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample")
+$examples = @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample", "ofxGgmlLlamaCodexLocalExample")
 
 foreach ($example in $examples) {
 	Write-Step "Repairing $example generated metadata"
