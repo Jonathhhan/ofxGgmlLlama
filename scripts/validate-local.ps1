@@ -80,6 +80,10 @@ foreach ($scriptName in @(
 	"start-llama-server.ps1",
 	"stop-llama-server.ps1",
 	"status-llama-server.ps1",
+	"run-llama-runtime-smoke.ps1",
+	"run-llama-runtime-smoke.bat",
+	"run-llama-runtime-smoke.sh",
+	"test-llama-runtime-smoke.ps1",
 	"list-models.ps1",
 	"run-example.ps1",
 	"test-doctor-llama.ps1",
@@ -126,6 +130,12 @@ Write-Step "Checking Llama doctor"
 & (Join-Path $scriptRoot "test-doctor-llama.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Llama doctor smoke test failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking Llama runtime smoke contract"
+& (Join-Path $scriptRoot "test-llama-runtime-smoke.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Llama runtime smoke contract failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Running headless tests"
