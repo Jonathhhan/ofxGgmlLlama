@@ -36,6 +36,7 @@ git clone https://github.com/Jonathhhan/ofxGgmlLlama.git
 cd ofxGgmlLlama
 scripts\build-llama-server.bat
 scripts\list-models.bat
+scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
@@ -45,6 +46,17 @@ Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
 embedding server on `8081`. `run-example` starts the bundled server when needed
 and waits until it is ready before opening the example.
+
+The lane-owned runtime smoke uses the bundled `llama-cli` directly. The dry-run
+is model-free and reports discovery state. With a GGUF model available, the real
+smoke runs a tiny deterministic prompt and emits timing/text metadata without
+writing generated artifacts:
+
+```powershell
+scripts\run-llama-runtime-smoke.bat -DryRun
+scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly
+scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
+```
 
 ## Dependencies
 
@@ -57,6 +69,7 @@ and waits until it is ready before opening the example.
 
 ```powershell
 scripts\doctor-llama.bat
+scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\validate-local.bat
 ```
 
