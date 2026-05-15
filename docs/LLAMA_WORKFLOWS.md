@@ -58,6 +58,12 @@ bundled CLI and GGUF model, runs a short deterministic prompt with CPU or CUDA
 GPU-layer settings, and reports parseable timing/text metadata. It does not
 start GUI examples, require `llama-server`, or write generated text artifacts.
 
+Codex, GitHub Copilot, Hermes Agent, and other local coding assistants should
+use [`CODEX_COPILOT_LOCAL_SERVER.md`](CODEX_COPILOT_LOCAL_SERVER.md) for
+llama.cpp build, GGUF download, and `llama-server` setup. Agent orchestration
+docs may point to the resulting OpenAI-compatible endpoint, but the runtime
+setup remains in this llama lane.
+
 ## Validation ladder
 
 Use the smallest command that proves the changed layer:

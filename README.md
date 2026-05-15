@@ -25,6 +25,9 @@ stale build-cache paths.
 
 For llama-lane planning and backend boundaries, see
 [`docs/LLAMA_WORKFLOWS.md`](docs/LLAMA_WORKFLOWS.md).
+For Codex, GitHub Copilot, Hermes Agent, or other local coding assistants using
+`llama-server`, see
+[`docs/CODEX_COPILOT_LOCAL_SERVER.md`](docs/CODEX_COPILOT_LOCAL_SERVER.md).
 
 ## First Run
 
