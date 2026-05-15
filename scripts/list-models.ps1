@@ -1,5 +1,6 @@
 param(
 	[switch]$Json,
+	[switch]$SummaryOnly,
 	[switch]$Strict
 )
 
@@ -30,6 +31,18 @@ function Get-ModelRoleHint {
 		return "embedding"
 	}
 	return "text"
+}
+
+function Get-TinyModelHint {
+	param(
+		[string]$Name,
+		[long]$Bytes
+	)
+	$lower = $Name.ToLowerInvariant()
+	if ($lower -match "tiny|smoke|test|mini|0\.5b|0_5b|1\.5b|1_5b") {
+		return $true
+	}
+	return $Bytes -gt 0 -and $Bytes -le 2GB
 }
 
 function Get-UniqueDirectories {
@@ -70,17 +83,35 @@ foreach ($directory in $directories) {
 				Bytes = [long]$_.Length
 				Size = Format-Size $_.Length
 				RoleHint = Get-ModelRoleHint $_.Name
+				TinyCandidate = Get-TinyModelHint -Name $_.Name -Bytes ([long]$_.Length)
 			})
 		}
 }
 
 if ($Json) {
 	$modelArray = @($models | ForEach-Object { $_ })
-	[pscustomobject]@{
+	$textModels = @($modelArray | Where-Object { $_.RoleHint -eq "text" })
+	$embeddingModels = @($modelArray | Where-Object { $_.RoleHint -eq "embedding" })
+	$tinyTextModels = @($textModels | Where-Object { $_.TinyCandidate })
+	$result = [ordered]@{
 		Root = $addonRoot.Path
+		SummaryOnly = [bool]$SummaryOnly
+		Summary = [pscustomobject]@{
+			SearchDirectoryCount = @($directories).Count
+			ExistingSearchDirectoryCount = @($directories | Where-Object { Test-Path -LiteralPath $_ -PathType Container }).Count
+			ModelCount = @($modelArray).Count
+			TextModelCount = @($textModels).Count
+			EmbeddingModelCount = @($embeddingModels).Count
+			TinyTextModelCount = @($tinyTextModels).Count
+			HasTinyTextModel = @($tinyTextModels).Count -gt 0
+			FirstTinyTextModel = if (@($tinyTextModels).Count -gt 0) { [string]@($tinyTextModels)[0].Path } else { "" }
+		}
 		SearchDirectories = @($directories)
-		Models = $modelArray
-	} | ConvertTo-Json -Depth 4
+	}
+	if (!$SummaryOnly) {
+		$result.Models = $modelArray
+	}
+	[pscustomobject]$result | ConvertTo-Json -Depth 5
 } else {
 	Write-Host "ofxGgmlLlama model search"
 	Write-Host "Root  $addonRoot"
@@ -97,7 +128,8 @@ if ($Json) {
 	} else {
 		Write-Host "Models:"
 		foreach ($model in $models) {
-			Write-Host ("  {0}  {1}  {2}" -f $model.RoleHint.PadRight(9), $model.Size.PadLeft(9), $model.Path)
+			$tiny = if ($model.TinyCandidate) { "tiny" } else { "full" }
+			Write-Host ("  {0}  {1}  {2}  {3}" -f $model.RoleHint.PadRight(9), $tiny.PadRight(4), $model.Size.PadLeft(9), $model.Path)
 		}
 	}
 }

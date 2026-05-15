@@ -31,3 +31,4 @@ ofxGgml*Example/config.make
 ofxGgml*Example/icon.rc
 models/
 data/models/
+.llama-runtime-smoke.json
