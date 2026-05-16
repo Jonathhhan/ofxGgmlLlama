@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cctype>
 #include <cwctype>
+#include <fstream>
 #include <cstdio>
 #include <filesystem>
 #include <functional>
@@ -46,6 +47,45 @@ std::string chooseFile(const std::string & title, const std::string & currentPat
 	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
 	auto result = ofSystemLoadDialog(title, false, startPath);
 	return result.bSuccess ? result.getPath() : std::string();
+}
+
+std::string readAllText(const std::string & filePath) {
+	std::ifstream input(filePath, std::ios::binary);
+	if (!input.is_open()) {
+		return {};
+	}
+	std::ostringstream stream;
+	stream << input.rdbuf();
+	return stream.str();
+}
+
+bool writeAllText(const std::string & filePath, const std::string & text) {
+	std::ofstream output(filePath, std::ios::binary | std::ofstream::trunc);
+	if (!output.is_open()) {
+		return false;
+	}
+	output << text;
+	return output.good();
+}
+
+std::string codexConfigPath() {
+#if defined(_WIN32)
+	const char * home = getenv("USERPROFILE");
+	const std::string base = home ? home : "";
+#else
+	const char * home = getenv("HOME");
+	const std::string base = home ? home : "";
+#endif
+	if (base.empty()) {
+		return ".codex/config.toml";
+	}
+	const std::filesystem::path dir = std::filesystem::path(base) / ".codex";
+	std::error_code error;
+	std::filesystem::create_directories(dir, error);
+	if (error) {
+		return {};
+	}
+	return toString((dir / "config.toml"));
 }
 
 std::filesystem::path executableDirectory() {
@@ -468,7 +508,8 @@ void ofApp::setup() {
 	gpuLayers = std::atoi(getEnvOrDefault("OFXGGML_CODEX_GPU_LAYERS", "999").c_str());
 	contextSize = std::atoi(getEnvOrDefault("OFXGGML_CODEX_CONTEXT_SIZE", "131072").c_str());
 	autoStartServer = getEnvOrDefault("OFXGGML_CODEX_AUTO_SERVER", "1") != "0";
-	noCudaGraphs = getEnvOrDefault("OFXGGML_CODEX_NO_CUDA_GRAPHS", "1") != "0";
+	autoConfig = getEnvOrDefault("OFXGGML_CODEX_AUTO_CONFIG", "1") != "0";
+	noCudaGraphs = getEnvOrDefault("OFXGGML_CODEX_NO_CUDA_GRAPHS", "0") != "0";
 	temperature = std::stof(getEnvOrDefault("OFXGGML_CODEX_TEMP", "1.0"));
 	topP = std::stof(getEnvOrDefault("OFXGGML_CODEX_TOP_P", "0.95"));
 	minP = std::stof(getEnvOrDefault("OFXGGML_CODEX_MIN_P", "0.01"));
@@ -480,6 +521,15 @@ void ofApp::setup() {
 	refreshRuntimeDiscovery();
 	refreshServerStatus();
 	rebuildLines();
+	if (configPath.empty()) {
+		configPath = codexConfigPath();
+	}
+	if (configPath.empty()) {
+		configWriteStatus = "Could not resolve local Codex config path";
+	}
+	else {
+		configWriteStatus = "Codex config path: " + configPath;
+	}
 	endpointStatus = "endpoint smoke not run";
 
 	ofLogNotice(LogModule) << "Codex endpoint: " << baseUrl;
@@ -503,7 +553,10 @@ void ofApp::draw() {
 	bool serverReadySnapshot = false;
 	bool endpointReadySnapshot = false;
 	bool autoStartSnapshot = false;
+	bool autoConfigSnapshot = false;
 	bool noCudaGraphsSnapshot = false;
+	std::string configPathSnapshot;
+	std::string configWriteStatusSnapshot;
 	int gpuLayersSnapshot = 0;
 	int contextSizeSnapshot = 0;
 	int startupTimeoutSnapshot = 0;
@@ -525,7 +578,10 @@ void ofApp::draw() {
 		serverReadySnapshot = serverReady;
 		endpointReadySnapshot = endpointReady;
 		autoStartSnapshot = autoStartServer;
+		autoConfigSnapshot = autoConfig;
 		noCudaGraphsSnapshot = noCudaGraphs;
+		configPathSnapshot = configPath;
+		configWriteStatusSnapshot = configWriteStatus;
 		gpuLayersSnapshot = gpuLayers;
 		contextSizeSnapshot = contextSize;
 		startupTimeoutSnapshot = startupTimeoutSeconds;
@@ -538,6 +594,7 @@ void ofApp::draw() {
 	bool forceStartRequested = false;
 	bool recheckRequested = false;
 	bool smokeRequested = false;
+	bool writeConfigRequested = false;
 	bool rediscoverRequested = false;
 
 	ofBackground(16);
@@ -594,6 +651,10 @@ void ofApp::draw() {
 		if (ImGui::Checkbox("Auto-start local server", &autoStartSnapshot)) {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			autoStartServer = autoStartSnapshot;
+		}
+		if (ImGui::Checkbox("Auto-write Codex config", &autoConfigSnapshot)) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			autoConfig = autoConfigSnapshot;
 		}
 		ImGui::SetNextItemWidth(-1.0f);
 		if (ImGui::InputText("Codex base URL", &baseUrlEdit)) {
@@ -679,6 +740,15 @@ void ofApp::draw() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			minP = minPSnapshot;
 		}
+		if (ImGui::Button("Write Codex config")) {
+			writeConfigRequested = true;
+		}
+		if (!configWriteStatusSnapshot.empty()) {
+			ImGui::TextWrapped("%s", configWriteStatusSnapshot.c_str());
+		}
+		if (!configPathSnapshot.empty()) {
+			ImGui::TextWrapped("Config file: %s", configPathSnapshot.c_str());
+		}
 		if (runningSnapshot) {
 			ImGui::EndDisabled();
 		}
@@ -712,6 +782,9 @@ void ofApp::draw() {
 	}
 	if (smokeRequested) {
 		requestEndpointSmoke();
+	}
+	if (writeConfigRequested) {
+		syncCodexConfig();
 	}
 	if (startRequested) {
 		requestStartServer(false);
@@ -775,6 +848,7 @@ void ofApp::runStartServerWorker(bool force) {
 	int requestContextSize = 0;
 	int requestStartupTimeout = 0;
 	bool requestNoCudaGraphs = false;
+	bool requestAutoConfig = false;
 	float requestTemperature = 0.0f;
 	float requestTopP = 0.0f;
 	float requestMinP = 0.0f;
@@ -791,9 +865,14 @@ void ofApp::runStartServerWorker(bool force) {
 		requestTemperature = temperature;
 		requestTopP = topP;
 		requestMinP = minP;
+		requestAutoConfig = autoConfig;
 	}
 
 	if (!force && isServerReady(requestServerUrl)) {
+		if (requestAutoConfig && syncCodexConfig()) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			configWriteStatus = "Auto config applied to " + configPath;
+		}
 		std::lock_guard<std::mutex> lock(stateMutex);
 		serverReady = true;
 		status = "llama-server is already ready at " + requestServerUrl;
@@ -858,12 +937,114 @@ void ofApp::runStartServerWorker(bool force) {
 		requestServerUrl,
 		requestStartupTimeout,
 		[this]() { return cancelRequested.load(); });
+	if (probe.ready && requestAutoConfig) {
+		if (!syncCodexConfig()) {
+			ofLogWarning(LogModule) << "automatic Codex config update failed";
+		}
+	}
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = probe.ready;
 	status = probe.ready
 		? "llama-server ready for Codex at " + baseUrl
 		: "llama-server did not become ready at " + requestServerUrl + " (" + describeProbe(probe) + ")";
 	running = false;
+}
+
+bool ofApp::replaceSection(std::string & configText, const std::string & sectionName) {
+	const std::string sectionHeader = "[" + sectionName + "]";
+	std::istringstream input(configText);
+	std::ostringstream output;
+	bool inTargetSection = false;
+	bool sectionFound = false;
+	std::string line;
+
+	while (std::getline(input, line)) {
+		const std::string trimmed = trimCopy(line);
+		const bool isSectionHeader = !trimmed.empty() &&
+			trimmed.front() == '[' &&
+			trimmed.back() == ']';
+		if (inTargetSection) {
+			if (isSectionHeader) {
+				inTargetSection = false;
+			} else {
+				continue;
+			}
+		}
+		if (!inTargetSection && trimmed == sectionHeader) {
+			sectionFound = true;
+			inTargetSection = true;
+			continue;
+		}
+		output << line << '\n';
+	}
+
+	configText = output.str();
+	return sectionFound;
+}
+
+void ofApp::appendSection(std::string & configText, const std::string & sectionBody) {
+	if (!configText.empty() && configText.back() != '\n') {
+		configText.push_back('\n');
+	}
+	configText += sectionBody;
+	if (!sectionBody.empty() && sectionBody.back() != '\n') {
+		configText.push_back('\n');
+	}
+}
+
+bool ofApp::syncCodexConfig() {
+	std::string snapshotBaseUrl;
+	std::string snapshotModelAlias;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		snapshotBaseUrl = baseUrl;
+		snapshotModelAlias = modelAlias;
+		if (configPath.empty()) {
+			configPath = codexConfigPath();
+		}
+	}
+
+	if (snapshotBaseUrl.empty() || snapshotModelAlias.empty()) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		configWriteStatus = "Cannot write Codex config: base URL and model alias are required";
+		return false;
+	}
+	if (configPath.empty()) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		configWriteStatus = "Cannot write Codex config: failed to resolve path";
+		return false;
+	}
+
+	const std::string existing = readAllText(configPath);
+	const std::string providersSection = "[model_providers.llama_cpp]\n"
+		"name = \"llama.cpp local\"\n"
+		"base_url = \"" + snapshotBaseUrl + "\"\n"
+		"wire_api = \"responses\"\n"
+		"stream_idle_timeout_ms = 10000000\n";
+	const std::string profilesSection = "[profiles.ofxggml_local]\n"
+		"model = \"" + snapshotModelAlias + "\"\n"
+		"model_provider = \"llama_cpp\"\n";
+
+	bool updatedExisting = false;
+	std::string updatedText = existing;
+	const bool removedProvider = replaceSection(updatedText, "model_providers.llama_cpp");
+	const bool removedProfile = replaceSection(updatedText, "profiles.ofxggml_local");
+	updatedExisting = removedProvider || removedProfile || existing.empty();
+	appendSection(updatedText, providersSection);
+	appendSection(updatedText, profilesSection);
+
+	if (!writeAllText(configPath, updatedText)) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		configWriteStatus = "Failed to write config file " + configPath;
+		return false;
+	}
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		configWriteStatus = updatedExisting
+			? "Updated Codex config sections in " + configPath
+			: "Created Codex config in " + configPath;
+	}
+	return true;
 }
 
 void ofApp::requestEndpointSmoke() {
@@ -891,12 +1072,14 @@ void ofApp::requestEndpointSmoke() {
 void ofApp::runEndpointSmokeWorker() {
 	std::string requestBaseUrl;
 	std::string requestModelAlias;
+	bool requestAutoConfig = false;
 	float requestTemperature = 0.0f;
 	float requestTopP = 0.0f;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestBaseUrl = baseUrl;
 		requestModelAlias = modelAlias;
+		requestAutoConfig = autoConfig;
 		requestTemperature = temperature;
 		requestTopP = topP;
 	}
@@ -922,6 +1105,7 @@ void ofApp::runEndpointSmokeWorker() {
 		[this](const std::string &) {
 			return !cancelRequested.load();
 		});
+	const bool syncedConfig = result && requestAutoConfig && syncCodexConfig();
 
 	std::lock_guard<std::mutex> lock(stateMutex);
 	if (cancelRequested) {
@@ -936,6 +1120,11 @@ void ofApp::runEndpointSmokeWorker() {
 		endpointOutput = trimCopy(result.text);
 		endpointStatus = "OpenAI-compatible endpoint answered in " +
 			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
+		if (requestAutoConfig) {
+			endpointStatus += syncedConfig
+				? " (Codex config updated)"
+				: " (Codex config update skipped)";
+		}
 		ofLogNotice(LogModule) << "endpoint smoke output\n" << endpointOutput;
 	} else {
 		endpointReady = false;
@@ -1025,7 +1214,7 @@ void ofApp::rebuildLines() {
 	lines.push_back("  server exe:  " + (serverExe.empty() ? "(not found)" : serverExe));
 	lines.push_back("  GPU layers:  " + std::to_string(gpuLayers));
 	lines.push_back("  context:     " + std::to_string(contextSize));
-	appendWrapped("Use this provider/profile with Codex after the server is ready and the endpoint smoke has answered. The example starts llama-server locally but does not edit Codex config.", 96);
+	appendWrapped("Use this provider/profile with Codex after the server is ready. You can auto-write the same sections to local config from the UI.", 96);
 }
 
 std::string ofApp::envValue(const char * name) {

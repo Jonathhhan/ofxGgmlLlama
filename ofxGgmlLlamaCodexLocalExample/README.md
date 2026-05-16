@@ -140,14 +140,17 @@ $env:OFXGGML_CODEX_TEMP = "1.0"
 $env:OFXGGML_CODEX_TOP_P = "0.95"
 $env:OFXGGML_CODEX_MIN_P = "0.01"
 $env:OFXGGML_CODEX_AUTO_SERVER = "1"
-$env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "1"
+$env:OFXGGML_CODEX_AUTO_CONFIG = "1"
+$env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "0"
 $env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
 
 The example displays the exact endpoint, model alias, server status, endpoint
 smoke result, local Codex provider snippet, and editable startup options. It
-starts the local server when possible, but it does not edit Codex config or
-start an agent automatically.
+starts the local server when possible and can automatically write the needed
+provider/profile sections into `%USERPROFILE%\.codex\config.toml` if
+`OFXGGML_CODEX_AUTO_CONFIG` is set to `1` (default).
+Use the UI button **Write Codex config** if you prefer a manual write.
 
 ## Validate
 
