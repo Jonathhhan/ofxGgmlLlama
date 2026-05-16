@@ -45,6 +45,12 @@ std::string toString(const std::filesystem::path & path) {
 	return path.lexically_normal().string();
 }
 
+std::string chooseFile(const std::string & title, const std::string & currentPath) {
+	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
+	auto result = ofSystemLoadDialog(title, false, startPath);
+	return result.bSuccess ? result.getPath() : std::string();
+}
+
 bool pathExists(const std::filesystem::path & path) {
 	std::error_code error;
 	return std::filesystem::is_regular_file(path, error);
@@ -453,6 +459,13 @@ void ofApp::draw() {
 			if (ImGui::InputText("Local model path", &modelPathEdit)) {
 				std::lock_guard<std::mutex> lock(stateMutex);
 				modelPath = normalizeEnvText(modelPathEdit);
+			}
+			if (ImGui::Button("Choose Local Model", ImVec2(150.0f, 0.0f))) {
+				const auto selectedPath = chooseFile("Choose embedding GGUF model", modelPathEdit);
+				if (!selectedPath.empty()) {
+					std::lock_guard<std::mutex> lock(stateMutex);
+					modelPath = normalizeEnvText(selectedPath);
+				}
 			}
 			if (runningSnapshot) {
 				ImGui::EndDisabled();
