@@ -114,6 +114,17 @@ model = "unsloth/GLM-4.7-Flash"
 model_provider = "llama_cpp"
 ```
 
+`profiles.ofxggml_local.model` must match the llama-server alias used by the
+example's `ServerModel` field. With the default GLM setup, both values are
+`unsloth/GLM-4.7-Flash`. If you launch a smaller local Qwen model with
+`-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
+
+```toml
+[profiles.ofxggml_local]
+model = "local/qwen2.5-coder-1.5b"
+model_provider = "llama_cpp"
+```
+
 This folder includes `codex-config.example.toml` with the same starting point.
 Check the exact profile invocation against your installed Codex version.
 

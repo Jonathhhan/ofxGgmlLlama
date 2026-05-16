@@ -5,5 +5,6 @@ wire_api = "responses"
 stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
+# Must match the llama-server alias shown as ServerModel in the example.
 model = "unsloth/GLM-4.7-Flash"
 model_provider = "llama_cpp"

@@ -153,6 +153,12 @@ Use the model alias configured on the server, for example:
 unsloth/GLM-4.7-Flash
 ```
 
+For Codex, this alias is not just display text. The profile `model` value must
+match the llama-server alias. In `ofxGgmlLlamaCodexLocalExample`, that alias is
+the editable `ServerModel` field. If you start the server with
+`-ServerModel local/qwen2.5-coder-1.5b`, the Codex profile must use
+`model = "local/qwen2.5-coder-1.5b"`.
+
 For Codex, the local config shape is:
 
 ```toml
