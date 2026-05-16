@@ -77,7 +77,8 @@ scripts\run-example.bat codex -Build `
 The example uses port `8001` by default for coding-agent sessions so the
 text/chat/embedding examples can keep their default ports. It discovers the
 built `llama-server`, discovers a local `.gguf` model, starts the server for
-local endpoints, and shows editable runtime fields in the ImGui panel.
+local endpoints, shows editable runtime fields in the ImGui panel, and can run
+a short OpenAI-compatible endpoint smoke request before you point Codex at it.
 
 For advanced llama.cpp flags such as KV-cache quantization, batch sizing, or
 `--kv-unified`, run `llama-server` directly from the built runtime and keep the
@@ -127,10 +128,10 @@ $env:OFXGGML_CODEX_AUTO_SERVER = "1"
 $env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "1"
 ```
 
-The example displays the exact endpoint, model alias, server status, local
-Codex provider snippet, and editable startup options. It starts the local
-server when possible, but it does not edit Codex config or start an agent
-automatically.
+The example displays the exact endpoint, model alias, server status, endpoint
+smoke result, local Codex provider snippet, and editable startup options. It
+starts the local server when possible, but it does not edit Codex config or
+start an agent automatically.
 
 ## Validate
 
