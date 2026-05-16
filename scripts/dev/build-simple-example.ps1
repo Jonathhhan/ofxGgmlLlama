@@ -2,6 +2,7 @@ param(
 	[string]$Configuration = "Release",
 	[string]$Platform = "x64",
 	[string]$Example = "ofxGgmlTextExample",
+	[int]$Jobs = 1,
 	[switch]$Clean,
 	[switch]$RepairOnly
 )
@@ -133,6 +134,25 @@ function Get-MsBuild {
 		}
 	}
 	return ""
+}
+
+function Resolve-BuildJobs {
+	param([int]$RequestedJobs)
+	if ($RequestedJobs -lt 0) {
+		throw "-Jobs must be 0 or greater."
+	}
+	if ($RequestedJobs -eq 0) {
+		return [Environment]::ProcessorCount
+	}
+	return $RequestedJobs
+}
+
+function Get-MsBuildParallelArguments {
+	param([int]$BuildJobs)
+	if ($BuildJobs -gt 1) {
+		return @("/p:MultiProcessorCompilation=true", "/m:$BuildJobs")
+	}
+	return @("/p:MultiProcessorCompilation=false", "/m:1")
 }
 
 function Find-ProjectGenerator {
@@ -543,12 +563,14 @@ if (Test-WindowsHost) {
 	}
 
 	$target = if ($Clean) { "Rebuild" } else { "Build" }
-	Write-Step "Building $Example $Configuration $Platform with MSBuild"
-	$lockName = "Local\ofxGgml-msbuild-" + (Get-StableNameFragment $addonRoot.Path)
+	$buildJobs = Resolve-BuildJobs -RequestedJobs $Jobs
+	$parallelArgs = Get-MsBuildParallelArguments -BuildJobs $buildJobs
+	Write-Step "Building $Example $Configuration $Platform with MSBuild ($buildJobs jobs)"
+	$lockName = "Local\ofxGgml-msbuild-" + (Get-StableNameFragment $ofRoot)
 	Invoke-WithNamedMutex -Name $lockName -Command {
 		$exitCode = 0
 		for ($attempt = 1; $attempt -le 2; $attempt++) {
-			& $msbuild $project /t:$target /p:Configuration=$Configuration /p:Platform=$Platform /p:TrackFileAccess=false /p:MultiProcessorCompilation=false /m:1 /nr:false
+			& $msbuild $project /t:$target /p:Configuration=$Configuration /p:Platform=$Platform /p:TrackFileAccess=false @parallelArgs /nr:false
 			$exitCode = $LASTEXITCODE
 			if ($exitCode -eq 0) {
 				return
@@ -559,7 +581,7 @@ if (Test-WindowsHost) {
 		}
 		if (!$Clean) {
 			Write-Step "MSBuild failed with exit code $exitCode; retrying without rebuilding project references"
-			& $msbuild $project /t:$target /p:Configuration=$Configuration /p:Platform=$Platform /p:TrackFileAccess=false /p:MultiProcessorCompilation=false /p:BuildProjectReferences=false /m:1 /nr:false
+			& $msbuild $project /t:$target /p:Configuration=$Configuration /p:Platform=$Platform /p:TrackFileAccess=false @parallelArgs /p:BuildProjectReferences=false /nr:false
 			$exitCode = $LASTEXITCODE
 			if ($exitCode -eq 0) {
 				return
