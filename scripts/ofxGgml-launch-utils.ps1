@@ -199,11 +199,12 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$TopP = "",
 		[string]$MinP = "",
 		[switch]$NoCudaGraphs,
+		[switch]$ForceNew,
 		[switch]$NoAutoServer,
 		[switch]$Embeddings
 	)
 
-	if ($NoAutoServer -or (Test-OfxGgmlLocalServerUrl $ServerUrl)) {
+	if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlLocalServerUrl $ServerUrl))) {
 		return
 	}
 	if ([string]::IsNullOrWhiteSpace($Model)) {
@@ -247,6 +248,9 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	}
 	if ($NoCudaGraphs) {
 		$args += "-NoCudaGraphs"
+	}
+	if ($ForceNew) {
+		$args += "-ForceNew"
 	}
 	if ($Embeddings) {
 		$args += "-Embeddings"

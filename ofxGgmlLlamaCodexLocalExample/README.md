@@ -74,6 +74,10 @@ scripts\run-example.bat codex -Build `
     -NoCudaGraphs
 ```
 
+If an older local `llama-server` process is stuck on the Codex port and the
+example stays at “not ready”, use the GUI’s `Force new` button or launch with
+`-ForceNewServer` so the addon-owned stale server is stopped before restart.
+
 The example uses port `8001` by default for coding-agent sessions so the
 text/chat/embedding examples can keep their default ports. It discovers the
 built `llama-server`, discovers a local `.gguf` model, starts the server for
@@ -126,6 +130,7 @@ $env:OFXGGML_CODEX_TOP_P = "0.95"
 $env:OFXGGML_CODEX_MIN_P = "0.01"
 $env:OFXGGML_CODEX_AUTO_SERVER = "1"
 $env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "1"
+$env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
 
 The example displays the exact endpoint, model alias, server status, endpoint

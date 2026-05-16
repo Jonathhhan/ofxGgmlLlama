@@ -53,7 +53,7 @@ private:
 	std::atomic_bool cancelRequested { false };
 	int gpuLayers = 999;
 	int contextSize = 131072;
-	int startupTimeoutSeconds = 120;
+	int startupTimeoutSeconds = 300;
 	float temperature = 1.0f;
 	float topP = 0.95f;
 	float minP = 0.01f;
