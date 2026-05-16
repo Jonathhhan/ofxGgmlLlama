@@ -57,4 +57,20 @@ if ($modelJson.PSObject.Properties["Models"]) {
 	throw "list-models summary JSON should omit the full model list."
 }
 
+if ($modelJson.Summary.HasTinyTextModel -and [string]::IsNullOrWhiteSpace($modelJson.Summary.FirstTinyTextModel) -eq $false) {
+	$smokeOutput = & $smokeScript -Backend cpu -Model $modelJson.Summary.FirstTinyTextModel -SummaryOnly -Json -MaxTokens 4 -Threads 2 *>&1 | ForEach-Object { $_.ToString() }
+	if ($LASTEXITCODE -ne 0) {
+		throw "run-llama-runtime-smoke.ps1 failed for tiny model inference smoke."
+	}
+	$smokeJson = ($smokeOutput -join "`n") | ConvertFrom-Json
+	if (!$smokeJson.Summary.Passed) {
+		throw "Llama runtime smoke execution did not pass for tiny model: $($smokeJson.Summary.Error)"
+	}
+	if (!$smokeJson.Summary.InferenceChecked -or $smokeJson.Summary.Backend -ne "cpu" -or $smokeJson.Summary.SmokeKind -ne "model-backed-cli-text") {
+		throw "Llama runtime smoke inference evidence did not include expected evidence contract fields."
+	}
+} else {
+	Write-Host "No tiny text model detected in local model search; skipping live runtime inference smoke."
+}
+
 Write-Host "Llama runtime smoke contract passed"
