@@ -21,6 +21,8 @@ public:
 private:
 	void requestStartServer(bool force);
 	void runStartServerWorker(bool force);
+	void requestEndpointSmoke();
+	void runEndpointSmokeWorker();
 	void refreshRuntimeDiscovery();
 	void refreshServerStatus();
 	void applyBaseUrlToServerUrl();
@@ -42,6 +44,8 @@ private:
 	std::string modelPath;
 	std::string serverExe;
 	std::string status;
+	std::string endpointStatus;
+	std::string endpointOutput;
 	std::vector<std::string> lines;
 	ofxImGui::Gui gui;
 	std::thread worker;
@@ -56,5 +60,6 @@ private:
 	bool noCudaGraphs = true;
 	bool autoStartServer = true;
 	bool serverReady = false;
+	bool endpointReady = false;
 	bool running = false;
 };
