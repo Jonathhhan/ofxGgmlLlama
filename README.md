@@ -50,7 +50,9 @@ scripts\run-example.bat codex -Build
 Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
 embedding server on `8081`. The Codex local example documents a dedicated
-OpenAI-compatible server on `8001` and does not edit Codex config. `run-example`
+OpenAI-compatible server on `8001`; it can also auto-write Codex-compatible
+provider/profile config sections to `%USERPROFILE%\.codex\config.toml` when
+`OFXGGML_CODEX_AUTO_CONFIG=1` (default). `run-example`
 starts the bundled server when needed for text, chat, and embedding examples and
 waits until it is ready before opening the example.
 
