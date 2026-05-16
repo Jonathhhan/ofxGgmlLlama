@@ -57,22 +57,25 @@ snapshot_download(
 You can use another compatible GGUF model by changing the model path and server
 alias.
 
-## Start llama-server for Codex
+## Run this example
 
-Use port `8001` for coding-agent sessions so the text/chat/embedding examples
-can keep their default ports.
+Generate the project with openFrameworks projectGenerator using addons
+`ofxGgmlLlama`, `ofxGgmlCore`, and `ofxImGui`, or use the helper:
 
 ```powershell
-scripts\start-llama-server.bat `
-    -ModelPath ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
-    -Port 8001 `
-    -GpuLayers 999 `
-    -ContextSize 131072
+scripts\run-example.bat codex -Build `
+    -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
+    -ServerModel unsloth/GLM-4.7-Flash
 ```
 
-For advanced llama.cpp flags such as KV-cache quantization, batch sizing,
-`--kv-unified`, or explicit sampling defaults, run `llama-server` directly from
-the built runtime and keep the same OpenAI-compatible endpoint:
+The example uses port `8001` by default for coding-agent sessions so the
+text/chat/embedding examples can keep their default ports. It discovers the
+built `llama-server`, discovers a local `.gguf` model, starts the server for
+local endpoints, and shows editable runtime fields in the ImGui panel.
+
+For advanced llama.cpp flags such as KV-cache quantization, batch sizing, or
+`--kv-unified`, run `llama-server` directly from the built runtime and keep the
+same OpenAI-compatible endpoint:
 
 ```text
 http://127.0.0.1:8001/v1
@@ -103,25 +106,21 @@ model_provider = "llama_cpp"
 This folder includes `codex-config.example.toml` with the same starting point.
 Check the exact profile invocation against your installed Codex version.
 
-## Run this example
-
-Generate the project with openFrameworks projectGenerator using addons
-`ofxGgmlLlama`, `ofxGgmlCore`, and `ofxImGui`, or use the helper:
-
-```powershell
-scripts\run-example.bat codex -Build
-```
-
 Optional environment overrides:
 
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 $env:OFXGGML_CODEX_MODEL = "unsloth/GLM-4.7-Flash"
+$env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
+$env:OFXGGML_CODEX_GPU_LAYERS = "999"
+$env:OFXGGML_CODEX_CONTEXT_SIZE = "131072"
+$env:OFXGGML_CODEX_AUTO_SERVER = "1"
 ```
 
-The example displays the exact endpoint, model alias, local Codex provider
-snippet, and validation commands. It does not edit Codex config or start an
-agent automatically.
+The example displays the exact endpoint, model alias, server status, local
+Codex provider snippet, and editable startup options. It starts the local
+server when possible, but it does not edit Codex config or start an agent
+automatically.
 
 ## Validate
 
