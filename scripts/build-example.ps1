@@ -4,6 +4,7 @@ param(
 	[string]$Example = "text",
 	[string]$Configuration = "Release",
 	[string]$Platform = "x64",
+	[int]$Jobs = 1,
 	[switch]$Clean
 )
 
@@ -24,6 +25,7 @@ $arguments = @{
 	Configuration = $Configuration
 	Platform = $Platform
 	Example = $exampleName
+	Jobs = $Jobs
 }
 if ($Clean) {
 	$arguments.Clean = $true
