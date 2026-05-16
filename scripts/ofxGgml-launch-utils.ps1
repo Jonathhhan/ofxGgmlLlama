@@ -192,6 +192,13 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$MissingModelWarning,
 		[string]$StartMessage,
 		[int]$StartupTimeoutSeconds = 120,
+		[string]$Alias = "",
+		[Nullable[int]]$GpuLayers = $null,
+		[Nullable[int]]$ContextSize = $null,
+		[string]$Temperature = "",
+		[string]$TopP = "",
+		[string]$MinP = "",
+		[switch]$NoCudaGraphs,
 		[switch]$NoAutoServer,
 		[switch]$Embeddings
 	)
@@ -214,6 +221,33 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		"-StartupTimeoutSeconds", $StartupTimeoutSeconds,
 		"-LogDir", $LogDir
 	)
+	if (![string]::IsNullOrWhiteSpace($Alias)) {
+		$args += "-Alias"
+		$args += $Alias
+	}
+	if ($null -ne $GpuLayers) {
+		$args += "-GpuLayers"
+		$args += $GpuLayers
+	}
+	if ($null -ne $ContextSize) {
+		$args += "-ContextSize"
+		$args += $ContextSize
+	}
+	if (![string]::IsNullOrWhiteSpace($Temperature)) {
+		$args += "-Temperature"
+		$args += $Temperature
+	}
+	if (![string]::IsNullOrWhiteSpace($TopP)) {
+		$args += "-TopP"
+		$args += $TopP
+	}
+	if (![string]::IsNullOrWhiteSpace($MinP)) {
+		$args += "-MinP"
+		$args += $MinP
+	}
+	if ($NoCudaGraphs) {
+		$args += "-NoCudaGraphs"
+	}
 	if ($Embeddings) {
 		$args += "-Embeddings"
 	}
