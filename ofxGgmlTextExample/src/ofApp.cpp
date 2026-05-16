@@ -70,6 +70,12 @@ std::string toString(const std::filesystem::path & path) {
 	return path.lexically_normal().string();
 }
 
+std::string chooseFile(const std::string & title, const std::string & currentPath) {
+	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
+	auto result = ofSystemLoadDialog(title, false, startPath);
+	return result.bSuccess ? result.getPath() : std::string();
+}
+
 std::string filenameForDisplay(const std::string & path) {
 	const std::filesystem::path filePath(path);
 	const std::string filename = filePath.filename().string();
@@ -414,6 +420,22 @@ void ofApp::draw() {
 				}
 				rebuildLinesLocked();
 			}
+			if (ImGui::Button("Choose Local Model", ImVec2(150.0f, 0.0f))) {
+				const auto selectedPath = chooseFile("Choose GGUF model", modelPathEdit);
+				if (!selectedPath.empty()) {
+					std::lock_guard<std::mutex> lock(stateMutex);
+					modelPath = normalizeEnvPath(selectedPath);
+					selectedModelIndex = -1;
+					for (std::size_t i = 0; i < modelChoices.size(); ++i) {
+						if (modelChoices[i] == modelPath) {
+							selectedModelIndex = static_cast<int>(i);
+							break;
+						}
+					}
+					rebuildLinesLocked();
+				}
+			}
+			ImGui::SameLine();
 			if (ImGui::Button("Refresh models", ImVec2(120.0f, 0.0f))) {
 				shouldRefreshModels = true;
 			}

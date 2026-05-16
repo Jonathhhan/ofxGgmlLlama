@@ -42,6 +42,12 @@ bool pathExists(const std::filesystem::path & path) {
 	return std::filesystem::is_regular_file(path, error);
 }
 
+std::string chooseFile(const std::string & title, const std::string & currentPath) {
+	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
+	auto result = ofSystemLoadDialog(title, false, startPath);
+	return result.bSuccess ? result.getPath() : std::string();
+}
+
 std::filesystem::path executableDirectory() {
 #if defined(_WIN32)
 	std::wstring buffer(MAX_PATH, L'\0');
@@ -614,10 +620,26 @@ void ofApp::draw() {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			modelPath = normalizeEnvPath(modelPathEdit);
 		}
+		if (ImGui::Button("Choose GGUF Model", ImVec2(150.0f, 0.0f))) {
+			const auto selectedPath = chooseFile("Choose GGUF model", modelPathEdit);
+			if (!selectedPath.empty()) {
+				std::lock_guard<std::mutex> lock(stateMutex);
+				modelPath = normalizeEnvPath(selectedPath);
+				rebuildLines();
+			}
+		}
 		ImGui::SetNextItemWidth(-1.0f);
 		if (ImGui::InputText("llama-server path", &serverExeEdit)) {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			serverExe = normalizeEnvPath(serverExeEdit);
+		}
+		if (ImGui::Button("Choose llama-server", ImVec2(150.0f, 0.0f))) {
+			const auto selectedPath = chooseFile("Choose llama-server executable", serverExeEdit);
+			if (!selectedPath.empty()) {
+				std::lock_guard<std::mutex> lock(stateMutex);
+				serverExe = normalizeEnvPath(selectedPath);
+				rebuildLines();
+			}
 		}
 		ImGui::SetNextItemWidth(180.0f);
 		if (ImGui::InputInt("GPU layers", &gpuLayersSnapshot)) {
