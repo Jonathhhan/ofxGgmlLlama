@@ -3,8 +3,12 @@ param(
 	[string]$ServerExe = $(if ($env:OFXGGML_LLAMA_SERVER) { $env:OFXGGML_LLAMA_SERVER } else { "" }),
 	[string]$HostName = "127.0.0.1",
 	[int]$Port = 8080,
+	[string]$Alias = "",
 	[int]$GpuLayers = 28,
 	[int]$ContextSize = 4096,
+	[string]$Temperature = "",
+	[string]$TopP = "",
+	[string]$MinP = "",
 	[string]$EmbeddingPooling = "mean",
 	[switch]$NoCudaGraphs,
 	[switch]$Embeddings,
@@ -164,6 +168,22 @@ $arguments = @(
 	"-ngl", ([Math]::Max(0, $GpuLayers)).ToString(),
 	"-c", ([Math]::Max(512, $ContextSize)).ToString()
 )
+if (![string]::IsNullOrWhiteSpace($Alias)) {
+	$arguments += "--alias"
+	$arguments += $Alias
+}
+if (![string]::IsNullOrWhiteSpace($Temperature)) {
+	$arguments += "--temp"
+	$arguments += $Temperature
+}
+if (![string]::IsNullOrWhiteSpace($TopP)) {
+	$arguments += "--top-p"
+	$arguments += $TopP
+}
+if (![string]::IsNullOrWhiteSpace($MinP)) {
+	$arguments += "--min-p"
+	$arguments += $MinP
+}
 if ($NoCudaGraphs) {
 	$arguments += "--no-cuda-graphs"
 }
@@ -180,8 +200,20 @@ Write-Host "  exe:       $ServerExe"
 Write-Host "  model:     $ModelPath"
 Write-Host "  url:       $serverUrl"
 Write-Host "  backend:   llama.cpp auto"
+if (![string]::IsNullOrWhiteSpace($Alias)) {
+	Write-Host "  alias:     $Alias"
+}
 Write-Host "  ngl:       $GpuLayers"
 Write-Host "  ctx:       $ContextSize"
+if (![string]::IsNullOrWhiteSpace($Temperature)) {
+	Write-Host "  temp:      $Temperature"
+}
+if (![string]::IsNullOrWhiteSpace($TopP)) {
+	Write-Host "  top_p:     $TopP"
+}
+if (![string]::IsNullOrWhiteSpace($MinP)) {
+	Write-Host "  min_p:     $MinP"
+}
 Write-Host "  cudaGraph: $(if ($NoCudaGraphs) { 'off' } else { 'on' })"
 Write-Host "  embeddings: $(if ($Embeddings) { 'on' } else { 'off' })"
 if ($Embeddings) {

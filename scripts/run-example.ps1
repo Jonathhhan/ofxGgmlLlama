@@ -7,6 +7,13 @@ param(
 	[string]$ServerModel = "",
 	[string]$LlamaCli = $env:OFXGGML_LLAMA_CLI,
 	[string]$Model = "",
+	[int]$GpuLayers = [int]::MinValue,
+	[int]$ContextSize = [int]::MinValue,
+	[int]$StartupTimeoutSeconds = [int]::MinValue,
+	[string]$Temperature = "",
+	[string]$TopP = "",
+	[string]$MinP = "",
+	[switch]$NoCudaGraphs,
 	[switch]$Build,
 	[switch]$NoAutoServer,
 	[switch]$DryRun,
@@ -65,6 +72,9 @@ if (!(Test-Path -LiteralPath $exampleExe -PathType Leaf)) {
 $Model = Normalize-OfxGgmlPathText $Model
 $ServerUrl = Normalize-OfxGgmlPathText $ServerUrl
 $ServerModel = Normalize-OfxGgmlPathText $ServerModel
+$Temperature = Normalize-OfxGgmlPathText $Temperature
+$TopP = Normalize-OfxGgmlPathText $TopP
+$MinP = Normalize-OfxGgmlPathText $MinP
 
 if ($isCodex) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
@@ -73,6 +83,25 @@ if ($isCodex) {
 	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
 		$ServerModel = if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "unsloth/GLM-4.7-Flash" }
 	}
+	if ($GpuLayers -eq [int]::MinValue) {
+		$GpuLayers = if ($env:OFXGGML_CODEX_GPU_LAYERS) { [int]$env:OFXGGML_CODEX_GPU_LAYERS } else { 999 }
+	}
+	if ($ContextSize -eq [int]::MinValue) {
+		$ContextSize = if ($env:OFXGGML_CODEX_CONTEXT_SIZE) { [int]$env:OFXGGML_CODEX_CONTEXT_SIZE } else { 131072 }
+	}
+	if ($StartupTimeoutSeconds -eq [int]::MinValue) {
+		$StartupTimeoutSeconds = 180
+	}
+	if ([string]::IsNullOrWhiteSpace($Temperature)) {
+		$Temperature = if ($env:OFXGGML_CODEX_TEMP) { $env:OFXGGML_CODEX_TEMP } else { "1.0" }
+	}
+	if ([string]::IsNullOrWhiteSpace($TopP)) {
+		$TopP = if ($env:OFXGGML_CODEX_TOP_P) { $env:OFXGGML_CODEX_TOP_P } else { "0.95" }
+	}
+	if ([string]::IsNullOrWhiteSpace($MinP)) {
+		$MinP = if ($env:OFXGGML_CODEX_MIN_P) { $env:OFXGGML_CODEX_MIN_P } else { "0.01" }
+	}
+	$codexNoCudaGraphs = $NoCudaGraphs -or $env:OFXGGML_CODEX_NO_CUDA_GRAPHS -ne "0"
 	if ([string]::IsNullOrWhiteSpace($Model)) {
 		$Model = if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
 	}
@@ -84,6 +113,12 @@ if ($isCodex) {
 	}
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
 	$env:OFXGGML_CODEX_MODEL = $ServerModel
+	$env:OFXGGML_CODEX_GPU_LAYERS = $GpuLayers.ToString()
+	$env:OFXGGML_CODEX_CONTEXT_SIZE = $ContextSize.ToString()
+	$env:OFXGGML_CODEX_TEMP = $Temperature
+	$env:OFXGGML_CODEX_TOP_P = $TopP
+	$env:OFXGGML_CODEX_MIN_P = $MinP
+	$env:OFXGGML_CODEX_NO_CUDA_GRAPHS = if ($codexNoCudaGraphs) { "1" } else { "0" }
 	if (![string]::IsNullOrWhiteSpace($Model)) {
 		$env:OFXGGML_TEXT_MODEL = $Model
 		Write-OfxGgmlStep "Using text model: $Model"
@@ -92,6 +127,7 @@ if ($isCodex) {
 	}
 	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
 	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
+	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize temp=$Temperature top_p=$TopP min_p=$MinP cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' })"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"
@@ -105,7 +141,14 @@ if ($isCodex) {
 		-LogDir (Join-Path $addonRoot "build\llama-codex-server") `
 		-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
 		-StartMessage "Codex llama-server is not responding; starting bundled server" `
-		-StartupTimeoutSeconds 180 `
+		-StartupTimeoutSeconds $StartupTimeoutSeconds `
+		-Alias $ServerModel `
+		-GpuLayers $GpuLayers `
+		-ContextSize $ContextSize `
+		-Temperature $Temperature `
+		-TopP $TopP `
+		-MinP $MinP `
+		-NoCudaGraphs:$codexNoCudaGraphs `
 		-NoAutoServer:$NoAutoServer
 } elseif ($isEmbedding) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
