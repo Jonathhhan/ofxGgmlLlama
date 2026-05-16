@@ -252,11 +252,13 @@ $codexOutput = Invoke-DryRun `
 		DryRun = $true
 		ServerUrl = "http://127.0.0.1:9001/v1"
 		ServerModel = "dry-codex-model"
+		Model = $modelPath
 		Configuration = $Configuration
 		Platform = $Platform
 	}
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
+Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"

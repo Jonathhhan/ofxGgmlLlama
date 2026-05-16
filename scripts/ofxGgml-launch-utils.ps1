@@ -145,11 +145,12 @@ function Find-OfxGgmlLlamaCli {
 function Test-OfxGgmlLocalServerUrl {
 	param([string]$Url)
 	try {
-		$uri = [Uri]$Url
+		$serverRoot = Get-OfxGgmlServerRootUrl $Url
+		$uri = [Uri]$serverRoot
 		if ($uri.Host -notin @("127.0.0.1", "localhost", "::1")) {
 			return $true
 		}
-		$healthUrl = $Url.TrimEnd("/") + "/health"
+		$healthUrl = $serverRoot.TrimEnd("/") + "/health"
 		$response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 1 -ErrorAction Stop
 		return ($response.StatusCode -ge 200 -and $response.StatusCode -lt 500)
 	} catch {
@@ -157,9 +158,18 @@ function Test-OfxGgmlLocalServerUrl {
 	}
 }
 
+function Get-OfxGgmlServerRootUrl {
+	param([string]$Url)
+	$normalized = (Normalize-OfxGgmlPathText $Url).TrimEnd("/")
+	if ($normalized.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) {
+		return $normalized.Substring(0, $normalized.Length - 3)
+	}
+	return $normalized
+}
+
 function Get-OfxGgmlServerEndpoint {
 	param([string]$ServerUrl)
-	$uri = [Uri]$ServerUrl
+	$uri = [Uri](Get-OfxGgmlServerRootUrl $ServerUrl)
 	$port = if ($uri.IsDefaultPort) {
 		if ($uri.Scheme -ieq "https") { 443 } else { 80 }
 	} else {

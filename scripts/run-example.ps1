@@ -73,15 +73,40 @@ if ($isCodex) {
 	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
 		$ServerModel = if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "unsloth/GLM-4.7-Flash" }
 	}
+	if ([string]::IsNullOrWhiteSpace($Model)) {
+		$Model = if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
+	}
+	if ([string]::IsNullOrWhiteSpace($Model)) {
+		$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
+			-AddonRoot $addonRoot `
+			-ExampleRoot $exampleRoot `
+			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
+	}
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
 	$env:OFXGGML_CODEX_MODEL = $ServerModel
+	if (![string]::IsNullOrWhiteSpace($Model)) {
+		$env:OFXGGML_TEXT_MODEL = $Model
+		Write-OfxGgmlStep "Using text model: $Model"
+	} else {
+		Write-Warning "No GGUF model found. The example can still connect to an already-running server."
+	}
 	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
 	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
-		Write-OfxGgmlStep "Auto server: off"
+		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"
 		return
 	}
+	Start-OfxGgmlBundledLlamaServerIfNeeded `
+		-ScriptRoot $scriptRoot `
+		-AddonRoot $addonRoot `
+		-ServerUrl (Get-OfxGgmlServerRootUrl $ServerUrl) `
+		-Model $Model `
+		-LogDir (Join-Path $addonRoot "build\llama-codex-server") `
+		-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
+		-StartMessage "Codex llama-server is not responding; starting bundled server" `
+		-StartupTimeoutSeconds 180 `
+		-NoAutoServer:$NoAutoServer
 } elseif ($isEmbedding) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 		$ServerUrl = if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }
