@@ -34,6 +34,10 @@ For OpenCode's native custom-provider path, see
 For hybrid routing across Codex, OpenCode, Claude Code, Copilot, and local helper tasks,
 see [`docs/LOCAL_AGENT_ROUTING.md`](docs/LOCAL_AGENT_ROUTING.md).
 
+This addon only plans client-facing Codex/OpenCode configuration for the local
+`llama-server` endpoint. Internal agent loops, tool registries, memory handoff,
+and addon-to-addon orchestration belong in `ofxGgmlAgents`.
+
 ## First Run
 
 From the openFrameworks `addons` folder:

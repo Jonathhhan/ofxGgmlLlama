@@ -24,6 +24,11 @@ Do not move client-specific orchestration into this addon:
 - Retrieval storage and indexing policy belongs in `ofxGgmlRag`.
 - Audio transcription belongs in the audio/Whisper lane.
 
+`ofxGgmlLlama` may still ship read-only helper scripts that emit Codex or
+OpenCode client config, because those snippets point clients at `llama-server`.
+Once the work becomes an addon-owned agent loop, tool registry, memory handoff,
+or reusable orchestration pattern, it belongs in `ofxGgmlAgents`.
+
 ## Client Shapes
 
 | Client | Endpoint shape | Recommended path |

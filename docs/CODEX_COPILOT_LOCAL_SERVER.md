@@ -12,6 +12,11 @@ For OpenCode's native custom-provider path, see
 OpenCode, Claude Code, Copilot, and local helper tasks, see
 `docs/LOCAL_AGENT_ROUTING.md`.
 
+Boundary note: the Codex/OpenCode "agent" settings in this guide are external
+client fanout and permission controls for a local `llama-server` endpoint. They
+are not the internal `ofxGgmlAgents` runtime. Agent planning loops, tool
+registries, memory handoff, and addon orchestration remain in `ofxGgmlAgents`.
+
 For an openFrameworks-facing walkthrough, generate
 `ofxGgmlLlamaCodexLocalExample` or run:
 

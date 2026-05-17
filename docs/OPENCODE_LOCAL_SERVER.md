@@ -7,6 +7,9 @@ OpenCode supports custom OpenAI-compatible providers through
 `@ai-sdk/openai-compatible`. Keep that integration in this addon as config,
 documentation, and validation only: llama.cpp runtime setup stays here, while
 OpenCode owns its own tool loop, agents, permissions, and project session state.
+The `agent` entries shown below are OpenCode client settings, not
+`ofxGgmlAgents` internals. Reusable agent runtime behavior belongs in
+`ofxGgmlAgents`.
 
 ## Start the local endpoint
 

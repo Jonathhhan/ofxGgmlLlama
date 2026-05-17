@@ -15,6 +15,11 @@ OpenCode can reuse the same endpoint through a custom provider in
 `opencode.json`; see `opencode.example.json` and
 `..\docs\OPENCODE_LOCAL_SERVER.md`.
 
+The Codex/OpenCode agent settings in this example are client resource and
+permission knobs for a local `llama-server`. They are not internal
+`ofxGgmlAgents` runtime behavior; reusable agent loops and tool orchestration
+belong in `ofxGgmlAgents`.
+
 ## Build llama.cpp
 
 From the `ofxGgmlLlama` addon root:
