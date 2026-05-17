@@ -3,6 +3,7 @@
 #include "ofxGgmlLlamaVersion.h"
 #include "ofxGgmlText.h"
 #include "ofxGgmlEmbedding.h"
+#include "codex/ofxGgmlLlamaCodexLocal.h"
 #include "inference/ofxGgmlLlamaCliTextBackend.h"
 #include "inference/ofxGgmlLlamaServerEmbeddingBackend.h"
 #include "inference/ofxGgmlLlamaServerTextBackend.h"

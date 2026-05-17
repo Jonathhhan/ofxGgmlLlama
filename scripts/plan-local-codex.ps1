@@ -1,9 +1,19 @@
 param(
 	[string]$Endpoint = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }),
-	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "unsloth/GLM-4.7-Flash" }),
+	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/GLM-4.7-Flash-UD-Q4_K_XL" }),
 	[string]$Profile = $(if ($env:OFXGGML_CODEX_PROFILE) { $env:OFXGGML_CODEX_PROFILE } else { "ofxggml_local" }),
 	[string]$ConfigPath = $(if ($env:OFXGGML_CODEX_CONFIG_PATH) { $env:OFXGGML_CODEX_CONFIG_PATH } else { "" }),
 	[string]$CodexExe = $(if ($env:OFXGGML_CODEX_EXE) { $env:OFXGGML_CODEX_EXE } else { "" }),
+	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 40960 }),
+	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 30000 }),
+	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 5000 }),
+	[Alias("AgentMaxAgents", "MaxAgents")]
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
+	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 1 }),
+	[int]$AgentMinWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS } else { 2500 }),
+	[int]$AgentMaxWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS } else { 120000 }),
+	[int]$AgentDefaultWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS } else { 30000 }),
+	[switch]$DisableMultiAgentV2,
 	[int]$TimeoutSeconds = 2,
 	[switch]$Json,
 	[switch]$SummaryOnly,
@@ -303,6 +313,13 @@ $resolvedModel = Normalize-Text $Model
 $resolvedProfile = Normalize-Text $Profile
 $resolvedConfig = Resolve-ConfigPath $ConfigPath
 $resolvedCodex = Resolve-CodexExe $CodexExe
+$codexMultiAgentV2 = if ($DisableMultiAgentV2) {
+	$false
+} elseif ($env:OFXGGML_CODEX_MULTI_AGENT_V2) {
+	$env:OFXGGML_CODEX_MULTI_AGENT_V2 -ne "0"
+} else {
+	$true
+}
 $codexHelp = Test-CodexHelp $resolvedCodex
 $health = Test-Url ($serverRoot.TrimEnd("/") + "/health")
 $responsesProbe = Test-Url ($apiRoot.TrimEnd("/") + "/responses")
@@ -332,8 +349,22 @@ $launchArguments = @(
 	"--disable", "tool_search",
 	"-c", "web_search=`"disabled`"",
 	"-c", "model_provider=llama_cpp",
+	"-c", "model_context_window=$ModelContextWindow",
+	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
+	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
+	"-c", "features.multi_agent_v2.enabled=$(if ($codexMultiAgentV2) { 'true' } else { 'false' })",
+	"-c", "features.multi_agent_v2.max_concurrent_threads_per_session=$AgentMaxConcurrentThreads",
+	"-c", "features.multi_agent_v2.min_wait_timeout_ms=$AgentMinWaitMs",
+	"-c", "features.multi_agent_v2.max_wait_timeout_ms=$AgentMaxWaitMs",
+	"-c", "features.multi_agent_v2.default_wait_timeout_ms=$AgentDefaultWaitMs",
+	"-c", "agents.max_depth=$AgentMaxDepth",
 	"--model", $resolvedModel
 )
+if (!$codexMultiAgentV2) {
+	$launchArguments = $launchArguments[0..($launchArguments.Count - 3)] +
+		@("-c", "agents.max_threads=$AgentMaxConcurrentThreads") +
+		$launchArguments[($launchArguments.Count - 2)..($launchArguments.Count - 1)]
+}
 $launchCommand = "codex " + (($launchArguments | ForEach-Object { Format-LaunchArgument $_ }) -join " ")
 $blockers = New-Object System.Collections.Generic.List[string]
 if (!$codexHelp.Found) {
@@ -381,6 +412,17 @@ $result = [ordered]@{
 	Responses = $responsesProbe
 	Chat = $chatProbe
 	LaunchCommand = $launchCommand
+	CodexSettings = [pscustomobject]@{
+		ModelContextWindow = [int]$ModelContextWindow
+		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit
+		ToolOutputTokenLimit = [int]$ToolOutputTokenLimit
+		MultiAgentV2Enabled = [bool]$codexMultiAgentV2
+		AgentMaxConcurrentThreads = [int]$AgentMaxConcurrentThreads
+		AgentMaxDepth = [int]$AgentMaxDepth
+		AgentMinWaitMs = [int]$AgentMinWaitMs
+		AgentMaxWaitMs = [int]$AgentMaxWaitMs
+		AgentDefaultWaitMs = [int]$AgentDefaultWaitMs
+	}
 	UsesOssFlag = ($launchCommand -match "\s--oss(\s|$)")
 	Blockers = @($blockers)
 	Ready = ($blockers.Count -eq 0)
@@ -431,3 +473,4 @@ if ($Json) {
 if ($Strict -and !$result.Ready) {
 	exit 1
 }
+$global:LASTEXITCODE = 0

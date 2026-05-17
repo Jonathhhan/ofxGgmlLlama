@@ -64,15 +64,30 @@ Generate the project with openFrameworks projectGenerator using addons
 
 ```powershell
 scripts\run-example.bat codex -Build `
+    -CodexPreset balanced `
     -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
-    -ServerModel unsloth/GLM-4.7-Flash `
-    -GpuLayers 999 `
-    -ContextSize 131072 `
+    -ServerModel local/GLM-4.7-Flash-UD-Q4_K_XL `
+    -GpuLayers all `
+    -ContextSize 40960 `
+    -Parallel 1 `
+    -BatchSize 2048 `
+    -UBatchSize 512 `
     -Temperature 1.0 `
     -TopP 0.95 `
-    -MinP 0.01 `
-    -NoCudaGraphs
+    -MinP 0.01
 ```
+
+Preset choices:
+
+| Preset | Use it for | Main settings |
+| --- | --- | --- |
+| `memory` | Smaller GPUs and first smoke tests. | `ctx=16384`, `batch=1024`, one agent slot. |
+| `balanced` | Default local coding setup. | `ctx=40960`, `batch=2048`, one agent slot. |
+| `long` | Large-context coding on high-VRAM systems. | `ctx=131072`, `batch=4096`, one agent slot. |
+| `concurrent` | Two local Codex sessions or subagent work. | `ctx=65536`, `parallel=2`, max agents `2`. |
+
+Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. Any explicit script
+argument or `OFXGGML_CODEX_*` setting still overrides the preset value.
 
 If an older local `llama-server` process is stuck on the Codex port and the
 example stays at "not ready", use the GUI's `Force new` button or launch with
@@ -92,6 +107,22 @@ same OpenAI-compatible endpoint:
 http://127.0.0.1:8001/v1
 ```
 
+The Codex example defaults keep GLM thinking disabled and match the local Codex
+runtime shape by launching `llama-server` with `--jinja`,
+`--chat-template-kwargs '{"enable_thinking": false}'`, `--reasoning off`,
+`--reasoning-budget 0`, `-ngl all`, `--ctx-size 40960`, `--parallel 1`,
+`--flash-attn on`, `--batch-size 2048`,
+and `--ubatch-size 512`. `--skip-chat-parsing` is off by default so the model
+chat template remains active.
+The ImGui panel exposes a `GPU layers all` toggle for literal `-ngl all` mode;
+turn it off only when you need a fixed numeric layer count.
+
+Keep `--parallel 1` for a single Codex session when you want the full 40960
+token window available to one request. Raise it only when you expect concurrent
+clients; more slots can improve throughput for simultaneous requests, but it
+increases memory pressure and may reduce the practical context available per
+slot depending on the llama.cpp build and model.
+
 ## Configure Codex
 
 Create or edit your local Codex config. This example now defaults to Codex's
@@ -106,9 +137,11 @@ standard config locations and writes:
 Use this provider/profile shape:
 
 ```toml
-model = "unsloth/GLM-4.7-Flash"
+model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+model_context_window = 40960
+model_auto_compact_token_limit = 30000
+tool_output_token_limit = 5000
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
@@ -117,37 +150,81 @@ wire_api = "responses"
 stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
-model = "unsloth/GLM-4.7-Flash"
+model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+
+[features.multi_agent_v2]
+enabled = true
+max_concurrent_threads_per_session = 1
+min_wait_timeout_ms = 2500
+max_wait_timeout_ms = 120000
+default_wait_timeout_ms = 30000
+usage_hint_enabled = false
+hide_spawn_agent_metadata = true
+non_code_mode_only = true
+
+[agents]
+max_depth = 1
+
+[agents.explorer]
+description = "Fast read-only codebase questions for local llama.cpp sessions."
+config_file = "ofxggml/agents/local-explorer.toml"
+nickname_candidates = ["Scout", "Trace"]
+
+[agents.worker]
+description = "Bounded code edits with focused validation for local llama.cpp sessions."
+config_file = "ofxggml/agents/local-worker.toml"
+nickname_candidates = ["Patch", "Build"]
 ```
 
 `profiles.ofxggml_local.model` must match the llama-server alias used by the
 example's `ServerModel` field. The alias is not proof of which GGUF is loaded:
 `llama-server` can serve a Qwen file while advertising a GLM alias if you pass
 the wrong `--alias`. If you do not pass `-ServerModel` and do not set
-`OFXGGML_CODEX_MODEL`, the launcher now derives a truthful alias from the GGUF
-filename, such as `local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If you launch a
-smaller local Qwen model with `-ServerModel local/qwen2.5-coder-1.5b`, use this
-profile instead:
+`OFXGGML_CODEX_MODEL`, the launcher derives a truthful alias from the GGUF
+filename, such as `local/GLM-4.7-Flash-UD-Q4_K_XL` or
+`local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If you launch a smaller local Qwen
+model with `-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
 
 ```toml
 [profiles.ofxggml_local]
 model = "local/qwen2.5-coder-1.5b"
 model_provider = "llama_cpp"
-web_search = "disabled"
 ```
 
 This folder includes `codex-config.example.toml` with the same starting point.
+It also includes `codex-agents/local-explorer.toml` and
+`codex-agents/local-worker.toml`. The example's auto-config writer creates
+matching files under your Codex home at `ofxggml/agents/` before it references
+them from `[agents.explorer]` and `[agents.worker]`. Those role files repeat
+the same max-agent cap so spawned explorer/worker sessions stay inside the
+local server budget.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
-    --model unsloth/GLM-4.7-Flash
+    -c model_context_window=40960 `
+    -c model_auto_compact_token_limit=30000 `
+    -c tool_output_token_limit=5000 `
+    -c features.multi_agent_v2.enabled=true `
+    -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
+    -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
+    -c features.multi_agent_v2.max_wait_timeout_ms=120000 `
+    -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
+    -c agents.max_depth=1 `
+    --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
+
+The agent defaults are intentionally conservative for local GGUF models:
+`max_concurrent_threads_per_session = 1` keeps Codex from spawning extra
+subagent work against a single local `llama-server`, and `agents.max_depth = 1`
+keeps delegation shallow. Raise the session thread count only when the model,
+VRAM, and server `--parallel` value can handle concurrent requests. If you turn
+off `multi_agent_v2`, use `agents.max_threads = 1` for the same legacy fanout
+cap. The helper scripts also accept `-MaxAgents` or `-AgentMaxAgents` as aliases
+for the upstream max-concurrent setting.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -164,18 +241,35 @@ Optional environment overrides:
 
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
-$env:OFXGGML_CODEX_MODEL = "unsloth/GLM-4.7-Flash"
+$env:OFXGGML_CODEX_MODEL = "local/GLM-4.7-Flash-UD-Q4_K_XL"
+$env:OFXGGML_CODEX_PRESET = "balanced"
 $env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
 $env:OFXGGML_CODEX_EXE = "C:\Users\you\AppData\Local\OpenAI\Codex\bin\codex.exe"
-$env:OFXGGML_CODEX_GPU_LAYERS = "999"
-$env:OFXGGML_CODEX_CONTEXT_SIZE = "131072"
+$env:OFXGGML_CODEX_GPU_LAYERS = "all"
+$env:OFXGGML_CODEX_CONTEXT_SIZE = "40960"
+$env:OFXGGML_CODEX_PARALLEL = "1"
+$env:OFXGGML_CODEX_FLASH_ATTN = "1"
+$env:OFXGGML_CODEX_BATCH_SIZE = "2048"
+$env:OFXGGML_CODEX_UBATCH_SIZE = "512"
+$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = "40960"
+$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = "30000"
+$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = "5000"
+$env:OFXGGML_CODEX_MULTI_AGENT_V2 = "1"
+$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = "1"
+$env:OFXGGML_CODEX_AGENT_MAX_DEPTH = "1"
+$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = "2500"
+$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS = "120000"
+$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS = "30000"
 $env:OFXGGML_CODEX_TEMP = "1.0"
 $env:OFXGGML_CODEX_TOP_P = "0.95"
 $env:OFXGGML_CODEX_MIN_P = "0.01"
+$env:OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS = '{"enable_thinking": false}'
+$env:OFXGGML_CODEX_REASONING = "off"
+$env:OFXGGML_CODEX_REASONING_BUDGET = "0"
 $env:OFXGGML_CODEX_AUTO_SERVER = "1"
 $env:OFXGGML_CODEX_AUTO_CONFIG = "1"
 $env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "0"
-$env:OFXGGML_CODEX_SKIP_CHAT_PARSING = "1"
+$env:OFXGGML_CODEX_SKIP_CHAT_PARSING = "0"
 $env:OFXGGML_CODEX_CONFIG_PATH = "%USERPROFILE%\.codex\config.toml"
 $env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
@@ -195,7 +289,7 @@ Before giving the endpoint to Codex:
 scripts\doctor-llama.bat
 scripts\list-models.bat
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
-scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 ```
 
 Use `-Backend cpu` for CPU-only validation.
@@ -215,3 +309,11 @@ aliases are visible before Codex work starts.
 
 Keep model weights, downloaded runtimes, generated project files, logs, local
 Codex config, and caches out of git.
+
+## ProjectGenerator Compatibility
+
+This example follows the standard openFrameworks addon structure:
+- `addons.make` lists required addons: ofxGgmlCore, ofxGgmlLlama, ofxImGui
+- Source files in src/ directory (not in code.files or custom vcxproj)
+- No hardcoded paths or custom build files
+- Generated projects will work with standard openFrameworks toolchain

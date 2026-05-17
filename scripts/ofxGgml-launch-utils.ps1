@@ -193,16 +193,24 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$StartMessage,
 		[int]$StartupTimeoutSeconds = 120,
 		[string]$Alias = "",
-		[Nullable[int]]$GpuLayers = $null,
+		[string]$GpuLayers = "",
 		[Nullable[int]]$ContextSize = $null,
+		[Nullable[int]]$Parallel = $null,
+		[Nullable[int]]$BatchSize = $null,
+		[Nullable[int]]$UBatchSize = $null,
 		[string]$Temperature = "",
 		[string]$TopP = "",
-	[string]$MinP = "",
-	[switch]$NoCudaGraphs,
-	[switch]$SkipChatParsing,
-	[switch]$ForceNew,
-	[switch]$NoAutoServer,
-	[switch]$Embeddings
+		[string]$MinP = "",
+		[string]$ChatTemplateKwargs = "",
+		[string]$Reasoning = "",
+		[string]$ReasoningBudget = "",
+		[switch]$Jinja,
+		[switch]$FlashAttention,
+		[switch]$NoCudaGraphs,
+		[switch]$SkipChatParsing,
+		[switch]$ForceNew,
+		[switch]$NoAutoServer,
+		[switch]$Embeddings
 	)
 
 	if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlLocalServerUrl $ServerUrl))) {
@@ -227,13 +235,25 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		$args += "-Alias"
 		$args += $Alias
 	}
-	if ($null -ne $GpuLayers) {
+	if (![string]::IsNullOrWhiteSpace($GpuLayers)) {
 		$args += "-GpuLayers"
 		$args += $GpuLayers
 	}
 	if ($null -ne $ContextSize) {
 		$args += "-ContextSize"
 		$args += $ContextSize
+	}
+	if ($null -ne $Parallel) {
+		$args += "-Parallel"
+		$args += $Parallel
+	}
+	if ($null -ne $BatchSize) {
+		$args += "-BatchSize"
+		$args += $BatchSize
+	}
+	if ($null -ne $UBatchSize) {
+		$args += "-UBatchSize"
+		$args += $UBatchSize
 	}
 	if (![string]::IsNullOrWhiteSpace($Temperature)) {
 		$args += "-Temperature"
@@ -246,6 +266,24 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	if (![string]::IsNullOrWhiteSpace($MinP)) {
 		$args += "-MinP"
 		$args += $MinP
+	}
+	if (![string]::IsNullOrWhiteSpace($ChatTemplateKwargs)) {
+		$args += "-ChatTemplateKwargs"
+		$args += $ChatTemplateKwargs
+	}
+	if (![string]::IsNullOrWhiteSpace($Reasoning)) {
+		$args += "-Reasoning"
+		$args += $Reasoning
+	}
+	if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
+		$args += "-ReasoningBudget"
+		$args += $ReasoningBudget
+	}
+	if ($Jinja) {
+		$args += "-Jinja"
+	}
+	if ($FlashAttention) {
+		$args += "-FlashAttention"
 	}
 	if ($SkipChatParsing) {
 		$args += "-SkipChatParsing"

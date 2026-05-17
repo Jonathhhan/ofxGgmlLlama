@@ -5,7 +5,7 @@
 #include "ofxImGui.h"
 
 #include <atomic>
-#include <cstddef>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -23,26 +23,24 @@ private:
 	void runStartServerWorker(bool force);
 	void requestEndpointSmoke();
 	void runEndpointSmokeWorker();
+	void requestWriteConfig();
 	void requestLaunchCodex();
 	void runLaunchCodexWorker();
 	void refreshRuntimeDiscovery();
 	void refreshServerStatus();
-	void applyBaseUrlToServerUrl();
-	void applyServerUrlToBaseUrl();
-	void appendWrapped(const std::string & text, std::size_t maxChars);
-	bool replaceSection(std::string & configText, const std::string & sectionName);
-	bool replaceTopLevelAssignments(std::string & configText, const std::vector<std::string> & keys);
-	void appendSection(std::string & configText, const std::string & sectionBody);
+	void refreshModelMetadata();
+	void applyPreset(int index);
 	bool syncCodexConfig();
 	void rebuildLines();
-	static std::string envValue(const char * name);
-	static std::string getEnvOrDefault(const char * name, const std::string & fallback);
-	static std::string normalizeEnvPath(const std::string & path);
-	static std::string trimCopy(const std::string & value);
-	static std::string serverRootFromBaseUrl(const std::string & value);
-	static std::string baseUrlFromServerRoot(const std::string & value);
-	static int serverPortFromUrl(const std::string & value, int fallbackPort);
-	static bool fileExists(const std::string & path);
+	void joinWorker();
+
+	ofxGgmlLlamaCodexProviderConfig makeCodexConfig() const;
+	ofxGgmlLlamaServerStartSettings makeServerSettings() const;
+
+	ofxImGui::Gui gui;
+	std::thread worker;
+	mutable std::mutex stateMutex;
+	std::atomic_bool cancelRequested { false };
 
 	std::string baseUrl;
 	std::string serverUrl;
@@ -50,29 +48,41 @@ private:
 	std::string modelPath;
 	std::string codexExe;
 	std::string serverExe;
+	std::string codexProfile = "ofxggml_local";
+	std::string configPath;
+	std::string wireApi = "responses";
+
 	std::string status;
 	std::string endpointStatus;
 	std::string endpointOutput;
-	std::string configPath;
 	std::string configWriteStatus;
-	std::string wireApi;
 	std::string wireApiProbeStatus;
 	std::vector<std::string> lines;
-	ofxImGui::Gui gui;
-	std::thread worker;
-	std::mutex stateMutex;
-	std::atomic_bool cancelRequested { false };
+
 	int gpuLayers = 999;
-	int contextSize = 131072;
+	int contextSize = 40960;
+	int parallel = 1;
+	int batchSize = 2048;
+	int ubatchSize = 512;
+	int modelContextWindow = 40960;
+	int modelAutoCompactTokenLimit = 30000;
+	int toolOutputTokenLimit = 5000;
+	int agentMaxConcurrentThreadsPerSession = 1;
+	int agentMaxDepth = 1;
+	int agentMinWaitTimeoutMs = 2500;
+	int agentMaxWaitTimeoutMs = 120000;
+	int agentDefaultWaitTimeoutMs = 30000;
 	int startupTimeoutSeconds = 300;
+	int presetIndex = 1;
+	uint64_t modelLayerCount = 0;
 	float temperature = 1.0f;
 	float topP = 0.95f;
 	float minP = 0.01f;
+	bool gpuLayersAll = true;
 	bool noCudaGraphs = true;
+	bool skipChatParsing = false;
 	bool autoConfig = true;
-	bool autoStartServer = true;
-	bool skipChatParsing = true;
-	std::string codexProfile = "ofxggml_local";
+	bool multiAgentV2Enabled = true;
 	bool serverReady = false;
 	bool endpointReady = false;
 	bool running = false;

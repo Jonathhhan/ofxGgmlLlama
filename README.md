@@ -82,8 +82,8 @@ interactive Codex session:
 
 ```powershell
 scripts\plan-local-codex.bat -SummaryOnly
-scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
-scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 ```
 
 Codex executable discovery is automatic: `OFXGGML_CODEX_EXE` override, Codex

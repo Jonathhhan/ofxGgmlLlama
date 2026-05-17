@@ -1,71 +1,78 @@
 #include "ofApp.h"
 
 #include "imgui_stdlib.h"
+#include "model/ofxGgmlModel.h"
 
 #include <algorithm>
-#include <array>
-#include <chrono>
-#include <cstdlib>
-#include <cctype>
-#include <cwctype>
-#include <fstream>
-#include <cstdio>
-#include <filesystem>
-#include <functional>
 #include <memory>
 #include <sstream>
-#include <thread>
-
-#if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <tlhelp32.h>
-#include <windows.h>
-#endif
 
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
 
-struct ServerProbe {
-	bool reachable = false;
-	bool ready = false;
-	int status = 0;
-	std::string message;
+struct CodexLocalPreset {
+	const char * id;
+	const char * label;
+	int contextSize;
+	int parallel;
+	int batchSize;
+	int ubatchSize;
+	int modelContextWindow;
+	int modelAutoCompactTokenLimit;
+	int toolOutputTokenLimit;
+	int agentMaxConcurrentThreads;
+	int agentMaxDepth;
+	int agentMinWaitMs;
+	int agentMaxWaitMs;
+	int agentDefaultWaitMs;
+	int startupTimeoutSeconds;
 };
 
-ServerProbe probeEndpoint(const std::string & endpointUrl, int timeoutSeconds = 2);
-std::string readCommandOutput(const std::string & command);
-
-std::string trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() &&
-		std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first &&
-		std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	std::string normalized = value.substr(first, last - first);
-	if (normalized.size() >= 2 && normalized.front() == '"' && normalized.back() == '"') {
-		normalized = normalized.substr(1, normalized.size() - 2);
-	}
-	return normalized;
+const std::vector<CodexLocalPreset> & codexLocalPresets() {
+	static const std::vector<CodexLocalPreset> presets {
+		{"memory", "Memory saver", 16384, 1, 1024, 256, 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300},
+		{"balanced", "Balanced local", 40960, 1, 2048, 512, 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300},
+		{"long", "Long context", 131072, 1, 4096, 1024, 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600},
+		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600}
+	};
+	return presets;
 }
 
-std::string normalizeEnvPath(const std::string & path) {
-	return trimCopy(path);
+int presetIndexFromId(const std::string & value) {
+	const auto & presets = codexLocalPresets();
+	for (std::size_t i = 0; i < presets.size(); ++i) {
+		if (value == presets[i].id || value == presets[i].label) {
+			return static_cast<int>(i);
+		}
+	}
+	return 1;
 }
 
-std::string toString(const std::filesystem::path & path) {
-	return path.lexically_normal().string();
-}
+void appendWrapped(
+	std::vector<std::string> & lines,
+	const std::string & text,
+	std::size_t maxChars) {
+	if (text.size() <= maxChars) {
+		lines.push_back(text);
+		return;
+	}
 
-bool pathExists(const std::filesystem::path & path) {
-	std::error_code error;
-	return std::filesystem::is_regular_file(path, error);
+	std::string line;
+	std::istringstream words(text);
+	std::string word;
+	while (words >> word) {
+		if (!line.empty() && line.size() + word.size() + 1 > maxChars) {
+			lines.push_back(line);
+			line.clear();
+		}
+		if (!line.empty()) {
+			line += " ";
+		}
+		line += word;
+	}
+	if (!line.empty()) {
+		lines.push_back(line);
+	}
 }
 
 std::string chooseFile(const std::string & title, const std::string & currentPath) {
@@ -74,1038 +81,266 @@ std::string chooseFile(const std::string & title, const std::string & currentPat
 	return result.bSuccess ? result.getPath() : std::string();
 }
 
-std::string readAllText(const std::string & filePath) {
-	std::ifstream input(filePath, std::ios::binary);
-	if (!input.is_open()) {
-		return {};
-	}
-	std::ostringstream stream;
-	stream << input.rdbuf();
-	return stream.str();
-}
-
-bool writeAllText(const std::string & filePath, const std::string & text) {
-	std::ofstream output(filePath, std::ios::binary | std::ofstream::trunc);
-	if (!output.is_open()) {
-		return false;
-	}
-	output << text;
-	return output.good();
-}
-
-std::string codexConfigPath() {
-	const char * explicitConfigPath = getenv("OFXGGML_CODEX_CONFIG_PATH");
-	if (explicitConfigPath && *explicitConfigPath) {
-		return toString(std::filesystem::absolute(std::filesystem::path(explicitConfigPath)).lexically_normal());
-	}
-	std::vector<std::filesystem::path> candidatePaths;
-	const auto addIfSet = [&](const char * envVar, const std::filesystem::path & suffix) {
-		if (envVar && *envVar) {
-			candidatePaths.emplace_back(std::filesystem::path(envVar) / suffix);
-		}
-	};
-
-#if defined(_WIN32)
-	addIfSet(getenv("CODEX_HOME"), "config.toml");
-	addIfSet(getenv("USERPROFILE"), ".codex/config.toml");
-	addIfSet(getenv("LOCALAPPDATA"), "OpenAI/Codex/config.toml");
-	addIfSet(getenv("APPDATA"), "OpenAI/Codex/config.toml");
-	const char * homePath = getenv("USERPROFILE");
-#else
-	addIfSet(getenv("CODEX_HOME"), "config.toml");
-	addIfSet(getenv("HOME"), ".codex/config.toml");
-	const char * homePath = getenv("HOME");
-#endif
-	addIfSet(homePath, ".codex/config.toml");
-
-	for (const auto & candidate : candidatePaths) {
-		if (std::filesystem::exists(candidate)) {
-			return toString(candidate);
-		}
-	}
-
-	const auto defaultPath = candidatePaths.empty()
-		? std::filesystem::path()
-		: candidatePaths.front();
-	if (!defaultPath.empty()) {
-		std::error_code error;
-		std::filesystem::create_directories(defaultPath.parent_path(), error);
-		if (!error) {
-			return toString(defaultPath);
-		}
-	}
-
-	const char * home = homePath;
-	const std::string base = home ? home : "";
-	if (base.empty()) {
-		return ".codex/config.toml";
-	}
-	const std::filesystem::path dir = std::filesystem::path(base) / ".codex";
-	std::error_code error;
-	std::filesystem::create_directories(dir, error);
-	if (error) {
-		return {};
-	}
-	return toString((dir / "config.toml"));
-}
-std::filesystem::path executableDirectory() {
-#if defined(_WIN32)
-	std::wstring buffer(MAX_PATH, L'\0');
-	DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-	while (length == buffer.size()) {
-		buffer.resize(buffer.size() * 2);
-		length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-	}
-	if (length > 0) {
-		buffer.resize(length);
-		return std::filesystem::path(buffer).parent_path();
-	}
-#endif
-	std::error_code error;
-	return std::filesystem::current_path(error);
-}
-
-void addUniquePath(std::vector<std::filesystem::path> & paths, const std::filesystem::path & path) {
-	if (path.empty()) {
-		return;
-	}
-	const std::filesystem::path normalized = path.lexically_normal();
-	for (const auto & existing : paths) {
-		if (existing == normalized) {
-			return;
-		}
-	}
-	paths.push_back(normalized);
-}
-
-std::vector<std::filesystem::path> searchRoots() {
-	std::vector<std::filesystem::path> roots;
-	std::error_code error;
-	addUniquePath(roots, executableDirectory());
-	addUniquePath(roots, std::filesystem::current_path(error));
-	const std::size_t initialCount = roots.size();
-	for (std::size_t i = 0; i < initialCount; ++i) {
-		std::filesystem::path parent = roots[i];
-		for (int depth = 0; depth < 7 && !parent.empty(); ++depth) {
-			addUniquePath(roots, parent);
-			parent = parent.parent_path();
-		}
-	}
-	return roots;
-}
-
-std::string findFirstFile(const std::vector<std::filesystem::path> & candidates) {
-	for (const auto & candidate : candidates) {
-		if (pathExists(candidate)) {
-			return toString(candidate);
-		}
-	}
-	return {};
-}
-
-std::string discoverLlamaServer() {
-#if defined(_WIN32)
-	const std::string executableName = "llama-server.exe";
-#else
-	const std::string executableName = "llama-server";
-#endif
-	const std::vector<std::filesystem::path> relativeDirectories = {
-		"",
-		"bin",
-		"data/bin",
-		"tools",
-		"libs/llama/bin",
-		"libs/llama.cpp/build/bin",
-		"libs/llama.cpp/build/bin/Release",
-		"libs/llama.cpp/build/bin/Debug"
-	};
-
-	std::vector<std::filesystem::path> candidates;
-	for (const auto & root : searchRoots()) {
-		for (const auto & relative : relativeDirectories) {
-			candidates.push_back(root / relative / executableName);
-		}
-	}
-	return findFirstFile(candidates);
-}
-
-std::string discoverTextModel() {
-	const std::vector<std::filesystem::path> relativeDirectories = {
-		"",
-		"data",
-		"data/models",
-		"models",
-		"../models",
-		"ofxGgmlLlamaCodexLocalExample/bin/data",
-		"ofxGgmlLlamaCodexLocalExample/bin/data/models",
-		"ofxGgmlLlamaCodexLocalExample/models",
-		"ofxGgmlTextExample/bin/data",
-		"ofxGgmlTextExample/bin/data/models",
-		"ofxGgmlTextExample/models",
-		"ofxGgmlChatExample/bin/data",
-		"ofxGgmlChatExample/bin/data/models",
-		"ofxGgmlChatExample/models"
-	};
-
-	std::vector<std::string> models;
-	for (const auto & root : searchRoots()) {
-		for (const auto & relative : relativeDirectories) {
-			const std::filesystem::path directory = (root / relative).lexically_normal();
-			std::error_code error;
-			if (!std::filesystem::is_directory(directory, error)) {
-				continue;
-			}
-			for (const auto & entry : std::filesystem::directory_iterator(directory, error)) {
-				if (error) {
-					break;
-				}
-				if (entry.is_regular_file(error) && entry.path().extension() == ".gguf") {
-					models.push_back(toString(entry.path()));
-				}
-			}
-		}
-	}
-	std::sort(models.begin(), models.end());
-	models.erase(std::unique(models.begin(), models.end()), models.end());
-	return models.empty() ? std::string() : models.front();
-}
-
-std::string localAliasForModelPath(const std::string & modelPath) {
-	if (modelPath.empty()) {
-		return {};
-	}
-	std::string stem = std::filesystem::path(modelPath).stem().string();
-	std::string slug;
-	slug.reserve(stem.size());
-	for (unsigned char c : stem) {
-		if (std::isalnum(c) || c == '.' || c == '_' || c == '-') {
-			slug.push_back(static_cast<char>(c));
-		}
-		else if (!slug.empty() && slug.back() != '-') {
-			slug.push_back('-');
-		}
-	}
-	while (!slug.empty() && slug.back() == '-') {
-		slug.pop_back();
-	}
-	return slug.empty() ? std::string() : "local/" + slug;
-}
-
-std::string quoteShellPath(const std::string & value) {
-	return "\"" + value + "\"";
-}
-
-std::string quoteArgument(const std::string & value) {
+int envInt(const char * name, int fallback) {
+	const auto value = ofxGgmlLlamaCodexLocal::envValue(name);
 	if (value.empty()) {
-		return "\"\"";
+		return fallback;
 	}
-	if (value.find_first_of(" \t\r\n\"") == std::string::npos) {
-		return value;
+	try {
+		return std::stoi(value);
+	} catch (...) {
+		return fallback;
 	}
-	std::string escaped;
-	escaped.reserve(value.size());
-	for (char c : value) {
-		if (c == '"') {
-			escaped += "\\\"";
-		} else {
-			escaped += c;
-		}
-	}
-	return "\"" + escaped + "\"";
 }
 
-std::string discoverCodexExecutable() {
-	const char * explicitCodexExe = getenv("OFXGGML_CODEX_EXE");
-	if (explicitCodexExe && *explicitCodexExe) {
-		const std::string explicitPath = normalizeEnvPath(explicitCodexExe);
-		if (!explicitPath.empty() && pathExists(std::filesystem::path(explicitPath))) {
-			return explicitPath;
-		}
+float envFloat(const char * name, float fallback) {
+	const auto value = ofxGgmlLlamaCodexLocal::envValue(name);
+	if (value.empty()) {
+		return fallback;
 	}
-
-#if defined(_WIN32)
-	std::vector<std::filesystem::path> candidates;
-	const auto addIfSet = [](const char * envVar, const std::filesystem::path & suffix, std::vector<std::filesystem::path> & output) {
-		if (envVar && *envVar) {
-			output.emplace_back(std::filesystem::path(envVar) / suffix);
-		}
-	};
-	addIfSet(getenv("LOCALAPPDATA"), "OpenAI/Codex/bin/codex.exe", candidates);
-	addIfSet(getenv("LOCALAPPDATA"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
-	addIfSet(getenv("PROGRAMFILES"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
-	addIfSet(getenv("PROGRAMFILES(X86)"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
-	addIfSet(getenv("USERPROFILE"), "AppData\\Local\\OpenAI\\Codex\\bin\\codex.exe", candidates);
-	for (const auto & candidate : candidates) {
-		if (std::filesystem::exists(candidate)) {
-			return toString(candidate);
-		}
+	try {
+		return std::stof(value);
+	} catch (...) {
+		return fallback;
 	}
-	const std::string wherePath = trimCopy(readCommandOutput("where.exe codex 2>NUL"));
-	if (!wherePath.empty()) {
-		std::istringstream lines(wherePath);
-		std::string line;
-		while (std::getline(lines, line)) {
-			line = trimCopy(line);
-			if (!line.empty() && pathExists(std::filesystem::path(line))) {
-				return line;
-			}
-		}
+}
+
+bool envBool(const char * name, bool fallback) {
+	const auto value = ofxGgmlLlamaCodexLocal::envValue(name);
+	if (value.empty()) {
+		return fallback;
 	}
-#endif
-	return {};
+	return value != "0" && value != "false" && value != "False";
 }
 
-std::wstring toWide(const std::string & value) {
-return std::wstring(value.begin(), value.end());
-}
-
-bool isPortableExecutableName(const std::string & executable) {
-	return executable.find('\\') == std::string::npos &&
-		executable.find('/') == std::string::npos &&
-		executable.find(':') == std::string::npos;
-}
-
-bool launchDetachedProcess(const std::string & executable, const std::string & arguments) {
-#if defined(_WIN32)
-if (executable.empty()) {
-return false;
-}
-std::string normalizedExe = executable;
-if (!isPortableExecutableName(normalizedExe)) {
-	normalizedExe = toString(std::filesystem::path(executable).lexically_normal());
-}
-std::wstring executableWide = toWide(normalizedExe);
-std::wstring argumentWide = toWide(arguments);
-std::wstring commandLine = L"\"" + executableWide + L"\"" + (arguments.empty() ? L"" : L" ") + argumentWide;
-
-STARTUPINFOW startupInfo {};
-startupInfo.cb = sizeof(startupInfo);
-PROCESS_INFORMATION processInfo {};
-const BOOL started = CreateProcessW(
-nullptr,
-	const_cast<wchar_t *>(commandLine.c_str()),
-nullptr,
-nullptr,
-FALSE,
-CREATE_NEW_CONSOLE,
-nullptr,
-	nullptr,
-	&startupInfo,
-	&processInfo);
-if (started) {
-	CloseHandle(processInfo.hThread);
-	CloseHandle(processInfo.hProcess);
-	return true;
-}
-const DWORD launchError = GetLastError();
-ofLogError(LogModule) << "Failed to launch CLI process: " << launchError << " command=" << quoteShellPath(normalizedExe) << " " << arguments;
-return false;
-#else
-if (executable.empty()) {
-return false;
-}
-std::string command = quoteShellPath(executable);
-if (!arguments.empty()) {
-command += " " + arguments;
-}
-command += " >/dev/null 2>&1 &";
-return std::system(command.c_str()) == 0;
-#endif
-}
-
-std::string trimTrailingSlash(std::string value) {
-	while (!value.empty() && value.back() == '/') {
-		value.pop_back();
+bool envGpuLayersAll(const char * name, bool fallback) {
+	const auto value = ofxGgmlLlamaCodexLocal::envValue(name);
+	if (value.empty()) {
+		return fallback;
 	}
-	return value;
-}
-
-bool isEndpointLikelySupported(int status) {
-	return status != 0 && status != 404;
-}
-
-std::string codexApiRootFromBaseUrl(const std::string & baseUrl) {
-	const std::string trimmed = trimTrailingSlash(baseUrl);
-	const std::string suffix = "/v1";
-	if (trimmed.size() >= suffix.size() &&
-		trimmed.compare(trimmed.size() - suffix.size(), suffix.size(), suffix) == 0) {
-		return trimmed;
-	}
-	return trimmed.empty() ? "http://127.0.0.1:8001/v1" : trimmed + suffix;
-}
-
-std::string detectCodexWireApi(const std::string & baseUrl) {
-	const std::string root = codexApiRootFromBaseUrl(baseUrl);
-	const ServerProbe responsesProbe = probeEndpoint(root + "/responses");
-	if (responsesProbe.ready) {
-		return "responses";
-	}
-	const ServerProbe chatProbe = probeEndpoint(root + "/chat/completions");
-	if (chatProbe.ready) {
-		return "chat";
-	}
-	return "responses";
-}
-
-ServerProbe probeEndpoint(const std::string & endpointUrl, int timeoutSeconds) {
-	ServerProbe probe;
-	ofHttpRequest request(endpointUrl, "llama-server-wire-api-probe");
-	request.method = ofHttpRequest::GET;
-	request.timeoutSeconds = std::max(1, timeoutSeconds);
-	ofURLFileLoader loader;
-	const ofHttpResponse response = loader.handleRequest(request);
-	probe.status = response.status;
-	probe.reachable = response.status > 0;
-	probe.ready = isEndpointLikelySupported(response.status);
-	if (!response.error.empty()) {
-		probe.message = response.error;
-	} else {
-		probe.message = response.data.getText();
-	}
-	probe.message = trimTrailingSlash(probe.message);
-	return probe;
-}
-
-
-ServerProbe probeServerHealth(const std::string & serverUrl, int timeoutSeconds = 2) {
-	ServerProbe probe;
-	ofHttpRequest request(trimTrailingSlash(serverUrl) + "/health", "llama-server-health");
-	request.method = ofHttpRequest::GET;
-	request.timeoutSeconds = std::max(1, timeoutSeconds);
-	ofURLFileLoader loader;
-	const ofHttpResponse response = loader.handleRequest(request);
-	probe.status = response.status;
-	probe.reachable = response.status > 0;
-	probe.ready = response.status >= 200 && response.status < 300;
-	if (!response.error.empty()) {
-		probe.message = response.error;
-	} else {
-		probe.message = response.data.getText();
-	}
-	probe.message = trimTrailingSlash(probe.message);
-	return probe;
-}
-
-bool isServerReady(const std::string & serverUrl) {
-	return probeServerHealth(serverUrl, 2).ready;
-}
-
-ServerProbe waitForServerReady(
-	const std::string & serverUrl,
-	int timeoutSeconds,
-	const std::function<bool()> & shouldCancel) {
-	const auto deadline = std::chrono::steady_clock::now() +
-		std::chrono::seconds(std::max(1, timeoutSeconds));
-	ServerProbe lastProbe;
-	while (std::chrono::steady_clock::now() < deadline) {
-		if (shouldCancel && shouldCancel()) {
-			lastProbe.message = "cancelled";
-			return lastProbe;
-		}
-		lastProbe = probeServerHealth(serverUrl, 2);
-		if (lastProbe.ready) {
-			return lastProbe;
-		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(500));
-	}
-	return probeServerHealth(serverUrl, 2);
-}
-
-std::string describeProbe(const ServerProbe & probe) {
-	std::string detail;
-	if (probe.reachable) {
-		detail = "HTTP " + std::to_string(probe.status);
-	} else {
-		detail = "unreachable";
-	}
-	if (!probe.message.empty()) {
-		detail += ": " + probe.message;
-	}
-	return detail;
-}
-
-std::string readCommandOutput(const std::string & command) {
-	std::array<char, 512> buffer {};
-	std::string output;
-#if defined(_WIN32)
-	FILE * pipe = _popen(command.c_str(), "r");
-#else
-	FILE * pipe = popen(command.c_str(), "r");
-#endif
-	if (!pipe) {
-		return output;
-	}
-	while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
-		output += buffer.data();
-	}
-#if defined(_WIN32)
-	_pclose(pipe);
-#else
-	pclose(pipe);
-#endif
-	return output;
-}
-
-bool serverSupportsArgument(const std::string & serverExe, const std::string & argument) {
-	if (serverExe.empty() || argument.empty()) {
-		return false;
-	}
-	const std::string output = readCommandOutput(quoteShellPath(serverExe) + " --help 2>&1");
-	if (output.empty()) {
+	if (value == "all" || value == "ALL" || value == "All") {
 		return true;
 	}
-	return output.find(argument) != std::string::npos;
+	return false;
 }
-
-bool codexSupportsArgument(const std::string & codexExe, const std::string & argument) {
-	if (codexExe.empty() || argument.empty()) {
-		return false;
-	}
-	const std::string output = readCommandOutput(quoteShellPath(codexExe) + " --help 2>&1");
-	if (output.empty()) {
-		return true;
-	}
-	return output.find(argument) != std::string::npos;
 }
-
-bool startBundledServer(
-	const std::string & serverExe,
-	const std::string & modelPath,
-	const std::string & serverUrl,
-	const std::string & modelAlias,
-	int gpuLayers,
-	int contextSize,
-	bool noCudaGraphs,
-	bool skipChatParsing,
-	float temperature,
-	float topP,
-	float minP) {
-	if (serverExe.empty() || modelPath.empty()) {
-		return false;
-	}
-	const int port = [] (const std::string & value, int fallbackPort) {
-		std::string normalized = value;
-		while (!normalized.empty() && std::isspace(static_cast<unsigned char>(normalized.front()))) {
-			normalized.erase(normalized.begin());
-		}
-		while (!normalized.empty() && std::isspace(static_cast<unsigned char>(normalized.back()))) {
-			normalized.pop_back();
-		}
-		normalized = trimTrailingSlash(normalized);
-		const std::size_t scheme = normalized.find("://");
-		const std::size_t hostStart = scheme == std::string::npos ? 0 : scheme + 3;
-		const std::size_t colon = normalized.find(':', hostStart);
-		if (colon == std::string::npos) {
-			return fallbackPort;
-		}
-		const std::size_t portStart = colon + 1;
-		std::size_t portEnd = normalized.find('/', portStart);
-		if (portEnd == std::string::npos) {
-			portEnd = normalized.size();
-		}
-		try {
-			return std::stoi(normalized.substr(portStart, portEnd - portStart));
-		} catch (...) {
-			return fallbackPort;
-		}
-	}(serverUrl, 8001);
-	const bool includeNoCudaGraphs = noCudaGraphs && serverSupportsArgument(serverExe, "--no-cuda-graphs");
-	const bool includeSkipChatParsing = skipChatParsing && serverSupportsArgument(serverExe, "--skip-chat-parsing");
-	if (noCudaGraphs && !includeNoCudaGraphs) {
-		ofLogWarning(LogModule)
-			<< "llama-server does not support --no-cuda-graphs; using server CUDA graph default";
-	}
-	if (skipChatParsing && !includeSkipChatParsing) {
-		ofLogWarning(LogModule)
-			<< "llama-server does not support --skip-chat-parsing; continuing without it";
-	}
-#if defined(_WIN32)
-	const std::filesystem::path exePath(serverExe);
-	std::wstring command = L"\"" + exePath.wstring() + L"\" -m \"" +
-		std::filesystem::path(modelPath).wstring() +
-		L"\" --host 127.0.0.1 --port " + std::to_wstring(port) +
-		L" -ngl " + std::to_wstring(std::max(0, gpuLayers)) +
-		L" -c " + std::to_wstring(std::max(512, contextSize));
-	if (!modelAlias.empty()) {
-		command += L" --alias \"" + std::wstring(modelAlias.begin(), modelAlias.end()) + L"\"";
-	}
-	if (includeNoCudaGraphs) {
-		command += L" --no-cuda-graphs";
-	}
-	if (includeSkipChatParsing) {
-		command += L" --skip-chat-parsing";
-	}
-	command += L" --temp " + std::to_wstring(temperature);
-	command += L" --top-p " + std::to_wstring(topP);
-	command += L" --min-p " + std::to_wstring(minP);
-
-	STARTUPINFOW startupInfo {};
-	startupInfo.cb = sizeof(startupInfo);
-	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
-	startupInfo.wShowWindow = SW_HIDE;
-	PROCESS_INFORMATION processInfo {};
-	std::wstring workingDirectory = exePath.parent_path().wstring();
-	const BOOL started = CreateProcessW(
-		nullptr,
-		command.data(),
-		nullptr,
-		nullptr,
-		FALSE,
-		CREATE_NO_WINDOW | DETACHED_PROCESS,
-		nullptr,
-		workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
-		&startupInfo,
-		&processInfo);
-	if (started) {
-		CloseHandle(processInfo.hThread);
-		CloseHandle(processInfo.hProcess);
-	}
-	return started == TRUE;
-#else
-	std::string command = quoteShellPath(serverExe) +
-		" -m " + quoteShellPath(modelPath) +
-		" --host 127.0.0.1 --port " + std::to_string(port) +
-		" -ngl " + std::to_string(std::max(0, gpuLayers)) +
-		" -c " + std::to_string(std::max(512, contextSize));
-	if (!modelAlias.empty()) {
-		command += " --alias " + quoteShellPath(modelAlias);
-	}
-	if (includeNoCudaGraphs) {
-		command += " --no-cuda-graphs";
-	}
-	if (includeSkipChatParsing) {
-		command += " --skip-chat-parsing";
-	}
-	command += " --temp " + std::to_string(temperature);
-	command += " --top-p " + std::to_string(topP);
-	command += " --min-p " + std::to_string(minP);
-	command += " >/dev/null 2>&1 &";
-	return std::system(command.c_str()) == 0;
-#endif
-}
-
-#if defined(_WIN32)
-std::wstring lowerWide(std::wstring value) {
-	std::transform(
-		value.begin(),
-		value.end(),
-		value.begin(),
-		[](wchar_t ch) { return static_cast<wchar_t>(std::towlower(ch)); });
-	return value;
-}
-
-std::wstring canonicalWidePath(const std::string & path) {
-	if (path.empty()) {
-		return {};
-	}
-	std::error_code error;
-	const auto canonical = std::filesystem::weakly_canonical(std::filesystem::path(path), error);
-	const auto normalized = error ? std::filesystem::path(path).lexically_normal() : canonical;
-	return lowerWide(normalized.wstring());
-}
-
-std::wstring processImagePath(DWORD processId, HANDLE processHandle) {
-	std::wstring imagePath(MAX_PATH, L'\0');
-	DWORD size = static_cast<DWORD>(imagePath.size());
-	while (!QueryFullProcessImageNameW(processHandle, 0, imagePath.data(), &size) &&
-		GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-		imagePath.resize(imagePath.size() * 2);
-		size = static_cast<DWORD>(imagePath.size());
-	}
-	if (size == 0) {
-		(void)processId;
-		return {};
-	}
-	imagePath.resize(size);
-	return lowerWide(std::filesystem::path(imagePath).lexically_normal().wstring());
-}
-
-int terminateMatchingServerProcesses(const std::string & serverExe) {
-	const std::wstring targetPath = canonicalWidePath(serverExe);
-	if (targetPath.empty()) {
-		return 0;
-	}
-	int terminated = 0;
-	const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snapshot == INVALID_HANDLE_VALUE) {
-		return 0;
-	}
-	PROCESSENTRY32W entry {};
-	entry.dwSize = sizeof(entry);
-	if (Process32FirstW(snapshot, &entry)) {
-		do {
-			if (entry.th32ProcessID == GetCurrentProcessId()) {
-				continue;
-			}
-			HANDLE process = OpenProcess(
-				PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-				FALSE,
-				entry.th32ProcessID);
-			if (!process) {
-				continue;
-			}
-			const std::wstring imagePath = processImagePath(entry.th32ProcessID, process);
-			if (!imagePath.empty() && imagePath == targetPath) {
-				if (TerminateProcess(process, 0)) {
-					++terminated;
-				}
-			}
-			CloseHandle(process);
-		} while (Process32NextW(snapshot, &entry));
-	}
-	CloseHandle(snapshot);
-	return terminated;
-}
-#else
-int terminateMatchingServerProcesses(const std::string &) {
-	return 0;
-}
-#endif
-
-} // namespace
 
 void ofApp::setup() {
-	ofSetWindowTitle("ofxGgmlLlama Codex Local Example");
-	ofSetFrameRate(60);
-	ofBackground(16);
-	gui.setup(nullptr, false);
+	ofSetWindowTitle("ofxGgmlLlama Codex Local");
+	gui.setup();
 
-	baseUrl = getEnvOrDefault("OFXGGML_CODEX_BASE_URL", "http://127.0.0.1:8001/v1");
-	modelAlias = normalizeEnvPath(envValue("OFXGGML_CODEX_MODEL"));
-	modelPath = normalizeEnvPath(envValue("OFXGGML_TEXT_MODEL"));
-	serverExe = normalizeEnvPath(envValue("OFXGGML_LLAMA_SERVER"));
-	gpuLayers = std::atoi(getEnvOrDefault("OFXGGML_CODEX_GPU_LAYERS", "999").c_str());
-	contextSize = std::atoi(getEnvOrDefault("OFXGGML_CODEX_CONTEXT_SIZE", "131072").c_str());
-	autoStartServer = getEnvOrDefault("OFXGGML_CODEX_AUTO_SERVER", "1") != "0";
-	autoConfig = getEnvOrDefault("OFXGGML_CODEX_AUTO_CONFIG", "1") != "0";
-	noCudaGraphs = getEnvOrDefault("OFXGGML_CODEX_NO_CUDA_GRAPHS", "0") != "0";
-	skipChatParsing = getEnvOrDefault("OFXGGML_CODEX_SKIP_CHAT_PARSING", "1") != "0";
-	codexProfile = getEnvOrDefault("OFXGGML_CODEX_PROFILE", "ofxggml_local");
-	codexExe = normalizeEnvPath(envValue("OFXGGML_CODEX_EXE"));
-	temperature = std::stof(getEnvOrDefault("OFXGGML_CODEX_TEMP", "1.0"));
-	topP = std::stof(getEnvOrDefault("OFXGGML_CODEX_TOP_P", "0.95"));
-	minP = std::stof(getEnvOrDefault("OFXGGML_CODEX_MIN_P", "0.01"));
-	startupTimeoutSeconds = std::atoi(getEnvOrDefault("OFXGGML_CODEX_STARTUP_TIMEOUT", "300").c_str());
-	if (startupTimeoutSeconds <= 0) {
-		startupTimeoutSeconds = 300;
-	}
-	applyBaseUrlToServerUrl();
-	wireApi = "responses";
-	wireApiProbeStatus = "wire_api not detected yet";
+	presetIndex = presetIndexFromId(
+		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PRESET", "balanced"));
+	applyPreset(presetIndex);
+
+	baseUrl = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_BASE_URL",
+		"http://127.0.0.1:8001/v1");
+	serverUrl = ofxGgmlLlamaCodexLocal::serverRootFromBaseUrl(baseUrl);
+	modelPath = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_TEXT_MODEL", "");
+	modelAlias = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_MODEL", "");
+	serverExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_LLAMA_SERVER_EXE", "");
+	codexExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_EXE", "");
+	configPath = ofxGgmlLlamaCodexLocal::resolveCodexConfigPath();
+	gpuLayersAll = envGpuLayersAll("OFXGGML_CODEX_GPU_LAYERS", gpuLayersAll);
+	gpuLayers = envInt("OFXGGML_CODEX_GPU_LAYERS", gpuLayers);
+	contextSize = envInt("OFXGGML_CODEX_CONTEXT_SIZE", contextSize);
+	parallel = envInt("OFXGGML_CODEX_PARALLEL", parallel);
+	batchSize = envInt("OFXGGML_CODEX_BATCH_SIZE", batchSize);
+	ubatchSize = envInt("OFXGGML_CODEX_UBATCH_SIZE", ubatchSize);
+	modelContextWindow = envInt("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW", modelContextWindow);
+	modelAutoCompactTokenLimit = envInt(
+		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
+		modelAutoCompactTokenLimit);
+	toolOutputTokenLimit = envInt("OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT", toolOutputTokenLimit);
+	agentMaxConcurrentThreadsPerSession = envInt(
+		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
+		agentMaxConcurrentThreadsPerSession);
+	agentMaxConcurrentThreadsPerSession = envInt(
+		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
+		agentMaxConcurrentThreadsPerSession);
+	agentMaxDepth = envInt("OFXGGML_CODEX_AGENT_MAX_DEPTH", agentMaxDepth);
+	agentMinWaitTimeoutMs = envInt("OFXGGML_CODEX_AGENT_MIN_WAIT_MS", agentMinWaitTimeoutMs);
+	agentMaxWaitTimeoutMs = envInt("OFXGGML_CODEX_AGENT_MAX_WAIT_MS", agentMaxWaitTimeoutMs);
+	agentDefaultWaitTimeoutMs = envInt(
+		"OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS",
+		agentDefaultWaitTimeoutMs);
+	startupTimeoutSeconds = envInt("OFXGGML_CODEX_STARTUP_TIMEOUT", startupTimeoutSeconds);
+	temperature = envFloat("OFXGGML_CODEX_TEMP", temperature);
+	topP = envFloat("OFXGGML_CODEX_TOP_P", topP);
+	minP = envFloat("OFXGGML_CODEX_MIN_P", minP);
+	noCudaGraphs = envBool("OFXGGML_CODEX_NO_CUDA_GRAPHS", noCudaGraphs);
+	skipChatParsing = envBool("OFXGGML_CODEX_SKIP_CHAT_PARSING", skipChatParsing);
+	autoConfig = envBool("OFXGGML_CODEX_AUTO_CONFIG", autoConfig);
+	multiAgentV2Enabled = envBool("OFXGGML_CODEX_MULTI_AGENT_V2", multiAgentV2Enabled);
+
 	refreshRuntimeDiscovery();
 	if (modelAlias.empty()) {
-		modelAlias = localAliasForModelPath(modelPath);
+		modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
 	}
-	refreshServerStatus();
+	refreshModelMetadata();
+	status = "ready";
+	wireApiProbeStatus = "wire_api defaults to responses";
 	rebuildLines();
-	if (configPath.empty()) {
-		configPath = codexConfigPath();
-	}
-	if (configPath.empty()) {
-		configWriteStatus = "Could not resolve local Codex config path";
-	}
-	else {
-		configWriteStatus = "Codex config path: " + configPath;
-	}
-	endpointStatus = "endpoint smoke not run";
-
-	ofLogNotice(LogModule) << "Codex endpoint: " << baseUrl;
-	ofLogNotice(LogModule) << "Codex model alias: " << modelAlias;
-	if (autoStartServer && !serverReady) {
-		requestStartServer(false);
-	}
 }
 
 void ofApp::draw() {
-	std::string baseUrlEdit;
-	std::string serverUrlEdit;
-	std::string modelAliasEdit;
-	std::string modelPathEdit;
-	std::string codexExeEdit;
-	std::string serverExeEdit;
-	std::string statusSnapshot;
-	std::string endpointStatusSnapshot;
-	std::string endpointOutputSnapshot;
-	std::string wireApiSnapshot;
-	std::string wireApiProbeStatusSnapshot;
-	std::string codexProfileSnapshot;
-	std::vector<std::string> lineSnapshot;
-	bool runningSnapshot = false;
-	bool serverReadySnapshot = false;
-	bool endpointReadySnapshot = false;
-	bool autoStartSnapshot = false;
-	bool autoConfigSnapshot = false;
-	bool noCudaGraphsSnapshot = false;
-	bool skipChatParsingSnapshot = false;
-	std::string configPathSnapshot;
-	std::string configWriteStatusSnapshot;
-	int gpuLayersSnapshot = 0;
-	int contextSizeSnapshot = 0;
-	int startupTimeoutSnapshot = 0;
-	float temperatureSnapshot = 0.0f;
-	float topPSnapshot = 0.0f;
-	float minPSnapshot = 0.0f;
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		baseUrlEdit = baseUrl;
-		serverUrlEdit = serverUrl;
-		modelAliasEdit = modelAlias;
-		modelPathEdit = modelPath;
-		codexExeEdit = codexExe;
-		serverExeEdit = serverExe;
-		statusSnapshot = status;
-		endpointStatusSnapshot = endpointStatus;
-		endpointOutputSnapshot = endpointOutput;
-		wireApiSnapshot = wireApi;
-		wireApiProbeStatusSnapshot = wireApiProbeStatus;
-		codexProfileSnapshot = codexProfile;
-		lineSnapshot = lines;
-		runningSnapshot = running;
-		serverReadySnapshot = serverReady;
-		endpointReadySnapshot = endpointReady;
-		autoStartSnapshot = autoStartServer;
-		autoConfigSnapshot = autoConfig;
-		noCudaGraphsSnapshot = noCudaGraphs;
-		skipChatParsingSnapshot = skipChatParsing;
-		configPathSnapshot = configPath;
-		configWriteStatusSnapshot = configWriteStatus;
-		gpuLayersSnapshot = gpuLayers;
-		contextSizeSnapshot = contextSize;
-		startupTimeoutSnapshot = startupTimeoutSeconds;
-		temperatureSnapshot = temperature;
-		topPSnapshot = topP;
-		minPSnapshot = minP;
-	}
+	ofBackground(18, 20, 24);
 
 	bool startRequested = false;
 	bool forceStartRequested = false;
-	bool recheckRequested = false;
 	bool smokeRequested = false;
-	bool launchRequested = false;
 	bool writeConfigRequested = false;
-	bool rediscoverRequested = false;
+	bool launchRequested = false;
+	bool refreshRequested = false;
 
-	ofBackground(16);
 	gui.begin();
-	const ImVec2 display = ImGui::GetIO().DisplaySize;
-	ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(
-		ImVec2(std::min(1040.0f, std::max(420.0f, display.x - 36.0f)),
-			std::min(720.0f, std::max(360.0f, display.y - 36.0f))),
-		ImGuiCond_Once);
-
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
-		ImGui::TextColored(
-			serverReadySnapshot ? ImVec4(0.70f, 0.92f, 0.70f, 1.0f) : ImVec4(0.90f, 0.72f, 0.45f, 1.0f),
-			"%s",
-			statusSnapshot.empty() ? "checking llama-server..." : statusSnapshot.c_str());
-		ImGui::SameLine();
-		ImGui::TextDisabled(serverReadySnapshot ? "ready" : "not ready");
-		ImGui::TextColored(
-			endpointReadySnapshot ? ImVec4(0.70f, 0.92f, 0.70f, 1.0f) : ImVec4(0.70f, 0.78f, 0.90f, 1.0f),
-			"%s",
-			endpointStatusSnapshot.empty() ? "endpoint smoke not run" : endpointStatusSnapshot.c_str());
-		ImGui::TextWrapped("Codex wire_api: %s", wireApiSnapshot.empty() ? "(not detected)" : wireApiSnapshot.c_str());
-		if (!wireApiProbeStatusSnapshot.empty()) {
-			ImGui::TextWrapped("Endpoint probe: %s", wireApiProbeStatusSnapshot.c_str());
-		}
-
-		if (runningSnapshot) {
-			ImGui::BeginDisabled();
-		}
-		if (ImGui::Button("Start server")) {
-			startRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Force new")) {
-			forceStartRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Recheck")) {
-			recheckRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Test endpoint")) {
-			smokeRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Rediscover")) {
-			rediscoverRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Launch Codex")) {
-			launchRequested = true;
-		}
-		if (runningSnapshot) {
-			ImGui::EndDisabled();
-		}
-
+		std::lock_guard<std::mutex> lock(stateMutex);
+		ImGui::TextWrapped("%s", status.empty() ? "ready" : status.c_str());
 		ImGui::Separator();
-		if (runningSnapshot) {
-			ImGui::BeginDisabled();
-		}
-		if (ImGui::Checkbox("Auto-start local server", &autoStartSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			autoStartServer = autoStartSnapshot;
-		}
-		if (ImGui::Checkbox("Auto-write Codex config", &autoConfigSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			autoConfig = autoConfigSnapshot;
-		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("Codex base URL", &baseUrlEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			baseUrl = normalizeEnvPath(baseUrlEdit);
-			applyBaseUrlToServerUrl();
+
+		if (ImGui::InputText("Codex base URL", &baseUrl)) {
+			serverUrl = ofxGgmlLlamaCodexLocal::serverRootFromBaseUrl(baseUrl);
 			rebuildLines();
 		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("Server root", &serverUrlEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			serverUrl = serverRootFromBaseUrl(serverUrlEdit);
-			applyServerUrlToBaseUrl();
+		if (ImGui::InputText("llama-server root", &serverUrl)) {
+			baseUrl = ofxGgmlLlamaCodexLocal::baseUrlFromServerRoot(serverUrl);
 			rebuildLines();
 		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("Codex model alias", &modelAliasEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			modelAlias = normalizeEnvPath(modelAliasEdit);
+		if (ImGui::InputText("Model alias", &modelAlias)) {
 			rebuildLines();
 		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("Codex executable", &codexExeEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			codexExe = normalizeEnvPath(codexExeEdit);
-		}
-		if (ImGui::Button("Choose Codex executable", ImVec2(200.0f, 0.0f))) {
-			const auto selectedPath = chooseFile("Choose Codex executable", codexExeEdit);
-			if (!selectedPath.empty()) {
-				std::lock_guard<std::mutex> lock(stateMutex);
-				codexExe = normalizeEnvPath(selectedPath);
+		if (ImGui::InputText("GGUF model", &modelPath)) {
+			if (modelAlias.empty()) {
+				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
 			}
-		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("Codex profile", &codexProfileSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			codexProfile = normalizeEnvPath(codexProfileSnapshot);
+			refreshModelMetadata();
 			rebuildLines();
 		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("GGUF model path", &modelPathEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			modelPath = normalizeEnvPath(modelPathEdit);
-		}
-		if (ImGui::Button("Choose GGUF Model", ImVec2(150.0f, 0.0f))) {
-			const auto selectedPath = chooseFile("Choose GGUF model", modelPathEdit);
-			if (!selectedPath.empty()) {
-				std::lock_guard<std::mutex> lock(stateMutex);
-				modelPath = normalizeEnvPath(selectedPath);
+		ImGui::SameLine();
+		if (ImGui::Button("Choose model")) {
+			const auto selected = chooseFile("Choose GGUF model", modelPath);
+			if (!selected.empty()) {
+				modelPath = selected;
+				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
+				refreshModelMetadata();
 				rebuildLines();
 			}
 		}
-		ImGui::SetNextItemWidth(-1.0f);
-		if (ImGui::InputText("llama-server path", &serverExeEdit)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			serverExe = normalizeEnvPath(serverExeEdit);
+		if (ImGui::InputText("llama-server path", &serverExe)) {
+			rebuildLines();
 		}
-		if (ImGui::Button("Choose llama-server", ImVec2(150.0f, 0.0f))) {
-			const auto selectedPath = chooseFile("Choose llama-server executable", serverExeEdit);
-			if (!selectedPath.empty()) {
-				std::lock_guard<std::mutex> lock(stateMutex);
-				serverExe = normalizeEnvPath(selectedPath);
+		ImGui::SameLine();
+		if (ImGui::Button("Choose server")) {
+			const auto selected = chooseFile("Choose llama-server executable", serverExe);
+			if (!selected.empty()) {
+				serverExe = selected;
 				rebuildLines();
 			}
 		}
-		ImGui::SetNextItemWidth(180.0f);
-		if (ImGui::InputInt("GPU layers", &gpuLayersSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			gpuLayers = gpuLayersSnapshot;
+		if (ImGui::InputText("Codex executable", &codexExe)) {
+			rebuildLines();
 		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(180.0f);
-		if (ImGui::InputInt("Context", &contextSizeSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			contextSize = contextSizeSnapshot;
+		if (ImGui::InputText("Codex profile", &codexProfile)) {
+			rebuildLines();
 		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(180.0f);
-		if (ImGui::InputInt("Startup timeout", &startupTimeoutSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			startupTimeoutSeconds = startupTimeoutSnapshot;
-		}
-		if (ImGui::Checkbox("Disable CUDA graphs", &noCudaGraphsSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			noCudaGraphs = noCudaGraphsSnapshot;
-		}
-		if (ImGui::Checkbox("Skip chat parsing for Codex compatibility", &skipChatParsingSnapshot)) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			skipChatParsing = skipChatParsingSnapshot;
-		}
-		ImGui::SetNextItemWidth(160.0f);
-		if (ImGui::SliderFloat("Temp", &temperatureSnapshot, 0.0f, 2.0f, "%.2f")) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			temperature = temperatureSnapshot;
-		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(160.0f);
-		if (ImGui::SliderFloat("Top-p", &topPSnapshot, 0.1f, 1.0f, "%.2f")) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			topP = topPSnapshot;
-		}
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(160.0f);
-		if (ImGui::SliderFloat("Min-p", &minPSnapshot, 0.0f, 0.2f, "%.2f")) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			minP = minPSnapshot;
-		}
-		if (ImGui::Button("Write Codex config")) {
-			writeConfigRequested = true;
-		}
-		if (!configWriteStatusSnapshot.empty()) {
-			ImGui::TextWrapped("%s", configWriteStatusSnapshot.c_str());
-		}
-		if (!configPathSnapshot.empty()) {
-			ImGui::TextWrapped("Config file: %s", configPathSnapshot.c_str());
-		}
-		if (runningSnapshot) {
-			ImGui::EndDisabled();
-		}
+		ImGui::InputText("Codex config", &configPath);
 
 		ImGui::Separator();
-		if (!endpointOutputSnapshot.empty()) {
-			ImGui::TextWrapped("Smoke output: %s", endpointOutputSnapshot.c_str());
-			ImGui::Separator();
+		const auto & presets = codexLocalPresets();
+		std::vector<const char *> presetLabels;
+		presetLabels.reserve(presets.size());
+		for (const auto & preset : presets) {
+			presetLabels.push_back(preset.label);
 		}
-		ImGui::TextUnformatted("Codex config.toml");
-		ImGui::BeginChild("codex-local-config", ImVec2(0.0f, 0.0f), true);
-		for (const auto & line : lineSnapshot) {
-			if (line.empty()) {
-				ImGui::Spacing();
+		ImGui::Combo(
+			"Preset",
+			&presetIndex,
+			presetLabels.data(),
+			static_cast<int>(presetLabels.size()));
+		ImGui::SameLine();
+		if (ImGui::Button("Apply preset")) {
+			applyPreset(presetIndex);
+			rebuildLines();
+		}
+		ImGui::Checkbox("GPU layers all", &gpuLayersAll);
+		if (gpuLayersAll) {
+			ImGui::SameLine();
+			if (modelLayerCount > 0) {
+				ImGui::TextDisabled(
+					"(%llu model layers)",
+					static_cast<unsigned long long>(modelLayerCount));
 			} else {
-				ImGui::TextWrapped("%s", line.c_str());
+				ImGui::TextDisabled("(model layer count unknown)");
 			}
 		}
-		ImGui::EndChild();
+		ImGui::BeginDisabled(gpuLayersAll);
+		ImGui::InputInt("GPU layers", &gpuLayers);
+		ImGui::EndDisabled();
+		ImGui::InputInt("Context size", &contextSize);
+		ImGui::InputInt("Parallel", &parallel);
+		ImGui::InputInt("Batch size", &batchSize);
+		ImGui::InputInt("UBatch size", &ubatchSize);
+		ImGui::InputInt("Model context window", &modelContextWindow);
+		ImGui::InputInt("Auto compact tokens", &modelAutoCompactTokenLimit);
+		ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit);
+		ImGui::InputInt("Startup timeout seconds", &startupTimeoutSeconds);
+		ImGui::SliderFloat("Temperature", &temperature, 0.0f, 2.0f, "%.2f");
+		ImGui::SliderFloat("Top P", &topP, 0.05f, 1.0f, "%.2f");
+		ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f");
+		ImGui::Separator();
+		ImGui::TextUnformatted("Agent settings");
+		ImGui::Checkbox("Multi-agent v2", &multiAgentV2Enabled);
+		ImGui::InputInt("Max agents", &agentMaxConcurrentThreadsPerSession);
+		ImGui::InputInt("Agent max depth", &agentMaxDepth);
+		ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs);
+		ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs);
+		ImGui::InputInt("Agent default wait ms", &agentDefaultWaitTimeoutMs);
+		ImGui::Checkbox("No CUDA graphs", &noCudaGraphs);
+		ImGui::Checkbox("Skip chat parsing", &skipChatParsing);
+		ImGui::Checkbox("Auto-write Codex config", &autoConfig);
+
+		ImGui::Separator();
+		ImGui::BeginDisabled(running);
+		startRequested = ImGui::Button("Start server");
+		ImGui::SameLine();
+		forceStartRequested = ImGui::Button("Force new");
+		ImGui::SameLine();
+		smokeRequested = ImGui::Button("Smoke endpoint");
+		ImGui::SameLine();
+		writeConfigRequested = ImGui::Button("Write config");
+		ImGui::SameLine();
+		launchRequested = ImGui::Button("Launch Codex");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		refreshRequested = ImGui::Button("Refresh");
+
+		ImGui::Separator();
+		ImGui::Text("server: %s", serverReady ? "ready" : "not ready");
+		ImGui::Text("endpoint: %s", endpointReady ? "ready" : "not ready");
+		ImGui::TextWrapped("wire_api: %s", wireApi.empty() ? "(not detected)" : wireApi.c_str());
+		ImGui::TextWrapped("%s", wireApiProbeStatus.c_str());
+		ImGui::TextWrapped("%s", endpointStatus.c_str());
+		if (!endpointOutput.empty()) {
+			ImGui::TextWrapped("endpoint output: %s", endpointOutput.c_str());
+		}
+		ImGui::TextWrapped("%s", configWriteStatus.c_str());
+
+		ImGui::Separator();
+		for (const auto & line : lines) {
+			ImGui::TextWrapped("%s", line.c_str());
+		}
 	}
 	ImGui::End();
 	gui.end();
-	gui.draw();
 
-	if (rediscoverRequested) {
+	if (refreshRequested) {
 		refreshRuntimeDiscovery();
-		rebuildLines();
-	}
-	if (recheckRequested) {
 		refreshServerStatus();
 	}
-	if (smokeRequested) {
-		requestEndpointSmoke();
-	}
 	if (writeConfigRequested) {
-		syncCodexConfig();
-	}
-	if (launchRequested) {
-		requestLaunchCodex();
+		requestWriteConfig();
 	}
 	if (startRequested) {
 		requestStartServer(false);
@@ -1113,430 +348,100 @@ void ofApp::draw() {
 	if (forceStartRequested) {
 		requestStartServer(true);
 	}
+	if (smokeRequested) {
+		requestEndpointSmoke();
+	}
+	if (launchRequested) {
+		requestLaunchCodex();
+	}
 }
 
 void ofApp::keyPressed(int key) {
-	if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureKeyboard) {
-		return;
-	}
 	if (key == 'r' || key == 'R') {
 		refreshRuntimeDiscovery();
 		refreshServerStatus();
-		rebuildLines();
-		ofLogNotice(LogModule) << "refreshed local Codex runtime display";
 	}
 	if (key == 's' || key == 'S') {
 		requestStartServer(false);
-	}
-	if (key == 't' || key == 'T') {
-		requestEndpointSmoke();
 	}
 }
 
 void ofApp::exit() {
 	cancelRequested = true;
-	if (worker.joinable()) {
-		worker.join();
-	}
+	joinWorker();
 }
 
 void ofApp::requestStartServer(bool force) {
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		if (running) {
-			status = "llama-server start is already running";
-			return;
-		}
-	}
-	if (worker.joinable()) {
-		worker.join();
-	}
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		running = true;
-		cancelRequested = false;
-		status = force ? "starting a new llama-server..." : "checking llama-server...";
-	}
-	worker = std::thread(&ofApp::runStartServerWorker, this, force);
-}
-
-void ofApp::requestLaunchCodex() {
-	std::string requestProfile;
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		if (running) {
 			status = "another operation is already running";
 			return;
 		}
-		if (!serverReady) {
-			status = "llama-server is not ready yet";
-			return;
-		}
-		requestProfile = codexProfile;
-	}
-	if (worker.joinable()) {
-		worker.join();
-	}
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
 		running = true;
 		cancelRequested = false;
-		status = "launching Codex...";
+		serverReady = false;
+		status = force ? "starting a new llama-server..." : "checking llama-server...";
 	}
-	worker = std::thread(&ofApp::runLaunchCodexWorker, this);
-}
-
-void ofApp::runLaunchCodexWorker() {
-	std::string requestProfile;
-	std::string requestModelAlias;
-	std::string requestCodexExe;
-	bool requestAutoConfig = false;
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		requestProfile = codexProfile;
-		requestModelAlias = modelAlias;
-		requestCodexExe = codexExe;
-		requestAutoConfig = autoConfig;
-	}
-	if (requestProfile.empty()) {
-		requestProfile = "ofxggml_local";
-	}
-	if (requestCodexExe.empty()) {
-		requestCodexExe = discoverCodexExecutable();
-		if (!requestCodexExe.empty()) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			codexExe = requestCodexExe;
-		}
-	}
-	const bool codexExeHasPath = !isPortableExecutableName(requestCodexExe);
-	if (requestCodexExe.empty() || (codexExeHasPath && !fileExists(requestCodexExe))) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		status = "Codex executable not found";
-		configWriteStatus = requestCodexExe.empty()
-			? "Set OFXGGML_CODEX_EXE or install Codex"
-			: "Codex executable not found: " + requestCodexExe;
-		running = false;
-		return;
-	}
-	const bool syncedConfig = requestAutoConfig ? syncCodexConfig() : true;
-	if (requestAutoConfig && !syncedConfig) {
-		ofLogWarning(LogModule) << "Codex auto-config failed; attempting launch with existing config";
-	}
-	std::string arguments;
-	if (codexSupportsArgument(requestCodexExe, "--no-alt-screen")) {
-		arguments += "--no-alt-screen ";
-	} else {
-		ofLogWarning(LogModule) << "Codex does not support --no-alt-screen; continuing without it";
-	}
-	if (codexSupportsArgument(requestCodexExe, "--disable")) {
-		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
-	} else {
-		ofLogWarning(LogModule) << "Codex does not support --disable; llama-server may reject non-function tools";
-	}
-	arguments += "-p " + quoteArgument(requestProfile) + " -c " + quoteArgument("web_search=\"disabled\"") + " -c model_provider=llama_cpp ";
-	if (!requestModelAlias.empty()) {
-		if (codexSupportsArgument(requestCodexExe, "--model")) {
-			arguments += "--model " + quoteArgument(requestModelAlias);
-		} else if (codexSupportsArgument(requestCodexExe, "-m")) {
-			arguments += "-m " + quoteArgument(requestModelAlias);
-		}
-	}
-	const bool launched = launchDetachedProcess(requestCodexExe, arguments);
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		running = false;
-		status = launched
-			? "Launched Codex with profile " + requestProfile
-			: "failed to launch Codex";
-		configWriteStatus = launched
-			? "Codex launch command: " + requestCodexExe + " " + arguments
-			: "Codex launch failed; check CLI path";
-	}
+	joinWorker();
+	worker = std::thread(&ofApp::runStartServerWorker, this, force);
 }
 
 void ofApp::runStartServerWorker(bool force) {
-	std::string requestServerUrl;
-	std::string requestModelPath;
-	std::string requestServerExe;
-	std::string requestModelAlias;
-	int requestGpuLayers = 0;
-	int requestContextSize = 0;
-	int requestStartupTimeout = 0;
-	bool requestNoCudaGraphs = false;
-	bool requestSkipChatParsing = false;
+	const auto settings = makeServerSettings();
+	int requestStartupTimeout = 300;
 	bool requestAutoConfig = false;
-	float requestTemperature = 0.0f;
-	float requestTopP = 0.0f;
-	float requestMinP = 0.0f;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
-		requestServerUrl = serverUrl;
-		requestModelPath = modelPath;
-		requestServerExe = serverExe;
-		requestModelAlias = modelAlias;
-		requestGpuLayers = gpuLayers;
-		requestContextSize = contextSize;
 		requestStartupTimeout = startupTimeoutSeconds;
-		requestNoCudaGraphs = noCudaGraphs;
-		requestSkipChatParsing = skipChatParsing;
-		requestTemperature = temperature;
-		requestTopP = topP;
-		requestMinP = minP;
 		requestAutoConfig = autoConfig;
 	}
-
-	if (!force && isServerReady(requestServerUrl)) {
-		const std::string detectedWireApi = detectCodexWireApi(requestServerUrl + "/v1");
-		if (!detectedWireApi.empty()) {
+	if (!force) {
+		const auto existing = ofxGgmlLlamaCodexLocal::probeServerHealth(settings.serverUrl, 2);
+		if (existing.ready) {
 			std::lock_guard<std::mutex> lock(stateMutex);
-			wireApi = detectedWireApi;
-			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
-			rebuildLines();
-		}
-		if (requestAutoConfig && syncCodexConfig()) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			configWriteStatus = "Auto config applied to " + configPath;
-		}
-		std::lock_guard<std::mutex> lock(stateMutex);
-		serverReady = true;
-		status = "llama-server is already ready at " + requestServerUrl;
-		running = false;
-		return;
-	}
-	if (requestServerExe.empty() || !fileExists(requestServerExe)) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		serverReady = false;
-		status = "llama-server executable not found; build llama.cpp or set the path";
-		running = false;
-		return;
-	}
-	if (requestModelPath.empty() || !fileExists(requestModelPath)) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		serverReady = false;
-		status = "GGUF model not found; set a model path or place one under models";
-		running = false;
-		return;
-	}
-	if (requestModelAlias.empty()) {
-		requestModelAlias = localAliasForModelPath(requestModelPath);
-		std::lock_guard<std::mutex> lock(stateMutex);
-		modelAlias = requestModelAlias;
-		rebuildLines();
-	}
-	if (force) {
-		const int terminated = terminateMatchingServerProcesses(requestServerExe);
-		if (terminated > 0) {
-			ofLogNotice(LogModule)
-				<< "stopped " << terminated << " existing llama-server process"
-				<< (terminated == 1 ? "" : "es")
-				<< " before restart";
-			std::this_thread::sleep_for(std::chrono::milliseconds(750));
+			serverReady = true;
+			status = "llama-server is already ready at " + settings.serverUrl;
+			running = false;
+			return;
 		}
 	}
 
-	ofLogNotice(LogModule)
-		<< "starting llama-server\n"
-		<< "exe: " << requestServerExe << "\n"
-		<< "model: " << requestModelPath << "\n"
-		<< "url: " << requestServerUrl << "\n"
-		<< "alias: " << requestModelAlias << "\n"
-		<< "skip-chat-parsing: " << (requestSkipChatParsing ? "on" : "off");
-
-	if (!startBundledServer(
-		requestServerExe,
-		requestModelPath,
-		requestServerUrl,
-		requestModelAlias,
-		requestGpuLayers,
-		requestContextSize,
-		requestNoCudaGraphs,
-		requestSkipChatParsing,
-		requestTemperature,
-		requestTopP,
-		requestMinP)) {
+	if (!ofxGgmlLlamaCodexLocal::fileExists(settings.serverExe)) {
 		std::lock_guard<std::mutex> lock(stateMutex);
-		serverReady = false;
-		status = "failed to start llama-server";
+		status = "llama-server executable not found";
+		running = false;
+		return;
+	}
+	if (!ofxGgmlLlamaCodexLocal::fileExists(settings.modelPath)) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		status = "GGUF model not found";
 		running = false;
 		return;
 	}
 
-	{
+	if (!ofxGgmlLlamaCodexLocal::startLlamaServer(settings)) {
 		std::lock_guard<std::mutex> lock(stateMutex);
-		status = "waiting for llama-server at " + requestServerUrl;
+		status = "failed to launch llama-server";
+		running = false;
+		return;
 	}
-	const ServerProbe probe = waitForServerReady(
-		requestServerUrl,
+
+	const auto probe = ofxGgmlLlamaCodexLocal::waitForServerReady(
+		settings.serverUrl,
 		requestStartupTimeout,
 		[this]() { return cancelRequested.load(); });
-	if (probe.ready) {
-		const std::string detectedWireApi = detectCodexWireApi(requestServerUrl + "/v1");
-		if (!detectedWireApi.empty()) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			wireApi = detectedWireApi;
-			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
-			rebuildLines();
-		}
-	}
 	if (probe.ready && requestAutoConfig) {
-		if (!syncCodexConfig()) {
-			ofLogWarning(LogModule) << "automatic Codex config update failed";
-		}
-	}
-	std::lock_guard<std::mutex> lock(stateMutex);
-	serverReady = probe.ready;
-	status = probe.ready
-		? "llama-server ready for Codex at " + baseUrl
-		: "llama-server did not become ready at " + requestServerUrl + " (" + describeProbe(probe) + ")";
-	running = false;
-}
-
-bool ofApp::replaceSection(std::string & configText, const std::string & sectionName) {
-	const std::string sectionHeader = "[" + sectionName + "]";
-	std::istringstream input(configText);
-	std::ostringstream output;
-	bool inTargetSection = false;
-	bool sectionFound = false;
-	std::string line;
-
-	while (std::getline(input, line)) {
-		const std::string trimmed = trimCopy(line);
-		const bool isSectionHeader = !trimmed.empty() &&
-			trimmed.front() == '[' &&
-			trimmed.back() == ']';
-		if (inTargetSection) {
-			if (isSectionHeader) {
-				inTargetSection = false;
-			} else {
-				continue;
-			}
-		}
-		if (!inTargetSection && trimmed == sectionHeader) {
-			sectionFound = true;
-			inTargetSection = true;
-			continue;
-		}
-		output << line << '\n';
-	}
-
-	configText = output.str();
-	return sectionFound;
-}
-
-bool ofApp::replaceTopLevelAssignments(std::string & configText, const std::vector<std::string> & keys) {
-	std::istringstream input(configText);
-	std::ostringstream output;
-	bool inSection = false;
-	bool updated = false;
-	std::string line;
-	while (std::getline(input, line)) {
-		const std::string trimmed = trimCopy(line);
-		if (!trimmed.empty() && trimmed.front() == '[' && trimmed.back() == ']') {
-			inSection = true;
-		}
-		if (!inSection) {
-			const bool shouldKeep = std::none_of(keys.begin(), keys.end(), [&](const std::string & key) {
-				const std::string prefix = key + " =";
-				return trimmed.rfind(prefix, 0) == 0;
-			});
-			if (!shouldKeep) {
-				updated = true;
-				continue;
-			}
-		}
-		output << line << '\n';
-	}
-	configText = output.str();
-	return updated;
-}
-
-void ofApp::appendSection(std::string & configText, const std::string & sectionBody) {
-	if (!configText.empty() && configText.back() != '\n') {
-		configText.push_back('\n');
-	}
-	configText += sectionBody;
-	if (!sectionBody.empty() && sectionBody.back() != '\n') {
-		configText.push_back('\n');
-	}
-}
-
-bool ofApp::syncCodexConfig() {
-	std::string snapshotBaseUrl;
-	std::string snapshotModelAlias;
-	std::string snapshotWireApi;
-	std::string snapshotProfile;
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		snapshotBaseUrl = baseUrl;
-		snapshotModelAlias = modelAlias;
-		snapshotWireApi = wireApi;
-		snapshotProfile = codexProfile;
-		if (configPath.empty()) {
-			configPath = codexConfigPath();
-		}
-	}
-	if (snapshotProfile.empty()) {
-		snapshotProfile = "ofxggml_local";
-	}
-
-	if (snapshotBaseUrl.empty() || snapshotModelAlias.empty()) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		configWriteStatus = "Cannot write Codex config: base URL and model alias are required";
-		return false;
-	}
-	if (configPath.empty()) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		configWriteStatus = "Cannot write Codex config: failed to resolve path";
-		return false;
-	}
-
-	const std::string existing = readAllText(configPath);
-	const std::string resolvedWireApi = snapshotWireApi.empty()
-		? detectCodexWireApi(snapshotBaseUrl)
-		: snapshotWireApi;
-	if (snapshotWireApi.empty() && !resolvedWireApi.empty()) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		wireApi = resolvedWireApi;
-		wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
-		rebuildLines();
-	}
-	const std::string effectiveWireApi = resolvedWireApi.empty() ? "responses" : resolvedWireApi;
-	const std::string providersSection = "[model_providers.llama_cpp]\n"
-		"name = \"llama.cpp local\"\n"
-		"base_url = \"" + snapshotBaseUrl + "\"\n"
-		"wire_api = \"" + effectiveWireApi + "\"\n"
-		"stream_idle_timeout_ms = 10000000\n";
-	const std::string profilesSection = "[profiles." + snapshotProfile + "]\n"
-		"model = \"" + snapshotModelAlias + "\"\n"
-		"model_provider = \"llama_cpp\"\n";
-	const std::string topLevelModelSelection = "model = \"" + snapshotModelAlias + "\"\n"
-		"model_provider = \"llama_cpp\"\n\n";
-
-	bool updatedExisting = false;
-	std::string updatedText = existing;
-	const bool removedProvider = replaceSection(updatedText, "model_providers.llama_cpp");
-	const bool removedProfile = replaceSection(updatedText, "profiles." + snapshotProfile);
-	const bool removedTopLevelSelection = replaceTopLevelAssignments(updatedText, { "model", "model_provider" });
-	updatedExisting = removedProvider || removedProfile || existing.empty();
-	if (!updatedExisting) {
-		updatedExisting = removedTopLevelSelection;
-	}
-	updatedText.insert(0, topLevelModelSelection);
-	appendSection(updatedText, providersSection);
-	appendSection(updatedText, profilesSection);
-
-	if (!writeAllText(configPath, updatedText)) {
-		std::lock_guard<std::mutex> lock(stateMutex);
-		configWriteStatus = "Failed to write config file " + configPath;
-		return false;
+		syncCodexConfig();
 	}
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
-		configWriteStatus = updatedExisting
-			? "Updated Codex config sections in " + configPath
-			: "Created Codex config in " + configPath;
+		serverReady = probe.ready;
+		status = probe.ready
+			? "llama-server ready for Codex at " + baseUrl
+			: "llama-server did not become ready (" + ofxGgmlLlamaCodexLocal::describeProbe(probe) + ")";
+		running = false;
 	}
-	return true;
 }
 
 void ofApp::requestEndpointSmoke() {
@@ -1546,34 +451,29 @@ void ofApp::requestEndpointSmoke() {
 			endpointStatus = "another operation is already running";
 			return;
 		}
-	}
-	if (worker.joinable()) {
-		worker.join();
-	}
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
 		running = true;
 		cancelRequested = false;
 		endpointReady = false;
 		endpointOutput.clear();
 		endpointStatus = "testing OpenAI-compatible endpoint...";
 	}
+	joinWorker();
 	worker = std::thread(&ofApp::runEndpointSmokeWorker, this);
 }
 
 void ofApp::runEndpointSmokeWorker() {
 	std::string requestBaseUrl;
 	std::string requestModelAlias;
-	bool requestAutoConfig = false;
 	float requestTemperature = 0.0f;
 	float requestTopP = 0.0f;
+	bool requestAutoConfig = false;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestBaseUrl = baseUrl;
 		requestModelAlias = modelAlias;
-		requestAutoConfig = autoConfig;
 		requestTemperature = temperature;
 		requestTopP = topP;
+		requestAutoConfig = autoConfig;
 	}
 
 	ofxGgmlTextGenerationSettings requestSettings;
@@ -1598,15 +498,8 @@ void ofApp::runEndpointSmokeWorker() {
 			return !cancelRequested.load();
 		});
 	if (result && requestAutoConfig) {
-		const std::string detectedWireApi = detectCodexWireApi(requestBaseUrl);
-		if (!detectedWireApi.empty()) {
-			std::lock_guard<std::mutex> lock(stateMutex);
-			wireApi = detectedWireApi;
-			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
-			rebuildLines();
-		}
+		syncCodexConfig();
 	}
-	const bool syncedConfig = result && requestAutoConfig && syncCodexConfig();
 
 	std::lock_guard<std::mutex> lock(stateMutex);
 	if (cancelRequested) {
@@ -1618,14 +511,9 @@ void ofApp::runEndpointSmokeWorker() {
 	if (result) {
 		endpointReady = true;
 		serverReady = true;
-		endpointOutput = trimCopy(result.text);
+		endpointOutput = ofxGgmlLlamaCodexLocal::trimCopy(result.text);
 		endpointStatus = "OpenAI-compatible endpoint answered in " +
 			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
-		if (requestAutoConfig) {
-			endpointStatus += syncedConfig
-				? " (Codex config updated)"
-				: " (Codex config update skipped)";
-		}
 		ofLogNotice(LogModule) << "endpoint smoke output\n" << endpointOutput;
 	} else {
 		endpointReady = false;
@@ -1636,178 +524,265 @@ void ofApp::runEndpointSmokeWorker() {
 	running = false;
 }
 
+void ofApp::requestWriteConfig() {
+	if (syncCodexConfig()) {
+		refreshServerStatus();
+	}
+}
+
+void ofApp::requestLaunchCodex() {
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		if (running) {
+			status = "another operation is already running";
+			return;
+		}
+		running = true;
+		cancelRequested = false;
+		status = "launching Codex...";
+	}
+	joinWorker();
+	worker = std::thread(&ofApp::runLaunchCodexWorker, this);
+}
+
+void ofApp::runLaunchCodexWorker() {
+	std::string requestCodexExe;
+	std::string requestProfile;
+	std::string requestModelAlias;
+	int requestModelContextWindow = 40960;
+	int requestModelAutoCompactTokenLimit = 30000;
+	int requestToolOutputTokenLimit = 5000;
+	int requestAgentMaxConcurrentThreadsPerSession = 1;
+	int requestAgentMaxDepth = 1;
+	int requestAgentMinWaitTimeoutMs = 2500;
+	int requestAgentMaxWaitTimeoutMs = 120000;
+	int requestAgentDefaultWaitTimeoutMs = 30000;
+	bool requestMultiAgentV2Enabled = true;
+	bool requestAutoConfig = false;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		requestCodexExe = codexExe;
+		requestProfile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
+		requestModelAlias = modelAlias;
+		requestModelContextWindow = modelContextWindow;
+		requestModelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
+		requestToolOutputTokenLimit = toolOutputTokenLimit;
+		requestAgentMaxConcurrentThreadsPerSession = agentMaxConcurrentThreadsPerSession;
+		requestAgentMaxDepth = agentMaxDepth;
+		requestAgentMinWaitTimeoutMs = agentMinWaitTimeoutMs;
+		requestAgentMaxWaitTimeoutMs = agentMaxWaitTimeoutMs;
+		requestAgentDefaultWaitTimeoutMs = agentDefaultWaitTimeoutMs;
+		requestMultiAgentV2Enabled = multiAgentV2Enabled;
+		requestAutoConfig = autoConfig;
+	}
+
+	if (requestAutoConfig && !syncCodexConfig()) {
+		ofLogWarning(LogModule) << "Codex auto-config failed; attempting launch with existing config";
+	}
+
+	std::string arguments;
+	if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--no-alt-screen")) {
+		arguments += "--no-alt-screen ";
+	}
+	if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--disable")) {
+		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
+	}
+	arguments += "-p " + ofxGgmlLlamaCodexLocal::quoteArgument(requestProfile) + " ";
+	arguments += "-c " + ofxGgmlLlamaCodexLocal::quoteArgument("web_search=\"disabled\"") + " ";
+	arguments += "-c model_provider=llama_cpp ";
+	arguments += "-c model_context_window=" + std::to_string(requestModelContextWindow) + " ";
+	arguments += "-c model_auto_compact_token_limit=" + std::to_string(requestModelAutoCompactTokenLimit) + " ";
+	arguments += "-c tool_output_token_limit=" + std::to_string(requestToolOutputTokenLimit) + " ";
+	arguments += "-c features.multi_agent_v2.enabled=" +
+		std::string(requestMultiAgentV2Enabled ? "true" : "false") + " ";
+	arguments += "-c features.multi_agent_v2.max_concurrent_threads_per_session=" +
+		std::to_string(requestAgentMaxConcurrentThreadsPerSession) + " ";
+	arguments += "-c features.multi_agent_v2.min_wait_timeout_ms=" +
+		std::to_string(requestAgentMinWaitTimeoutMs) + " ";
+	arguments += "-c features.multi_agent_v2.max_wait_timeout_ms=" +
+		std::to_string(requestAgentMaxWaitTimeoutMs) + " ";
+	arguments += "-c features.multi_agent_v2.default_wait_timeout_ms=" +
+		std::to_string(requestAgentDefaultWaitTimeoutMs) + " ";
+	if (!requestMultiAgentV2Enabled) {
+		arguments += "-c agents.max_threads=" +
+			std::to_string(requestAgentMaxConcurrentThreadsPerSession) + " ";
+	}
+	arguments += "-c agents.max_depth=" + std::to_string(requestAgentMaxDepth) + " ";
+	if (!requestModelAlias.empty()) {
+		if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--model")) {
+			arguments += "--model " + ofxGgmlLlamaCodexLocal::quoteArgument(requestModelAlias);
+		} else {
+			arguments += "-m " + ofxGgmlLlamaCodexLocal::quoteArgument(requestModelAlias);
+		}
+	}
+
+	const bool launched = ofxGgmlLlamaCodexLocal::launchDetachedProcess(requestCodexExe, arguments);
+	std::lock_guard<std::mutex> lock(stateMutex);
+	running = false;
+	status = launched
+		? "Launched Codex with profile " + requestProfile
+		: "failed to launch Codex";
+	configWriteStatus = launched
+		? "Codex launch command: " + requestCodexExe + " " + arguments
+		: "Codex launch failed; check CLI path";
+}
+
 void ofApp::refreshRuntimeDiscovery() {
 	std::lock_guard<std::mutex> lock(stateMutex);
-	if (serverExe.empty() || !fileExists(serverExe)) {
-		serverExe = discoverLlamaServer();
+	if (serverExe.empty() || !ofxGgmlLlamaCodexLocal::fileExists(serverExe)) {
+		serverExe = ofxGgmlLlamaCodexLocal::discoverLlamaServer();
 	}
-	if (modelPath.empty() || !fileExists(modelPath)) {
-		modelPath = discoverTextModel();
+	if (modelPath.empty() || !ofxGgmlLlamaCodexLocal::fileExists(modelPath)) {
+		modelPath = ofxGgmlLlamaCodexLocal::discoverTextModel();
 	}
-	if (status.empty()) {
-		status = "runtime discovery complete";
+	if (codexExe.empty() || !ofxGgmlLlamaCodexLocal::fileExists(codexExe)) {
+		codexExe = ofxGgmlLlamaCodexLocal::discoverCodexExecutable();
+	}
+	if (modelAlias.empty()) {
+		modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
+	}
+	refreshModelMetadata();
+	rebuildLines();
+}
+
+void ofApp::refreshModelMetadata() {
+	modelLayerCount = 0;
+	if (modelPath.empty() || !ofxGgmlLlamaCodexLocal::fileExists(modelPath)) {
+		return;
+	}
+	const auto result = ofxGgmlModel().inspect(modelPath);
+	if (result.isOk()) {
+		modelLayerCount = result.value().layerCount;
 	}
 }
 
 void ofApp::refreshServerStatus() {
-	const std::string requestServerUrl = [&]() {
+	std::string requestServerUrl;
+	{
 		std::lock_guard<std::mutex> lock(stateMutex);
-		return serverUrl;
-	}();
-	const ServerProbe probe = probeServerHealth(requestServerUrl, 2);
+		requestServerUrl = serverUrl;
+	}
+	const auto probe = ofxGgmlLlamaCodexLocal::probeServerHealth(requestServerUrl, 2);
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = probe.ready;
 	if (serverReady) {
-		const std::string detectedWireApi = detectCodexWireApi(baseUrl);
-		if (!detectedWireApi.empty()) {
-			wireApi = detectedWireApi;
-			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
-		}
-		rebuildLines();
-	}
-	if (!probe.ready) {
+		wireApi = ofxGgmlLlamaCodexLocal::detectCodexWireApi(baseUrl);
+		wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+	} else {
 		endpointReady = false;
 		wireApiProbeStatus = "wire_api not available (server not ready)";
 	}
 	status = probe.ready
 		? "llama-server ready for Codex at " + baseUrl
-		: "llama-server is not ready at " + requestServerUrl + " (" + describeProbe(probe) + ")";
+		: "llama-server is not ready at " + requestServerUrl + " (" +
+			ofxGgmlLlamaCodexLocal::describeProbe(probe) + ")";
+	rebuildLines();
 }
 
-void ofApp::applyBaseUrlToServerUrl() {
-	serverUrl = serverRootFromBaseUrl(baseUrl);
-}
-
-void ofApp::applyServerUrlToBaseUrl() {
-	baseUrl = baseUrlFromServerRoot(serverUrl);
-}
-
-void ofApp::appendWrapped(const std::string & text, std::size_t maxChars) {
-	if (text.size() <= maxChars) {
-		lines.push_back(text);
+void ofApp::applyPreset(int index) {
+	const auto & presets = codexLocalPresets();
+	if (presets.empty()) {
 		return;
 	}
+	const auto safeIndex = ofClamp(index, 0, static_cast<int>(presets.size()) - 1);
+	presetIndex = safeIndex;
+	const auto & preset = presets[static_cast<std::size_t>(safeIndex)];
+	contextSize = preset.contextSize;
+	parallel = preset.parallel;
+	batchSize = preset.batchSize;
+	ubatchSize = preset.ubatchSize;
+	modelContextWindow = preset.modelContextWindow;
+	modelAutoCompactTokenLimit = preset.modelAutoCompactTokenLimit;
+	toolOutputTokenLimit = preset.toolOutputTokenLimit;
+	agentMaxConcurrentThreadsPerSession = preset.agentMaxConcurrentThreads;
+	agentMaxDepth = preset.agentMaxDepth;
+	agentMinWaitTimeoutMs = preset.agentMinWaitMs;
+	agentMaxWaitTimeoutMs = preset.agentMaxWaitMs;
+	agentDefaultWaitTimeoutMs = preset.agentDefaultWaitMs;
+	startupTimeoutSeconds = preset.startupTimeoutSeconds;
+	gpuLayersAll = true;
+	multiAgentV2Enabled = true;
+}
 
-	std::istringstream words(text);
-	std::string word;
-	std::string line;
-	while (words >> word) {
-		if (!line.empty() && line.size() + word.size() + 1 > maxChars) {
-			lines.push_back(line);
-			line.clear();
-		}
-		if (!line.empty()) {
-			line += " ";
-		}
-		line += word;
+bool ofApp::syncCodexConfig() {
+	ofxGgmlLlamaCodexProviderConfig config;
+	std::string requestConfigPath;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		config = makeCodexConfig();
+		requestConfigPath = configPath;
 	}
-	if (!line.empty()) {
-		lines.push_back(line);
-	}
+	const auto result = ofxGgmlLlamaCodexLocal::writeCodexConfig(requestConfigPath, config);
+	std::lock_guard<std::mutex> lock(stateMutex);
+	configPath = result.path;
+	configWriteStatus = result.message;
+	rebuildLines();
+	return result.ok;
 }
 
 void ofApp::rebuildLines() {
 	lines.clear();
-	const std::string snapshotProfile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
-	lines.push_back("model = \"" + modelAlias + "\"");
-	lines.push_back("model_provider = \"llama_cpp\"");
-	lines.push_back("");
-	lines.push_back("[model_providers.llama_cpp]");
-	lines.push_back("name = \"llama.cpp local\"");
-	lines.push_back("base_url = \"" + baseUrl + "\"");
-	lines.push_back("wire_api = \"" + (wireApi.empty() ? "responses" : wireApi) + "\"");
-	lines.push_back("stream_idle_timeout_ms = 10000000");
-	lines.push_back("");
-	lines.push_back("[profiles." + snapshotProfile + "]");
-	lines.push_back("model = \"" + modelAlias + "\"");
-	lines.push_back("model_provider = \"llama_cpp\"");
-	lines.push_back("");
-	lines.push_back("Runtime");
-	lines.push_back("  server root: " + serverUrl);
-	lines.push_back("  GGUF model:  " + (modelPath.empty() ? "(not found)" : modelPath));
-	lines.push_back("  server exe:  " + (serverExe.empty() ? "(not found)" : serverExe));
-	lines.push_back("  codex exe:   " + (codexExe.empty() ? "(not found)" : codexExe));
-	lines.push_back("  GPU layers:  " + std::to_string(gpuLayers));
-	lines.push_back("  context:     " + std::to_string(contextSize));
-	lines.push_back("  skip chat parsing: " + std::string(skipChatParsing ? "on" : "off"));
-	appendWrapped("Use this provider/profile with Codex after the server is ready. You can auto-write the same sections to local config from the UI.", 96);
+	const auto config = makeCodexConfig();
+	std::istringstream snippet(ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config));
+	std::string line;
+	while (std::getline(snippet, line)) {
+		lines.push_back(line);
+	}
+	if (gpuLayersAll) {
+		lines.push_back(modelLayerCount > 0
+			? "GPU layers all: " + std::to_string(modelLayerCount) + " model layers"
+			: "GPU layers all: model layer count unknown");
+	}
+	appendWrapped(
+		lines,
+		"Use this provider/profile with Codex after the server is ready. The reusable config and llama-server helpers live in ofxGgmlLlama/src/codex.",
+		96);
 }
 
-std::string ofApp::envValue(const char * name) {
-#if defined(_WIN32)
-	char * value = nullptr;
-	std::size_t length = 0;
-	if (_dupenv_s(&value, &length, name) != 0 || !value) {
-		return {};
-	}
-	std::string result(value, length > 0 ? length - 1 : 0);
-	free(value);
-	return result;
-#else
-	const char * value = std::getenv(name);
-	return value ? std::string(value) : std::string();
-#endif
-}
-
-std::string ofApp::getEnvOrDefault(const char * name, const std::string & fallback) {
-	const std::string value = envValue(name);
-	return value.empty() ? fallback : value;
-}
-
-std::string ofApp::normalizeEnvPath(const std::string & path) {
-	return trimCopy(path);
-}
-
-std::string ofApp::trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() && std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first && std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	std::string normalized = value.substr(first, last - first);
-	if (normalized.size() >= 2 && normalized.front() == '"' && normalized.back() == '"') {
-		normalized = normalized.substr(1, normalized.size() - 2);
-	}
-	return normalized;
-}
-
-std::string ofApp::serverRootFromBaseUrl(const std::string & value) {
-	std::string normalized = trimTrailingSlash(trimCopy(value));
-	const std::string suffix = "/v1";
-	if (normalized.size() >= suffix.size() &&
-		normalized.compare(normalized.size() - suffix.size(), suffix.size(), suffix) == 0) {
-		normalized.resize(normalized.size() - suffix.size());
-	}
-	return normalized.empty() ? "http://127.0.0.1:8001" : normalized;
-}
-
-std::string ofApp::baseUrlFromServerRoot(const std::string & value) {
-	return trimTrailingSlash(serverRootFromBaseUrl(value)) + "/v1";
-}
-
-int ofApp::serverPortFromUrl(const std::string & value, int fallbackPort) {
-	const std::string normalized = trimTrailingSlash(value);
-	const std::size_t scheme = normalized.find("://");
-	const std::size_t hostStart = scheme == std::string::npos ? 0 : scheme + 3;
-	const std::size_t colon = normalized.find(':', hostStart);
-	if (colon == std::string::npos) {
-		return fallbackPort;
-	}
-	const std::size_t portStart = colon + 1;
-	std::size_t portEnd = normalized.find('/', portStart);
-	if (portEnd == std::string::npos) {
-		portEnd = normalized.size();
-	}
-	try {
-		return std::stoi(normalized.substr(portStart, portEnd - portStart));
-	} catch (...) {
-		return fallbackPort;
+void ofApp::joinWorker() {
+	if (worker.joinable()) {
+		worker.join();
 	}
 }
 
-bool ofApp::fileExists(const std::string & path) {
-	return !path.empty() && ofFile::doesFileExist(path, false);
+ofxGgmlLlamaCodexProviderConfig ofApp::makeCodexConfig() const {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.profile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
+	config.baseUrl = baseUrl;
+	config.modelAlias = modelAlias;
+	config.wireApi = wireApi.empty() ? "responses" : wireApi;
+	config.modelContextWindow = modelContextWindow;
+	config.modelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
+	config.toolOutputTokenLimit = toolOutputTokenLimit;
+	config.multiAgentV2Enabled = multiAgentV2Enabled;
+	config.agentMaxConcurrentThreadsPerSession = agentMaxConcurrentThreadsPerSession;
+	config.agentMaxDepth = agentMaxDepth;
+	config.agentMinWaitTimeoutMs = agentMinWaitTimeoutMs;
+	config.agentMaxWaitTimeoutMs = agentMaxWaitTimeoutMs;
+	config.agentDefaultWaitTimeoutMs = agentDefaultWaitTimeoutMs;
+	config.writeTopLevelSelection = true;
+	return config;
+}
+
+ofxGgmlLlamaServerStartSettings ofApp::makeServerSettings() const {
+	std::lock_guard<std::mutex> lock(stateMutex);
+	ofxGgmlLlamaServerStartSettings settings;
+	settings.serverExe = serverExe;
+	settings.modelPath = modelPath;
+	settings.serverUrl = serverUrl;
+	settings.modelAlias = modelAlias.empty()
+		? ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath)
+		: modelAlias;
+	settings.gpuLayers = gpuLayers;
+	settings.gpuLayersAll = gpuLayersAll;
+	settings.contextSize = contextSize;
+	settings.parallel = parallel;
+	settings.batchSize = batchSize;
+	settings.ubatchSize = ubatchSize;
+	settings.temperature = temperature;
+	settings.topP = topP;
+	settings.minP = minP;
+	settings.noCudaGraphs = noCudaGraphs;
+	settings.skipChatParsing = skipChatParsing;
+	return settings;
 }

@@ -85,8 +85,8 @@ Use the smallest command that proves the changed layer:
 | Llama runtime smoke planning | `scripts\run-llama-runtime-smoke.bat -DryRun` |
 | Llama CPU runtime inference | `scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json` |
 | Llama CUDA runtime inference | `scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json` |
-| Codex local provider preflight | `scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -SummaryOnly` |
-| Codex local exec smoke | `scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly` |
+| Codex local provider preflight | `scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -SummaryOnly` |
+| Codex local exec smoke | `scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly` |
 | Example launch path | `scripts\dev\test-launch-dry-run.bat` |
 | Generated project repair | `scripts\dev\test-example-project-repair.ps1` |
 | Adapter behavior | `scripts\dev\test-addon.bat` |

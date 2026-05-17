@@ -4,12 +4,20 @@ param(
 	[string]$HostName = "127.0.0.1",
 	[int]$Port = 8080,
 	[string]$Alias = "",
-	[int]$GpuLayers = 28,
+	[string]$GpuLayers = "28",
 	[int]$ContextSize = 4096,
+	[int]$Parallel = 1,
+	[int]$BatchSize = 0,
+	[int]$UBatchSize = 0,
 	[string]$Temperature = "",
 	[string]$TopP = "",
 	[string]$MinP = "",
+	[string]$ChatTemplateKwargs = "",
+	[string]$Reasoning = "",
+	[string]$ReasoningBudget = "",
 	[string]$EmbeddingPooling = "mean",
+	[switch]$Jinja,
+	[switch]$FlashAttention,
 	[switch]$NoCudaGraphs,
 	[switch]$SkipChatParsing,
 	[switch]$Embeddings,
@@ -219,9 +227,25 @@ $arguments = @(
 	"-m", $ModelPath,
 	"--host", $HostName,
 	"--port", $Port.ToString(),
-	"-ngl", ([Math]::Max(0, $GpuLayers)).ToString(),
+	"-ngl", $GpuLayers,
 	"-c", ([Math]::Max(512, $ContextSize)).ToString()
 )
+if ($Parallel -gt 0) {
+	$arguments += "--parallel"
+	$arguments += ([Math]::Max(1, $Parallel)).ToString()
+}
+if ($FlashAttention) {
+	$arguments += "--flash-attn"
+	$arguments += "on"
+}
+if ($BatchSize -gt 0) {
+	$arguments += "--batch-size"
+	$arguments += $BatchSize.ToString()
+}
+if ($UBatchSize -gt 0) {
+	$arguments += "--ubatch-size"
+	$arguments += $UBatchSize.ToString()
+}
 if (![string]::IsNullOrWhiteSpace($Alias)) {
 	$arguments += "--alias"
 	$arguments += $Alias
@@ -237,6 +261,21 @@ if (![string]::IsNullOrWhiteSpace($TopP)) {
 if (![string]::IsNullOrWhiteSpace($MinP)) {
 	$arguments += "--min-p"
 	$arguments += $MinP
+}
+if ($Jinja) {
+	$arguments += "--jinja"
+}
+if (![string]::IsNullOrWhiteSpace($ChatTemplateKwargs)) {
+	$arguments += "--chat-template-kwargs"
+	$arguments += $ChatTemplateKwargs
+}
+if (![string]::IsNullOrWhiteSpace($Reasoning)) {
+	$arguments += "--reasoning"
+	$arguments += $Reasoning
+}
+if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
+	$arguments += "--reasoning-budget"
+	$arguments += $ReasoningBudget
 }
 $cudaGraphsArgumentSupported = $true
 if ($NoCudaGraphs -and !$DryRun) {
@@ -281,6 +320,13 @@ if (![string]::IsNullOrWhiteSpace($Alias)) {
 }
 Write-Host "  ngl:       $GpuLayers"
 Write-Host "  ctx:       $ContextSize"
+Write-Host "  parallel:  $Parallel"
+if ($BatchSize -gt 0) {
+	Write-Host "  batch:     $BatchSize"
+}
+if ($UBatchSize -gt 0) {
+	Write-Host "  ubatch:    $UBatchSize"
+}
 if (![string]::IsNullOrWhiteSpace($Temperature)) {
 	Write-Host "  temp:      $Temperature"
 }
@@ -289,6 +335,14 @@ if (![string]::IsNullOrWhiteSpace($TopP)) {
 }
 if (![string]::IsNullOrWhiteSpace($MinP)) {
 	Write-Host "  min_p:     $MinP"
+}
+Write-Host "  jinja:     $(if ($Jinja) { 'on' } else { 'default' })"
+Write-Host "  flashAttn: $(if ($FlashAttention) { 'on' } else { 'default' })"
+if (![string]::IsNullOrWhiteSpace($Reasoning)) {
+	Write-Host "  reasoning: $Reasoning"
+}
+if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
+	Write-Host "  thinkBudget: $ReasoningBudget"
 }
 Write-Host "  cudaGraph: $(if (!$NoCudaGraphs) { 'on' } elseif ($cudaGraphsArgumentSupported) { 'off' } else { 'off requested; unsupported by this llama-server' })"
 Write-Host "  skipChatParsing: $(if ($SkipChatParsing -and $skipChatParsingArgumentSupported) { 'on' } elseif ($SkipChatParsing) { 'requested; unsupported by this llama-server' } else { 'off' })"

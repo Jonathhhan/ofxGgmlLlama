@@ -9,7 +9,8 @@ common:
 	ADDON_DEPENDENCIES += ofxGgmlCore
 	ADDON_INCLUDES = src
 	ADDON_INCLUDES += ../ofxGgmlCore/src
-	ADDON_SOURCES = src/inference/ofxGgmlLlamaCliTextBackend.cpp
+	ADDON_SOURCES = src/codex/ofxGgmlLlamaCodexLocal.cpp
+	ADDON_SOURCES += src/inference/ofxGgmlLlamaCliTextBackend.cpp
 	ADDON_SOURCES += src/inference/ofxGgmlLlamaServerEmbeddingBackend.cpp
 	ADDON_SOURCES += src/inference/ofxGgmlLlamaServerTextBackend.cpp
 	ADDON_SOURCES_EXCLUDE = build/%

@@ -107,7 +107,11 @@ normal addon examples on their default ports.
 ```sh
 ./llama.cpp/llama-server \
     --model unsloth/GLM-4.7-Flash-GGUF/GLM-4.7-Flash-UD-Q4_K_XL.gguf \
-    --alias "unsloth/GLM-4.7-Flash" \
+    --alias "local/GLM-4.7-Flash-UD-Q4_K_XL" \
+    --jinja \
+    --chat-template-kwargs '{"enable_thinking": false}' \
+    --reasoning off \
+    --reasoning-budget 0 \
     --temp 1.0 \
     --top-p 0.95 \
     --min-p 0.01 \
@@ -130,9 +134,22 @@ file:
 scripts\start-llama-server.bat `
     -ModelPath ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
     -Port 8001 `
-    -GpuLayers 999 `
-    -ContextSize 131072
+    -Alias local/GLM-4.7-Flash-UD-Q4_K_XL `
+    -GpuLayers all `
+    -ContextSize 131072 `
+    -ChatTemplateKwargs '{"enable_thinking": false}' `
+    -Reasoning off `
+    -ReasoningBudget 0 `
+    -Jinja
 ```
+
+The Codex example and `scripts\run-example.bat codex` also expose presets:
+`memory`, `balanced`, `long`, and `concurrent`. The default `balanced` preset
+uses `ctx=40960`, `batch=2048`, and one agent slot. `long` raises context to
+`131072` for high-VRAM systems. `concurrent` uses `parallel=2` and two agent
+slots, so use it only when the model and GPU have enough headroom.
+The default GPU setting is `-GpuLayers all`, matching llama.cpp's literal
+`-ngl all`; switch to a numeric layer count only for explicit VRAM limiting.
 
 The addon wrapper intentionally exposes a conservative common subset of
 `llama-server` flags. Use the direct upstream command when you need advanced
@@ -150,7 +167,7 @@ http://127.0.0.1:8001/v1
 Use the model alias configured on the server, for example:
 
 ```text
-unsloth/GLM-4.7-Flash
+local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
 For Codex, this alias is not just display text. The profile `model` value must
@@ -160,7 +177,7 @@ the editable `ServerModel` field. If you start the server with
 `model = "local/qwen2.5-coder-1.5b"`.
 
 The alias is also not proof of which model file is loaded. A server can load a
-Qwen GGUF while advertising `unsloth/GLM-4.7-Flash` if it was started with the
+Qwen GGUF while advertising `local/GLM-4.7-Flash-UD-Q4_K_XL` if it was started with the
 wrong `--alias`. When no explicit `-ServerModel` or `OFXGGML_CODEX_MODEL` is
 provided, the addon launcher derives a local alias from the GGUF filename
 instead of pretending every discovered model is GLM.
@@ -169,9 +186,12 @@ For Codex, the local config shape is (and is typically resolved from
 `%USERPROFILE%\.codex\config.toml` on Windows):
 
 ```toml
-model = "unsloth/GLM-4.7-Flash"
+model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
+model_context_window = 40960
+model_auto_compact_token_limit = 30000
+tool_output_token_limit = 5000
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
@@ -180,10 +200,39 @@ wire_api = "responses"
 stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
-model = "unsloth/GLM-4.7-Flash"
+model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
+
+[features.multi_agent_v2]
+enabled = true
+max_concurrent_threads_per_session = 1
+min_wait_timeout_ms = 2500
+max_wait_timeout_ms = 120000
+default_wait_timeout_ms = 30000
+usage_hint_enabled = false
+hide_spawn_agent_metadata = true
+non_code_mode_only = true
+
+[agents]
+max_depth = 1
+
+[agents.explorer]
+description = "Fast read-only codebase questions for local llama.cpp sessions."
+config_file = "ofxggml/agents/local-explorer.toml"
+nickname_candidates = ["Scout", "Trace"]
+
+[agents.worker]
+description = "Bounded code edits with focused validation for local llama.cpp sessions."
+config_file = "ofxggml/agents/local-worker.toml"
+nickname_candidates = ["Patch", "Build"]
 ```
+
+The role `config_file` paths are resolved relative to the Codex config file.
+The example auto-config writer creates these files under
+`%CODEX_HOME%\ofxggml\agents` or `%USERPROFILE%\.codex\ofxggml\agents`.
+The role files repeat the same `features.multi_agent_v2` max-agent cap so
+spawned explorer/worker sessions inherit the local server limit.
 
 Use the custom provider explicitly when launching Codex:
 
@@ -192,8 +241,25 @@ codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
     -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
-    --model unsloth/GLM-4.7-Flash
+    -c model_context_window=40960 `
+    -c model_auto_compact_token_limit=30000 `
+    -c tool_output_token_limit=5000 `
+    -c features.multi_agent_v2.enabled=true `
+    -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
+    -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
+    -c features.multi_agent_v2.max_wait_timeout_ms=120000 `
+    -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
+    -c agents.max_depth=1 `
+    --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
+
+The agent defaults are intentionally narrow for one local `llama-server`:
+one concurrent session thread, depth one, and explicit wait timeouts. Increase
+them only when your model, VRAM, and server `--parallel` setting can absorb
+concurrent Codex work. If `multi_agent_v2` is disabled, cap the legacy agent
+pool with `agents.max_threads = 1`. Helper scripts expose this as `-MaxAgents`
+or `-AgentMaxAgents`, mapped to Codex's
+`features.multi_agent_v2.max_concurrent_threads_per_session` setting.
 
 Do not use `--oss` for this llama.cpp lane. `--oss` selects Codex's built-in
 open-source provider flow; this ecosystem lane is a named OpenAI-compatible
@@ -207,7 +273,7 @@ definitions. Shell and patch tools remain available as function tools.
 Before launching an interactive Codex session, run the local planner:
 
 ```powershell
-scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -SummaryOnly
+scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -SummaryOnly
 ```
 
 The planner does not edit Codex config or start Codex. It reports the resolved
@@ -222,7 +288,7 @@ After the planner reports ready, run the non-interactive smoke to prove Codex
 itself can use the local endpoint:
 
 ```powershell
-scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 ```
 
 This runs `codex exec` with the llama.cpp-compatible tool disables and checks
@@ -230,7 +296,7 @@ for the marker response `LOCAL_CODEX_OK`.
 
 The planner and smoke also include alias sanity evidence: model ids advertised
 by `/v1/models` and, on local Windows runs, the `llama-server.exe -m` model file
-from the process command line. If `model = "unsloth/GLM-4.7-Flash"` but the
+from the process command line. If `model = "local/GLM-4.7-Flash-UD-Q4_K_XL"` but the
 process path points at a Qwen GGUF, the server was started with a misleading
 alias and should be restarted with the intended model file or a truthful alias.
 
@@ -255,7 +321,7 @@ With a compatible model available, run a real smoke:
 
 ```powershell
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
-scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 ```
 
 Use `-Backend cpu` when validating a CPU-only install.

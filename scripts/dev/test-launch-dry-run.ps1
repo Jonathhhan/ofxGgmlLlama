@@ -29,6 +29,44 @@ function Invoke-DryRun {
 	$previousEmbeddingServerModel = $env:OFXGGML_EMBEDDING_SERVER_MODEL
 	$previousCodexBaseUrl = $env:OFXGGML_CODEX_BASE_URL
 	$previousCodexModel = $env:OFXGGML_CODEX_MODEL
+	$previousCodexMultiAgentV2 = $env:OFXGGML_CODEX_MULTI_AGENT_V2
+	$previousCodexAgentThreads = $env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS
+	$previousCodexAgentDepth = $env:OFXGGML_CODEX_AGENT_MAX_DEPTH
+	$previousCodexAgentMinWait = $env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS
+	$previousCodexAgentMaxWait = $env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS
+	$previousCodexAgentDefaultWait = $env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS
+	$codexEnvNames = @(
+		"OFXGGML_CODEX_BASE_URL",
+		"OFXGGML_CODEX_MODEL",
+		"OFXGGML_CODEX_PRESET",
+		"OFXGGML_CODEX_GPU_LAYERS",
+		"OFXGGML_CODEX_CONTEXT_SIZE",
+		"OFXGGML_CODEX_PARALLEL",
+		"OFXGGML_CODEX_BATCH_SIZE",
+		"OFXGGML_CODEX_UBATCH_SIZE",
+		"OFXGGML_CODEX_FLASH_ATTN",
+		"OFXGGML_CODEX_MODEL_CONTEXT_WINDOW",
+		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
+		"OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT",
+		"OFXGGML_CODEX_MULTI_AGENT_V2",
+		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
+		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
+		"OFXGGML_CODEX_AGENT_MAX_DEPTH",
+		"OFXGGML_CODEX_AGENT_MIN_WAIT_MS",
+		"OFXGGML_CODEX_AGENT_MAX_WAIT_MS",
+		"OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS",
+		"OFXGGML_CODEX_TEMP",
+		"OFXGGML_CODEX_TOP_P",
+		"OFXGGML_CODEX_MIN_P",
+		"OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS",
+		"OFXGGML_CODEX_REASONING",
+		"OFXGGML_CODEX_REASONING_BUDGET",
+		"OFXGGML_CODEX_NO_CUDA_GRAPHS",
+		"OFXGGML_CODEX_SKIP_CHAT_PARSING")
+	$previousCodexEnv = @{}
+	foreach ($name in $codexEnvNames) {
+		$previousCodexEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+	}
 	$env:OFXGGML_LAUNCH_DRY_RUN_ONLY = "1"
 	try {
 		$output = & $Script @Parameters *>&1 | ForEach-Object { $_.ToString() }
@@ -95,6 +133,43 @@ function Invoke-DryRun {
 			Remove-Item Env:\OFXGGML_CODEX_MODEL -ErrorAction SilentlyContinue
 		} else {
 			$env:OFXGGML_CODEX_MODEL = $previousCodexModel
+		}
+		if ($null -eq $previousCodexMultiAgentV2) {
+			Remove-Item Env:\OFXGGML_CODEX_MULTI_AGENT_V2 -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_MULTI_AGENT_V2 = $previousCodexMultiAgentV2
+		}
+		if ($null -eq $previousCodexAgentThreads) {
+			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = $previousCodexAgentThreads
+		}
+		if ($null -eq $previousCodexAgentDepth) {
+			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_DEPTH -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_AGENT_MAX_DEPTH = $previousCodexAgentDepth
+		}
+		if ($null -eq $previousCodexAgentMinWait) {
+			Remove-Item Env:\OFXGGML_CODEX_AGENT_MIN_WAIT_MS -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = $previousCodexAgentMinWait
+		}
+		if ($null -eq $previousCodexAgentMaxWait) {
+			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_WAIT_MS -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS = $previousCodexAgentMaxWait
+		}
+		if ($null -eq $previousCodexAgentDefaultWait) {
+			Remove-Item Env:\OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS -ErrorAction SilentlyContinue
+		} else {
+			$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS = $previousCodexAgentDefaultWait
+		}
+		foreach ($name in $codexEnvNames) {
+			if ($null -eq $previousCodexEnv[$name]) {
+				Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
+			} else {
+				[Environment]::SetEnvironmentVariable($name, [string]$previousCodexEnv[$name], "Process")
+			}
 		}
 	}
 	return @($output)
@@ -264,7 +339,10 @@ $codexOutput = Invoke-DryRun `
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 temp=1.1 top_p=0.91 min_p=0.03 cudaGraph=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex preset: Balanced local" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=2048 ubatch=512 flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=40960 auto_compact=30000 tool_output=5000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex agent settings: multi_agent_v2=on max_agents=1 max_depth=1 wait_ms=2500/30000/120000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
@@ -282,7 +360,24 @@ $codexDerivedAliasOutput = Invoke-DryRun `
 	}
 $expectedDerivedAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
 Assert-Contains $codexDerivedAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local derived alias dry-run"
+Assert-Contains $codexDerivedAliasOutput "ngl=all" "Codex local derived alias dry-run"
 Assert-NotContains $codexDerivedAliasOutput "unsloth/GLM-4.7-Flash" "Codex local derived alias dry-run"
+
+$codexLongPresetOutput = Invoke-DryRun `
+	-Label "Codex local long-context preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "long"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexLongPresetOutput "Using Codex preset: Long context" "Codex local long-context preset dry-run"
+Assert-Contains $codexLongPresetOutput "ctx=131072 parallel=1 batch=4096 ubatch=1024" "Codex local long-context preset dry-run"
+Assert-Contains $codexLongPresetOutput "model_context_window=131072 auto_compact=100000 tool_output=8000" "Codex local long-context preset dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `
