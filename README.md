@@ -41,6 +41,8 @@ cd ofxGgmlLlama
 scripts\build-llama-server.bat
 scripts\list-models.bat -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -DryRun
+scripts\plan-local-codex.bat -SummaryOnly
+scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
@@ -73,6 +75,28 @@ discovery contract used by Core planning, including text, embedding, and tiny
 text-model candidate counts. A successful model-backed smoke can write local
 ignored evidence to `.llama-runtime-smoke.json` for Core release-readiness
 planning.
+
+The Codex-local planner checks the installed Codex CLI, config path, selected
+profile/provider, server endpoint health, and launch command without starting an
+interactive Codex session:
+
+```powershell
+scripts\plan-local-codex.bat -SummaryOnly
+scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+```
+
+Codex executable discovery is automatic: `OFXGGML_CODEX_EXE` override, Codex
+Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, then `where codex`.
+The planner is read-only preflight. The Codex smoke runs `codex exec` against
+the local `llama-server` endpoint and expects `LOCAL_CODEX_OK`, so use it only
+after the server is running.
+For Codex launches, pass `-ServerModel` only when you intentionally want a
+specific server alias. Otherwise the launcher derives a `local/<model-file>`
+alias from the actual GGUF path so Codex config cannot silently label Qwen as
+GLM.
+The planner also reports `/v1/models` ids and, on local Windows runs, the
+actual `llama-server.exe -m` model path so alias/model mismatches are visible.
 
 ## Dependencies
 
@@ -112,6 +136,8 @@ scripts/build-example.*
 scripts/run-example.*
 scripts/build-llama-server.*
 scripts/doctor-llama.*
+scripts/plan-local-codex.*
+scripts/test-local-codex.*
 scripts/start-llama-server.*
 scripts/stop-llama-server.*
 scripts/status-llama-server.*

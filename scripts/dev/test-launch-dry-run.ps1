@@ -269,6 +269,21 @@ Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
 
+$codexDerivedAliasOutput = Invoke-DryRun `
+	-Label "Codex local derived alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+$expectedDerivedAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
+Assert-Contains $codexDerivedAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local derived alias dry-run"
+Assert-NotContains $codexDerivedAliasOutput "unsloth/GLM-4.7-Flash" "Codex local derived alias dry-run"
+
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `
 	-Script (Join-Path $scriptRoot "dev\run-embedding.ps1") `

@@ -79,12 +79,26 @@ $Temperature = Normalize-OfxGgmlPathText $Temperature
 $TopP = Normalize-OfxGgmlPathText $TopP
 $MinP = Normalize-OfxGgmlPathText $MinP
 
+function Get-OfxGgmlLocalModelAlias {
+	param([string]$ModelPath)
+
+	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
+		return ""
+	}
+	$name = [System.IO.Path]::GetFileNameWithoutExtension($ModelPath)
+	if ([string]::IsNullOrWhiteSpace($name)) {
+		return ""
+	}
+	$slug = ($name -replace '[^A-Za-z0-9._-]+', '-').Trim("-")
+	if ([string]::IsNullOrWhiteSpace($slug)) {
+		return ""
+	}
+	return "local/$slug"
+}
+
 if ($isCodex) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 		$ServerUrl = if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }
-	}
-	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
-		$ServerModel = if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "unsloth/GLM-4.7-Flash" }
 	}
 	if ($GpuLayers -eq [int]::MinValue) {
 		$GpuLayers = if ($env:OFXGGML_CODEX_GPU_LAYERS) { [int]$env:OFXGGML_CODEX_GPU_LAYERS } else { 999 }
@@ -105,6 +119,11 @@ if ($isCodex) {
 		$MinP = if ($env:OFXGGML_CODEX_MIN_P) { $env:OFXGGML_CODEX_MIN_P } else { "0.01" }
 	}
 	$codexNoCudaGraphs = $NoCudaGraphs -or $env:OFXGGML_CODEX_NO_CUDA_GRAPHS -ne "0"
+	$codexSkipChatParsing = if ($env:OFXGGML_CODEX_SKIP_CHAT_PARSING) {
+		$env:OFXGGML_CODEX_SKIP_CHAT_PARSING -ne "0"
+	} else {
+		$true
+	}
 	if ([string]::IsNullOrWhiteSpace($Model)) {
 		$Model = if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
 	}
@@ -114,6 +133,13 @@ if ($isCodex) {
 			-ExampleRoot $exampleRoot `
 			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
+	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
+		if ($env:OFXGGML_CODEX_MODEL) {
+			$ServerModel = $env:OFXGGML_CODEX_MODEL
+		} else {
+			$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
+		}
+	}
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
 	$env:OFXGGML_CODEX_MODEL = $ServerModel
 	$env:OFXGGML_CODEX_GPU_LAYERS = $GpuLayers.ToString()
@@ -122,6 +148,7 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_TOP_P = $TopP
 	$env:OFXGGML_CODEX_MIN_P = $MinP
 	$env:OFXGGML_CODEX_NO_CUDA_GRAPHS = if ($codexNoCudaGraphs) { "1" } else { "0" }
+	$env:OFXGGML_CODEX_SKIP_CHAT_PARSING = if ($codexSkipChatParsing) { "1" } else { "0" }
 	if (![string]::IsNullOrWhiteSpace($Model)) {
 		$env:OFXGGML_TEXT_MODEL = $Model
 		Write-OfxGgmlStep "Using text model: $Model"
@@ -130,7 +157,7 @@ if ($isCodex) {
 	}
 	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
 	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
-	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize temp=$Temperature top_p=$TopP min_p=$MinP cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' })"
+	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize temp=$Temperature top_p=$TopP min_p=$MinP cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"
@@ -152,6 +179,7 @@ if ($isCodex) {
 		-TopP $TopP `
 		-MinP $MinP `
 		-NoCudaGraphs:$codexNoCudaGraphs `
+		-SkipChatParsing:$codexSkipChatParsing `
 		-ForceNew:$ForceNewServer `
 		-NoAutoServer:$NoAutoServer
 } elseif ($isEmbedding) {

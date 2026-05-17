@@ -1,3 +1,7 @@
+model = "unsloth/GLM-4.7-Flash"
+model_provider = "llama_cpp"
+web_search = "disabled"
+
 [model_providers.llama_cpp]
 name = "llama.cpp local"
 base_url = "http://127.0.0.1:8001/v1"
@@ -8,3 +12,4 @@ stream_idle_timeout_ms = 10000000
 # Must match the llama-server alias shown as ServerModel in the example.
 model = "unsloth/GLM-4.7-Flash"
 model_provider = "llama_cpp"
+web_search = "disabled"

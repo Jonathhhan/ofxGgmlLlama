@@ -159,9 +159,20 @@ the editable `ServerModel` field. If you start the server with
 `-ServerModel local/qwen2.5-coder-1.5b`, the Codex profile must use
 `model = "local/qwen2.5-coder-1.5b"`.
 
-For Codex, the local config shape is:
+The alias is also not proof of which model file is loaded. A server can load a
+Qwen GGUF while advertising `unsloth/GLM-4.7-Flash` if it was started with the
+wrong `--alias`. When no explicit `-ServerModel` or `OFXGGML_CODEX_MODEL` is
+provided, the addon launcher derives a local alias from the GGUF filename
+instead of pretending every discovered model is GLM.
+
+For Codex, the local config shape is (and is typically resolved from
+`%USERPROFILE%\.codex\config.toml` on Windows):
 
 ```toml
+model = "unsloth/GLM-4.7-Flash"
+model_provider = "llama_cpp"
+web_search = "disabled"
+
 [model_providers.llama_cpp]
 name = "llama.cpp local"
 base_url = "http://127.0.0.1:8001/v1"
@@ -171,9 +182,57 @@ stream_idle_timeout_ms = 10000000
 [profiles.ofxggml_local]
 model = "unsloth/GLM-4.7-Flash"
 model_provider = "llama_cpp"
+web_search = "disabled"
 ```
 
-Check the exact profile invocation against your installed Codex version.
+Use the custom provider explicitly when launching Codex:
+
+```powershell
+codex --no-alt-screen -p ofxggml_local `
+    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
+    -c web_search='"disabled"' `
+    -c model_provider=llama_cpp `
+    --model unsloth/GLM-4.7-Flash
+```
+
+Do not use `--oss` for this llama.cpp lane. `--oss` selects Codex's built-in
+open-source provider flow; this ecosystem lane is a named OpenAI-compatible
+provider served by `llama-server`.
+
+The disable flags are intentional for direct `llama-server` use. Codex can load
+Responses tools whose type is not `function` such as web search, image
+generation, browser, and app namespace tools; llama.cpp rejects those tool
+definitions. Shell and patch tools remain available as function tools.
+
+Before launching an interactive Codex session, run the local planner:
+
+```powershell
+scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -SummaryOnly
+```
+
+The planner does not edit Codex config or start Codex. It reports the resolved
+Codex executable, config file, endpoint health, provider/profile readiness, and
+the exact launch command that should be used.
+
+Codex executable discovery is automatic. The scripts use `OFXGGML_CODEX_EXE`
+when set, then Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`,
+then `where codex`.
+
+After the planner reports ready, run the non-interactive smoke to prove Codex
+itself can use the local endpoint:
+
+```powershell
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
+```
+
+This runs `codex exec` with the llama.cpp-compatible tool disables and checks
+for the marker response `LOCAL_CODEX_OK`.
+
+The planner and smoke also include alias sanity evidence: model ids advertised
+by `/v1/models` and, on local Windows runs, the `llama-server.exe -m` model file
+from the process command line. If `model = "unsloth/GLM-4.7-Flash"` but the
+process path points at a Qwen GGUF, the server was started with a misleading
+alias and should be restarted with the intended model file or a truthful alias.
 
 Keep the client integration outside this addon unless it is just documentation
 or a smoke check. Runtime setup, model selection, and llama.cpp server lifecycle
@@ -188,12 +247,15 @@ Before handing this setup to an agent, verify the lane locally:
 scripts\doctor-llama.bat
 scripts\list-models.bat
 scripts\run-llama-runtime-smoke.bat -DryRun
+scripts\plan-local-codex.bat -SummaryOnly
+scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 ```
 
 With a compatible model available, run a real smoke:
 
 ```powershell
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly
 ```
 
 Use `-Backend cpu` when validating a CPU-only install.

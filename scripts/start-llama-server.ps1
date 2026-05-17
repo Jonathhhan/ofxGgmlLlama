@@ -11,6 +11,7 @@ param(
 	[string]$MinP = "",
 	[string]$EmbeddingPooling = "mean",
 	[switch]$NoCudaGraphs,
+	[switch]$SkipChatParsing,
 	[switch]$Embeddings,
 	[switch]$Detached,
 	[switch]$ForceNew,
@@ -244,8 +245,17 @@ if ($NoCudaGraphs -and !$DryRun) {
 		Write-Warning "llama-server does not support --no-cuda-graphs; using server CUDA graph default."
 	}
 }
+if ($SkipChatParsing -and !$DryRun) {
+	$skipChatParsingArgumentSupported = Test-LlamaServerArgument -ServerExePath $ServerExe -Argument "--skip-chat-parsing"
+	if (!$skipChatParsingArgumentSupported) {
+		Write-Warning "llama-server does not support --skip-chat-parsing; continuing without it."
+	}
+}
 if ($NoCudaGraphs -and $cudaGraphsArgumentSupported) {
 	$arguments += "--no-cuda-graphs"
+}
+if ($SkipChatParsing -and $skipChatParsingArgumentSupported) {
+	$arguments += "--skip-chat-parsing"
 }
 if ($Embeddings) {
 	$arguments += "--embeddings"
@@ -281,6 +291,7 @@ if (![string]::IsNullOrWhiteSpace($MinP)) {
 	Write-Host "  min_p:     $MinP"
 }
 Write-Host "  cudaGraph: $(if (!$NoCudaGraphs) { 'on' } elseif ($cudaGraphsArgumentSupported) { 'off' } else { 'off requested; unsupported by this llama-server' })"
+Write-Host "  skipChatParsing: $(if ($SkipChatParsing -and $skipChatParsingArgumentSupported) { 'on' } elseif ($SkipChatParsing) { 'requested; unsupported by this llama-server' } else { 'off' })"
 Write-Host "  embeddings: $(if ($Embeddings) { 'on' } else { 'off' })"
 if ($Embeddings) {
 	Write-Host "  serverMode: embeddings only"

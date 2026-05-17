@@ -65,7 +65,12 @@ Codex, GitHub Copilot, Hermes Agent, and other local coding assistants should
 use [`CODEX_COPILOT_LOCAL_SERVER.md`](CODEX_COPILOT_LOCAL_SERVER.md) for
 llama.cpp build, GGUF download, and `llama-server` setup. Agent orchestration
 docs may point to the resulting OpenAI-compatible endpoint, but the runtime
-setup remains in this llama lane.
+setup remains in this llama lane. Use `scripts\plan-local-codex.bat` before
+launching an interactive Codex session; it checks the Codex executable, config
+shape, llama.cpp endpoint, and generated launch command without mutating agent
+workspaces. Use `scripts\test-local-codex.bat` after the server is running to
+prove a real non-interactive `codex exec` request can complete through the local
+OpenAI-compatible endpoint.
 
 ## Validation ladder
 
@@ -80,6 +85,8 @@ Use the smallest command that proves the changed layer:
 | Llama runtime smoke planning | `scripts\run-llama-runtime-smoke.bat -DryRun` |
 | Llama CPU runtime inference | `scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json` |
 | Llama CUDA runtime inference | `scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json` |
+| Codex local provider preflight | `scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -SummaryOnly` |
+| Codex local exec smoke | `scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model unsloth/GLM-4.7-Flash -Json -SummaryOnly` |
 | Example launch path | `scripts\dev\test-launch-dry-run.bat` |
 | Generated project repair | `scripts\dev\test-example-project-repair.ps1` |
 | Adapter behavior | `scripts\dev\test-addon.bat` |

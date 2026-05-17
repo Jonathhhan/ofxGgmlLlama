@@ -22,5 +22,8 @@
     "cuda",
     "metal",
     "vulkan"
-  ]
+  ],
+  "inferenceSmokeReport": ".llama-runtime-smoke.json",
+  "codexLocalPlan": "scripts/plan-local-codex.bat",
+  "codexLocalSmoke": "scripts/test-local-codex.bat"
 }

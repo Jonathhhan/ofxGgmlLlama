@@ -35,6 +35,18 @@ function Assert-FileContains {
 	}
 }
 
+function Assert-FileNotContains {
+	param(
+		[string]$Path,
+		[string]$Pattern,
+		[string]$Label
+	)
+	$content = Get-Content -LiteralPath $Path -Raw
+	if ($content -match $Pattern) {
+		throw "$Label contained unexpected pattern: $Pattern"
+	}
+}
+
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Split-Path -Parent $scriptRoot
 $addonsRoot = Split-Path -Parent $addonRoot
@@ -77,8 +89,14 @@ Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ex
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "llama-server" "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "wire_api" "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'wire_api = "responses"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'web_search = "disabled"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "ImGui::Begin" "Codex local example UI"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "model_provider=llama_cpp" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "web_search=" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "--disable apps" "Codex local launch command"
+Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "--oss" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Do not add `--oss`' "Codex local example README"
 
 foreach ($scriptName in @(
 	"build-example.ps1",
@@ -92,6 +110,12 @@ foreach ($scriptName in @(
 	"run-llama-runtime-smoke.sh",
 	"test-llama-runtime-smoke.ps1",
 	"list-models.ps1",
+	"plan-local-codex.ps1",
+	"plan-local-codex.bat",
+	"plan-local-codex.sh",
+	"test-local-codex.ps1",
+	"test-local-codex.bat",
+	"test-local-codex.sh",
 	"run-example.ps1",
 	"test-doctor-llama.ps1",
 	"dev\release-candidate.ps1",
@@ -131,6 +155,50 @@ Write-Step "Checking launch dry-runs"
 & (Join-Path $scriptRoot "dev\test-launch-dry-run.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch dry-runs failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking local Codex plan"
+$codexPlan = & (Join-Path $scriptRoot "plan-local-codex.ps1") -Endpoint "http://127.0.0.1:9001/v1" -Model "dry-codex-model" -Profile "ofxggml_local" -Json -SummaryOnly | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+	throw "Local Codex plan failed with exit code $LASTEXITCODE"
+}
+if ($codexPlan.LaunchCommand -notlike "*model_provider=llama_cpp*") {
+	throw "Local Codex plan did not use llama_cpp provider override"
+}
+if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Properties["LocalLlamaServer"]) {
+	throw "Local Codex plan did not expose served model and local server process evidence"
+}
+if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*") {
+	throw "Local Codex plan did not include llama-server tool compatibility overrides"
+}
+if ($codexPlan.UsesOssFlag) {
+	throw "Local Codex plan unexpectedly used --oss"
+}
+
+Write-Step "Checking local Codex exec smoke contract"
+$codexSmoke = & (Join-Path $scriptRoot "test-local-codex.ps1") -Endpoint "http://127.0.0.1:9001/v1" -Model "dry-codex-model" -Profile "ofxggml_local" -DryRun -Json -SummaryOnly | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+	throw "Local Codex smoke dry-run failed with exit code $LASTEXITCODE"
+}
+if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike "*LOCAL_CODEX_OK*") {
+	throw "Local Codex smoke did not build the expected codex exec marker command"
+}
+if ($codexSmoke.Command -notlike "*model_provider=llama_cpp*" -or $codexSmoke.Command -notlike "*web_search=*" -or $codexSmoke.Command -notlike "*--disable apps*") {
+	throw "Local Codex smoke did not include llama-server tool compatibility overrides"
+}
+if (!$codexSmoke.PSObject.Properties["ServedModels"] -or !$codexSmoke.PSObject.Properties["LocalLlamaServer"]) {
+	throw "Local Codex smoke did not include preflight model/server evidence"
+}
+
+Write-Step "Checking Codex local example build"
+$codexExampleProcess = Get-Process -Name "ofxGgmlLlamaCodexLocalExample" -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($codexExampleProcess) {
+	Write-Warning "Skipping Codex local example build because ofxGgmlLlamaCodexLocalExample.exe is running (pid $($codexExampleProcess.Id)). Close it to compile-check this example locally."
+} else {
+	& (Join-Path $scriptRoot "build-example.ps1") -Example "codex" -Configuration "Release" -Platform "x64"
+	if ($LASTEXITCODE -ne 0) {
+		throw "Codex local example build failed with exit code $LASTEXITCODE"
+	}
 }
 
 Write-Step "Checking Llama doctor"

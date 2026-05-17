@@ -34,6 +34,31 @@ struct ServerProbe {
 	std::string message;
 };
 
+ServerProbe probeEndpoint(const std::string & endpointUrl, int timeoutSeconds = 2);
+std::string readCommandOutput(const std::string & command);
+
+std::string trimCopy(const std::string & value) {
+	std::size_t first = 0;
+	while (first < value.size() &&
+		std::isspace(static_cast<unsigned char>(value[first]))) {
+		++first;
+	}
+	std::size_t last = value.size();
+	while (last > first &&
+		std::isspace(static_cast<unsigned char>(value[last - 1]))) {
+		--last;
+	}
+	std::string normalized = value.substr(first, last - first);
+	if (normalized.size() >= 2 && normalized.front() == '"' && normalized.back() == '"') {
+		normalized = normalized.substr(1, normalized.size() - 2);
+	}
+	return normalized;
+}
+
+std::string normalizeEnvPath(const std::string & path) {
+	return trimCopy(path);
+}
+
 std::string toString(const std::filesystem::path & path) {
 	return path.lexically_normal().string();
 }
@@ -69,13 +94,49 @@ bool writeAllText(const std::string & filePath, const std::string & text) {
 }
 
 std::string codexConfigPath() {
+	const char * explicitConfigPath = getenv("OFXGGML_CODEX_CONFIG_PATH");
+	if (explicitConfigPath && *explicitConfigPath) {
+		return toString(std::filesystem::absolute(std::filesystem::path(explicitConfigPath)).lexically_normal());
+	}
+	std::vector<std::filesystem::path> candidatePaths;
+	const auto addIfSet = [&](const char * envVar, const std::filesystem::path & suffix) {
+		if (envVar && *envVar) {
+			candidatePaths.emplace_back(std::filesystem::path(envVar) / suffix);
+		}
+	};
+
 #if defined(_WIN32)
-	const char * home = getenv("USERPROFILE");
-	const std::string base = home ? home : "";
+	addIfSet(getenv("CODEX_HOME"), "config.toml");
+	addIfSet(getenv("USERPROFILE"), ".codex/config.toml");
+	addIfSet(getenv("LOCALAPPDATA"), "OpenAI/Codex/config.toml");
+	addIfSet(getenv("APPDATA"), "OpenAI/Codex/config.toml");
+	const char * homePath = getenv("USERPROFILE");
 #else
-	const char * home = getenv("HOME");
-	const std::string base = home ? home : "";
+	addIfSet(getenv("CODEX_HOME"), "config.toml");
+	addIfSet(getenv("HOME"), ".codex/config.toml");
+	const char * homePath = getenv("HOME");
 #endif
+	addIfSet(homePath, ".codex/config.toml");
+
+	for (const auto & candidate : candidatePaths) {
+		if (std::filesystem::exists(candidate)) {
+			return toString(candidate);
+		}
+	}
+
+	const auto defaultPath = candidatePaths.empty()
+		? std::filesystem::path()
+		: candidatePaths.front();
+	if (!defaultPath.empty()) {
+		std::error_code error;
+		std::filesystem::create_directories(defaultPath.parent_path(), error);
+		if (!error) {
+			return toString(defaultPath);
+		}
+	}
+
+	const char * home = homePath;
+	const std::string base = home ? home : "";
 	if (base.empty()) {
 		return ".codex/config.toml";
 	}
@@ -87,7 +148,6 @@ std::string codexConfigPath() {
 	}
 	return toString((dir / "config.toml"));
 }
-
 std::filesystem::path executableDirectory() {
 #if defined(_WIN32)
 	std::wstring buffer(MAX_PATH, L'\0');
@@ -210,8 +270,147 @@ std::string discoverTextModel() {
 	return models.empty() ? std::string() : models.front();
 }
 
+std::string localAliasForModelPath(const std::string & modelPath) {
+	if (modelPath.empty()) {
+		return {};
+	}
+	std::string stem = std::filesystem::path(modelPath).stem().string();
+	std::string slug;
+	slug.reserve(stem.size());
+	for (unsigned char c : stem) {
+		if (std::isalnum(c) || c == '.' || c == '_' || c == '-') {
+			slug.push_back(static_cast<char>(c));
+		}
+		else if (!slug.empty() && slug.back() != '-') {
+			slug.push_back('-');
+		}
+	}
+	while (!slug.empty() && slug.back() == '-') {
+		slug.pop_back();
+	}
+	return slug.empty() ? std::string() : "local/" + slug;
+}
+
 std::string quoteShellPath(const std::string & value) {
 	return "\"" + value + "\"";
+}
+
+std::string quoteArgument(const std::string & value) {
+	if (value.empty()) {
+		return "\"\"";
+	}
+	if (value.find_first_of(" \t\r\n\"") == std::string::npos) {
+		return value;
+	}
+	std::string escaped;
+	escaped.reserve(value.size());
+	for (char c : value) {
+		if (c == '"') {
+			escaped += "\\\"";
+		} else {
+			escaped += c;
+		}
+	}
+	return "\"" + escaped + "\"";
+}
+
+std::string discoverCodexExecutable() {
+	const char * explicitCodexExe = getenv("OFXGGML_CODEX_EXE");
+	if (explicitCodexExe && *explicitCodexExe) {
+		const std::string explicitPath = normalizeEnvPath(explicitCodexExe);
+		if (!explicitPath.empty() && pathExists(std::filesystem::path(explicitPath))) {
+			return explicitPath;
+		}
+	}
+
+#if defined(_WIN32)
+	std::vector<std::filesystem::path> candidates;
+	const auto addIfSet = [](const char * envVar, const std::filesystem::path & suffix, std::vector<std::filesystem::path> & output) {
+		if (envVar && *envVar) {
+			output.emplace_back(std::filesystem::path(envVar) / suffix);
+		}
+	};
+	addIfSet(getenv("LOCALAPPDATA"), "OpenAI/Codex/bin/codex.exe", candidates);
+	addIfSet(getenv("LOCALAPPDATA"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
+	addIfSet(getenv("PROGRAMFILES"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
+	addIfSet(getenv("PROGRAMFILES(X86)"), "OpenAI\\Codex\\bin\\codex.exe", candidates);
+	addIfSet(getenv("USERPROFILE"), "AppData\\Local\\OpenAI\\Codex\\bin\\codex.exe", candidates);
+	for (const auto & candidate : candidates) {
+		if (std::filesystem::exists(candidate)) {
+			return toString(candidate);
+		}
+	}
+	const std::string wherePath = trimCopy(readCommandOutput("where.exe codex 2>NUL"));
+	if (!wherePath.empty()) {
+		std::istringstream lines(wherePath);
+		std::string line;
+		while (std::getline(lines, line)) {
+			line = trimCopy(line);
+			if (!line.empty() && pathExists(std::filesystem::path(line))) {
+				return line;
+			}
+		}
+	}
+#endif
+	return {};
+}
+
+std::wstring toWide(const std::string & value) {
+return std::wstring(value.begin(), value.end());
+}
+
+bool isPortableExecutableName(const std::string & executable) {
+	return executable.find('\\') == std::string::npos &&
+		executable.find('/') == std::string::npos &&
+		executable.find(':') == std::string::npos;
+}
+
+bool launchDetachedProcess(const std::string & executable, const std::string & arguments) {
+#if defined(_WIN32)
+if (executable.empty()) {
+return false;
+}
+std::string normalizedExe = executable;
+if (!isPortableExecutableName(normalizedExe)) {
+	normalizedExe = toString(std::filesystem::path(executable).lexically_normal());
+}
+std::wstring executableWide = toWide(normalizedExe);
+std::wstring argumentWide = toWide(arguments);
+std::wstring commandLine = L"\"" + executableWide + L"\"" + (arguments.empty() ? L"" : L" ") + argumentWide;
+
+STARTUPINFOW startupInfo {};
+startupInfo.cb = sizeof(startupInfo);
+PROCESS_INFORMATION processInfo {};
+const BOOL started = CreateProcessW(
+nullptr,
+	const_cast<wchar_t *>(commandLine.c_str()),
+nullptr,
+nullptr,
+FALSE,
+CREATE_NEW_CONSOLE,
+nullptr,
+	nullptr,
+	&startupInfo,
+	&processInfo);
+if (started) {
+	CloseHandle(processInfo.hThread);
+	CloseHandle(processInfo.hProcess);
+	return true;
+}
+const DWORD launchError = GetLastError();
+ofLogError(LogModule) << "Failed to launch CLI process: " << launchError << " command=" << quoteShellPath(normalizedExe) << " " << arguments;
+return false;
+#else
+if (executable.empty()) {
+return false;
+}
+std::string command = quoteShellPath(executable);
+if (!arguments.empty()) {
+command += " " + arguments;
+}
+command += " >/dev/null 2>&1 &";
+return std::system(command.c_str()) == 0;
+#endif
 }
 
 std::string trimTrailingSlash(std::string value) {
@@ -220,6 +419,53 @@ std::string trimTrailingSlash(std::string value) {
 	}
 	return value;
 }
+
+bool isEndpointLikelySupported(int status) {
+	return status != 0 && status != 404;
+}
+
+std::string codexApiRootFromBaseUrl(const std::string & baseUrl) {
+	const std::string trimmed = trimTrailingSlash(baseUrl);
+	const std::string suffix = "/v1";
+	if (trimmed.size() >= suffix.size() &&
+		trimmed.compare(trimmed.size() - suffix.size(), suffix.size(), suffix) == 0) {
+		return trimmed;
+	}
+	return trimmed.empty() ? "http://127.0.0.1:8001/v1" : trimmed + suffix;
+}
+
+std::string detectCodexWireApi(const std::string & baseUrl) {
+	const std::string root = codexApiRootFromBaseUrl(baseUrl);
+	const ServerProbe responsesProbe = probeEndpoint(root + "/responses");
+	if (responsesProbe.ready) {
+		return "responses";
+	}
+	const ServerProbe chatProbe = probeEndpoint(root + "/chat/completions");
+	if (chatProbe.ready) {
+		return "chat";
+	}
+	return "responses";
+}
+
+ServerProbe probeEndpoint(const std::string & endpointUrl, int timeoutSeconds) {
+	ServerProbe probe;
+	ofHttpRequest request(endpointUrl, "llama-server-wire-api-probe");
+	request.method = ofHttpRequest::GET;
+	request.timeoutSeconds = std::max(1, timeoutSeconds);
+	ofURLFileLoader loader;
+	const ofHttpResponse response = loader.handleRequest(request);
+	probe.status = response.status;
+	probe.reachable = response.status > 0;
+	probe.ready = isEndpointLikelySupported(response.status);
+	if (!response.error.empty()) {
+		probe.message = response.error;
+	} else {
+		probe.message = response.data.getText();
+	}
+	probe.message = trimTrailingSlash(probe.message);
+	return probe;
+}
+
 
 ServerProbe probeServerHealth(const std::string & serverUrl, int timeoutSeconds = 2) {
 	ServerProbe probe;
@@ -311,6 +557,17 @@ bool serverSupportsArgument(const std::string & serverExe, const std::string & a
 	return output.find(argument) != std::string::npos;
 }
 
+bool codexSupportsArgument(const std::string & codexExe, const std::string & argument) {
+	if (codexExe.empty() || argument.empty()) {
+		return false;
+	}
+	const std::string output = readCommandOutput(quoteShellPath(codexExe) + " --help 2>&1");
+	if (output.empty()) {
+		return true;
+	}
+	return output.find(argument) != std::string::npos;
+}
+
 bool startBundledServer(
 	const std::string & serverExe,
 	const std::string & modelPath,
@@ -319,6 +576,7 @@ bool startBundledServer(
 	int gpuLayers,
 	int contextSize,
 	bool noCudaGraphs,
+	bool skipChatParsing,
 	float temperature,
 	float topP,
 	float minP) {
@@ -352,9 +610,14 @@ bool startBundledServer(
 		}
 	}(serverUrl, 8001);
 	const bool includeNoCudaGraphs = noCudaGraphs && serverSupportsArgument(serverExe, "--no-cuda-graphs");
+	const bool includeSkipChatParsing = skipChatParsing && serverSupportsArgument(serverExe, "--skip-chat-parsing");
 	if (noCudaGraphs && !includeNoCudaGraphs) {
 		ofLogWarning(LogModule)
 			<< "llama-server does not support --no-cuda-graphs; using server CUDA graph default";
+	}
+	if (skipChatParsing && !includeSkipChatParsing) {
+		ofLogWarning(LogModule)
+			<< "llama-server does not support --skip-chat-parsing; continuing without it";
 	}
 #if defined(_WIN32)
 	const std::filesystem::path exePath(serverExe);
@@ -368,6 +631,9 @@ bool startBundledServer(
 	}
 	if (includeNoCudaGraphs) {
 		command += L" --no-cuda-graphs";
+	}
+	if (includeSkipChatParsing) {
+		command += L" --skip-chat-parsing";
 	}
 	command += L" --temp " + std::to_wstring(temperature);
 	command += L" --top-p " + std::to_wstring(topP);
@@ -406,6 +672,9 @@ bool startBundledServer(
 	}
 	if (includeNoCudaGraphs) {
 		command += " --no-cuda-graphs";
+	}
+	if (includeSkipChatParsing) {
+		command += " --skip-chat-parsing";
 	}
 	command += " --temp " + std::to_string(temperature);
 	command += " --top-p " + std::to_string(topP);
@@ -502,7 +771,7 @@ void ofApp::setup() {
 	gui.setup(nullptr, false);
 
 	baseUrl = getEnvOrDefault("OFXGGML_CODEX_BASE_URL", "http://127.0.0.1:8001/v1");
-	modelAlias = getEnvOrDefault("OFXGGML_CODEX_MODEL", "unsloth/GLM-4.7-Flash");
+	modelAlias = normalizeEnvPath(envValue("OFXGGML_CODEX_MODEL"));
 	modelPath = normalizeEnvPath(envValue("OFXGGML_TEXT_MODEL"));
 	serverExe = normalizeEnvPath(envValue("OFXGGML_LLAMA_SERVER"));
 	gpuLayers = std::atoi(getEnvOrDefault("OFXGGML_CODEX_GPU_LAYERS", "999").c_str());
@@ -510,6 +779,9 @@ void ofApp::setup() {
 	autoStartServer = getEnvOrDefault("OFXGGML_CODEX_AUTO_SERVER", "1") != "0";
 	autoConfig = getEnvOrDefault("OFXGGML_CODEX_AUTO_CONFIG", "1") != "0";
 	noCudaGraphs = getEnvOrDefault("OFXGGML_CODEX_NO_CUDA_GRAPHS", "0") != "0";
+	skipChatParsing = getEnvOrDefault("OFXGGML_CODEX_SKIP_CHAT_PARSING", "1") != "0";
+	codexProfile = getEnvOrDefault("OFXGGML_CODEX_PROFILE", "ofxggml_local");
+	codexExe = normalizeEnvPath(envValue("OFXGGML_CODEX_EXE"));
 	temperature = std::stof(getEnvOrDefault("OFXGGML_CODEX_TEMP", "1.0"));
 	topP = std::stof(getEnvOrDefault("OFXGGML_CODEX_TOP_P", "0.95"));
 	minP = std::stof(getEnvOrDefault("OFXGGML_CODEX_MIN_P", "0.01"));
@@ -518,7 +790,12 @@ void ofApp::setup() {
 		startupTimeoutSeconds = 300;
 	}
 	applyBaseUrlToServerUrl();
+	wireApi = "responses";
+	wireApiProbeStatus = "wire_api not detected yet";
 	refreshRuntimeDiscovery();
+	if (modelAlias.empty()) {
+		modelAlias = localAliasForModelPath(modelPath);
+	}
 	refreshServerStatus();
 	rebuildLines();
 	if (configPath.empty()) {
@@ -544,10 +821,14 @@ void ofApp::draw() {
 	std::string serverUrlEdit;
 	std::string modelAliasEdit;
 	std::string modelPathEdit;
+	std::string codexExeEdit;
 	std::string serverExeEdit;
 	std::string statusSnapshot;
 	std::string endpointStatusSnapshot;
 	std::string endpointOutputSnapshot;
+	std::string wireApiSnapshot;
+	std::string wireApiProbeStatusSnapshot;
+	std::string codexProfileSnapshot;
 	std::vector<std::string> lineSnapshot;
 	bool runningSnapshot = false;
 	bool serverReadySnapshot = false;
@@ -555,6 +836,7 @@ void ofApp::draw() {
 	bool autoStartSnapshot = false;
 	bool autoConfigSnapshot = false;
 	bool noCudaGraphsSnapshot = false;
+	bool skipChatParsingSnapshot = false;
 	std::string configPathSnapshot;
 	std::string configWriteStatusSnapshot;
 	int gpuLayersSnapshot = 0;
@@ -569,10 +851,14 @@ void ofApp::draw() {
 		serverUrlEdit = serverUrl;
 		modelAliasEdit = modelAlias;
 		modelPathEdit = modelPath;
+		codexExeEdit = codexExe;
 		serverExeEdit = serverExe;
 		statusSnapshot = status;
 		endpointStatusSnapshot = endpointStatus;
 		endpointOutputSnapshot = endpointOutput;
+		wireApiSnapshot = wireApi;
+		wireApiProbeStatusSnapshot = wireApiProbeStatus;
+		codexProfileSnapshot = codexProfile;
 		lineSnapshot = lines;
 		runningSnapshot = running;
 		serverReadySnapshot = serverReady;
@@ -580,6 +866,7 @@ void ofApp::draw() {
 		autoStartSnapshot = autoStartServer;
 		autoConfigSnapshot = autoConfig;
 		noCudaGraphsSnapshot = noCudaGraphs;
+		skipChatParsingSnapshot = skipChatParsing;
 		configPathSnapshot = configPath;
 		configWriteStatusSnapshot = configWriteStatus;
 		gpuLayersSnapshot = gpuLayers;
@@ -594,6 +881,7 @@ void ofApp::draw() {
 	bool forceStartRequested = false;
 	bool recheckRequested = false;
 	bool smokeRequested = false;
+	bool launchRequested = false;
 	bool writeConfigRequested = false;
 	bool rediscoverRequested = false;
 
@@ -617,6 +905,10 @@ void ofApp::draw() {
 			endpointReadySnapshot ? ImVec4(0.70f, 0.92f, 0.70f, 1.0f) : ImVec4(0.70f, 0.78f, 0.90f, 1.0f),
 			"%s",
 			endpointStatusSnapshot.empty() ? "endpoint smoke not run" : endpointStatusSnapshot.c_str());
+		ImGui::TextWrapped("Codex wire_api: %s", wireApiSnapshot.empty() ? "(not detected)" : wireApiSnapshot.c_str());
+		if (!wireApiProbeStatusSnapshot.empty()) {
+			ImGui::TextWrapped("Endpoint probe: %s", wireApiProbeStatusSnapshot.c_str());
+		}
 
 		if (runningSnapshot) {
 			ImGui::BeginDisabled();
@@ -639,6 +931,10 @@ void ofApp::draw() {
 		ImGui::SameLine();
 		if (ImGui::Button("Rediscover")) {
 			rediscoverRequested = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Launch Codex")) {
+			launchRequested = true;
 		}
 		if (runningSnapshot) {
 			ImGui::EndDisabled();
@@ -674,6 +970,24 @@ void ofApp::draw() {
 		if (ImGui::InputText("Codex model alias", &modelAliasEdit)) {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			modelAlias = normalizeEnvPath(modelAliasEdit);
+			rebuildLines();
+		}
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::InputText("Codex executable", &codexExeEdit)) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			codexExe = normalizeEnvPath(codexExeEdit);
+		}
+		if (ImGui::Button("Choose Codex executable", ImVec2(200.0f, 0.0f))) {
+			const auto selectedPath = chooseFile("Choose Codex executable", codexExeEdit);
+			if (!selectedPath.empty()) {
+				std::lock_guard<std::mutex> lock(stateMutex);
+				codexExe = normalizeEnvPath(selectedPath);
+			}
+		}
+		ImGui::SetNextItemWidth(-1.0f);
+		if (ImGui::InputText("Codex profile", &codexProfileSnapshot)) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			codexProfile = normalizeEnvPath(codexProfileSnapshot);
 			rebuildLines();
 		}
 		ImGui::SetNextItemWidth(-1.0f);
@@ -722,6 +1036,10 @@ void ofApp::draw() {
 		if (ImGui::Checkbox("Disable CUDA graphs", &noCudaGraphsSnapshot)) {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			noCudaGraphs = noCudaGraphsSnapshot;
+		}
+		if (ImGui::Checkbox("Skip chat parsing for Codex compatibility", &skipChatParsingSnapshot)) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			skipChatParsing = skipChatParsingSnapshot;
 		}
 		ImGui::SetNextItemWidth(160.0f);
 		if (ImGui::SliderFloat("Temp", &temperatureSnapshot, 0.0f, 2.0f, "%.2f")) {
@@ -786,6 +1104,9 @@ void ofApp::draw() {
 	if (writeConfigRequested) {
 		syncCodexConfig();
 	}
+	if (launchRequested) {
+		requestLaunchCodex();
+	}
 	if (startRequested) {
 		requestStartServer(false);
 	}
@@ -839,6 +1160,100 @@ void ofApp::requestStartServer(bool force) {
 	worker = std::thread(&ofApp::runStartServerWorker, this, force);
 }
 
+void ofApp::requestLaunchCodex() {
+	std::string requestProfile;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		if (running) {
+			status = "another operation is already running";
+			return;
+		}
+		if (!serverReady) {
+			status = "llama-server is not ready yet";
+			return;
+		}
+		requestProfile = codexProfile;
+	}
+	if (worker.joinable()) {
+		worker.join();
+	}
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		running = true;
+		cancelRequested = false;
+		status = "launching Codex...";
+	}
+	worker = std::thread(&ofApp::runLaunchCodexWorker, this);
+}
+
+void ofApp::runLaunchCodexWorker() {
+	std::string requestProfile;
+	std::string requestModelAlias;
+	std::string requestCodexExe;
+	bool requestAutoConfig = false;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		requestProfile = codexProfile;
+		requestModelAlias = modelAlias;
+		requestCodexExe = codexExe;
+		requestAutoConfig = autoConfig;
+	}
+	if (requestProfile.empty()) {
+		requestProfile = "ofxggml_local";
+	}
+	if (requestCodexExe.empty()) {
+		requestCodexExe = discoverCodexExecutable();
+		if (!requestCodexExe.empty()) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			codexExe = requestCodexExe;
+		}
+	}
+	const bool codexExeHasPath = !isPortableExecutableName(requestCodexExe);
+	if (requestCodexExe.empty() || (codexExeHasPath && !fileExists(requestCodexExe))) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		status = "Codex executable not found";
+		configWriteStatus = requestCodexExe.empty()
+			? "Set OFXGGML_CODEX_EXE or install Codex"
+			: "Codex executable not found: " + requestCodexExe;
+		running = false;
+		return;
+	}
+	const bool syncedConfig = requestAutoConfig ? syncCodexConfig() : true;
+	if (requestAutoConfig && !syncedConfig) {
+		ofLogWarning(LogModule) << "Codex auto-config failed; attempting launch with existing config";
+	}
+	std::string arguments;
+	if (codexSupportsArgument(requestCodexExe, "--no-alt-screen")) {
+		arguments += "--no-alt-screen ";
+	} else {
+		ofLogWarning(LogModule) << "Codex does not support --no-alt-screen; continuing without it";
+	}
+	if (codexSupportsArgument(requestCodexExe, "--disable")) {
+		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
+	} else {
+		ofLogWarning(LogModule) << "Codex does not support --disable; llama-server may reject non-function tools";
+	}
+	arguments += "-p " + quoteArgument(requestProfile) + " -c " + quoteArgument("web_search=\"disabled\"") + " -c model_provider=llama_cpp ";
+	if (!requestModelAlias.empty()) {
+		if (codexSupportsArgument(requestCodexExe, "--model")) {
+			arguments += "--model " + quoteArgument(requestModelAlias);
+		} else if (codexSupportsArgument(requestCodexExe, "-m")) {
+			arguments += "-m " + quoteArgument(requestModelAlias);
+		}
+	}
+	const bool launched = launchDetachedProcess(requestCodexExe, arguments);
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		running = false;
+		status = launched
+			? "Launched Codex with profile " + requestProfile
+			: "failed to launch Codex";
+		configWriteStatus = launched
+			? "Codex launch command: " + requestCodexExe + " " + arguments
+			: "Codex launch failed; check CLI path";
+	}
+}
+
 void ofApp::runStartServerWorker(bool force) {
 	std::string requestServerUrl;
 	std::string requestModelPath;
@@ -848,6 +1263,7 @@ void ofApp::runStartServerWorker(bool force) {
 	int requestContextSize = 0;
 	int requestStartupTimeout = 0;
 	bool requestNoCudaGraphs = false;
+	bool requestSkipChatParsing = false;
 	bool requestAutoConfig = false;
 	float requestTemperature = 0.0f;
 	float requestTopP = 0.0f;
@@ -862,6 +1278,7 @@ void ofApp::runStartServerWorker(bool force) {
 		requestContextSize = contextSize;
 		requestStartupTimeout = startupTimeoutSeconds;
 		requestNoCudaGraphs = noCudaGraphs;
+		requestSkipChatParsing = skipChatParsing;
 		requestTemperature = temperature;
 		requestTopP = topP;
 		requestMinP = minP;
@@ -869,6 +1286,13 @@ void ofApp::runStartServerWorker(bool force) {
 	}
 
 	if (!force && isServerReady(requestServerUrl)) {
+		const std::string detectedWireApi = detectCodexWireApi(requestServerUrl + "/v1");
+		if (!detectedWireApi.empty()) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			wireApi = detectedWireApi;
+			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+			rebuildLines();
+		}
 		if (requestAutoConfig && syncCodexConfig()) {
 			std::lock_guard<std::mutex> lock(stateMutex);
 			configWriteStatus = "Auto config applied to " + configPath;
@@ -893,6 +1317,12 @@ void ofApp::runStartServerWorker(bool force) {
 		running = false;
 		return;
 	}
+	if (requestModelAlias.empty()) {
+		requestModelAlias = localAliasForModelPath(requestModelPath);
+		std::lock_guard<std::mutex> lock(stateMutex);
+		modelAlias = requestModelAlias;
+		rebuildLines();
+	}
 	if (force) {
 		const int terminated = terminateMatchingServerProcesses(requestServerExe);
 		if (terminated > 0) {
@@ -909,7 +1339,8 @@ void ofApp::runStartServerWorker(bool force) {
 		<< "exe: " << requestServerExe << "\n"
 		<< "model: " << requestModelPath << "\n"
 		<< "url: " << requestServerUrl << "\n"
-		<< "alias: " << requestModelAlias;
+		<< "alias: " << requestModelAlias << "\n"
+		<< "skip-chat-parsing: " << (requestSkipChatParsing ? "on" : "off");
 
 	if (!startBundledServer(
 		requestServerExe,
@@ -919,6 +1350,7 @@ void ofApp::runStartServerWorker(bool force) {
 		requestGpuLayers,
 		requestContextSize,
 		requestNoCudaGraphs,
+		requestSkipChatParsing,
 		requestTemperature,
 		requestTopP,
 		requestMinP)) {
@@ -937,6 +1369,15 @@ void ofApp::runStartServerWorker(bool force) {
 		requestServerUrl,
 		requestStartupTimeout,
 		[this]() { return cancelRequested.load(); });
+	if (probe.ready) {
+		const std::string detectedWireApi = detectCodexWireApi(requestServerUrl + "/v1");
+		if (!detectedWireApi.empty()) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			wireApi = detectedWireApi;
+			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+			rebuildLines();
+		}
+	}
 	if (probe.ready && requestAutoConfig) {
 		if (!syncCodexConfig()) {
 			ofLogWarning(LogModule) << "automatic Codex config update failed";
@@ -982,6 +1423,33 @@ bool ofApp::replaceSection(std::string & configText, const std::string & section
 	return sectionFound;
 }
 
+bool ofApp::replaceTopLevelAssignments(std::string & configText, const std::vector<std::string> & keys) {
+	std::istringstream input(configText);
+	std::ostringstream output;
+	bool inSection = false;
+	bool updated = false;
+	std::string line;
+	while (std::getline(input, line)) {
+		const std::string trimmed = trimCopy(line);
+		if (!trimmed.empty() && trimmed.front() == '[' && trimmed.back() == ']') {
+			inSection = true;
+		}
+		if (!inSection) {
+			const bool shouldKeep = std::none_of(keys.begin(), keys.end(), [&](const std::string & key) {
+				const std::string prefix = key + " =";
+				return trimmed.rfind(prefix, 0) == 0;
+			});
+			if (!shouldKeep) {
+				updated = true;
+				continue;
+			}
+		}
+		output << line << '\n';
+	}
+	configText = output.str();
+	return updated;
+}
+
 void ofApp::appendSection(std::string & configText, const std::string & sectionBody) {
 	if (!configText.empty() && configText.back() != '\n') {
 		configText.push_back('\n');
@@ -995,13 +1463,20 @@ void ofApp::appendSection(std::string & configText, const std::string & sectionB
 bool ofApp::syncCodexConfig() {
 	std::string snapshotBaseUrl;
 	std::string snapshotModelAlias;
+	std::string snapshotWireApi;
+	std::string snapshotProfile;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		snapshotBaseUrl = baseUrl;
 		snapshotModelAlias = modelAlias;
+		snapshotWireApi = wireApi;
+		snapshotProfile = codexProfile;
 		if (configPath.empty()) {
 			configPath = codexConfigPath();
 		}
+	}
+	if (snapshotProfile.empty()) {
+		snapshotProfile = "ofxggml_local";
 	}
 
 	if (snapshotBaseUrl.empty() || snapshotModelAlias.empty()) {
@@ -1016,20 +1491,37 @@ bool ofApp::syncCodexConfig() {
 	}
 
 	const std::string existing = readAllText(configPath);
+	const std::string resolvedWireApi = snapshotWireApi.empty()
+		? detectCodexWireApi(snapshotBaseUrl)
+		: snapshotWireApi;
+	if (snapshotWireApi.empty() && !resolvedWireApi.empty()) {
+		std::lock_guard<std::mutex> lock(stateMutex);
+		wireApi = resolvedWireApi;
+		wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+		rebuildLines();
+	}
+	const std::string effectiveWireApi = resolvedWireApi.empty() ? "responses" : resolvedWireApi;
 	const std::string providersSection = "[model_providers.llama_cpp]\n"
 		"name = \"llama.cpp local\"\n"
 		"base_url = \"" + snapshotBaseUrl + "\"\n"
-		"wire_api = \"responses\"\n"
+		"wire_api = \"" + effectiveWireApi + "\"\n"
 		"stream_idle_timeout_ms = 10000000\n";
-	const std::string profilesSection = "[profiles.ofxggml_local]\n"
+	const std::string profilesSection = "[profiles." + snapshotProfile + "]\n"
 		"model = \"" + snapshotModelAlias + "\"\n"
 		"model_provider = \"llama_cpp\"\n";
+	const std::string topLevelModelSelection = "model = \"" + snapshotModelAlias + "\"\n"
+		"model_provider = \"llama_cpp\"\n\n";
 
 	bool updatedExisting = false;
 	std::string updatedText = existing;
 	const bool removedProvider = replaceSection(updatedText, "model_providers.llama_cpp");
-	const bool removedProfile = replaceSection(updatedText, "profiles.ofxggml_local");
+	const bool removedProfile = replaceSection(updatedText, "profiles." + snapshotProfile);
+	const bool removedTopLevelSelection = replaceTopLevelAssignments(updatedText, { "model", "model_provider" });
 	updatedExisting = removedProvider || removedProfile || existing.empty();
+	if (!updatedExisting) {
+		updatedExisting = removedTopLevelSelection;
+	}
+	updatedText.insert(0, topLevelModelSelection);
 	appendSection(updatedText, providersSection);
 	appendSection(updatedText, profilesSection);
 
@@ -1105,6 +1597,15 @@ void ofApp::runEndpointSmokeWorker() {
 		[this](const std::string &) {
 			return !cancelRequested.load();
 		});
+	if (result && requestAutoConfig) {
+		const std::string detectedWireApi = detectCodexWireApi(requestBaseUrl);
+		if (!detectedWireApi.empty()) {
+			std::lock_guard<std::mutex> lock(stateMutex);
+			wireApi = detectedWireApi;
+			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+			rebuildLines();
+		}
+	}
 	const bool syncedConfig = result && requestAutoConfig && syncCodexConfig();
 
 	std::lock_guard<std::mutex> lock(stateMutex);
@@ -1156,8 +1657,17 @@ void ofApp::refreshServerStatus() {
 	const ServerProbe probe = probeServerHealth(requestServerUrl, 2);
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = probe.ready;
+	if (serverReady) {
+		const std::string detectedWireApi = detectCodexWireApi(baseUrl);
+		if (!detectedWireApi.empty()) {
+			wireApi = detectedWireApi;
+			wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+		}
+		rebuildLines();
+	}
 	if (!probe.ready) {
 		endpointReady = false;
+		wireApiProbeStatus = "wire_api not available (server not ready)";
 	}
 	status = probe.ready
 		? "llama-server ready for Codex at " + baseUrl
@@ -1198,13 +1708,17 @@ void ofApp::appendWrapped(const std::string & text, std::size_t maxChars) {
 
 void ofApp::rebuildLines() {
 	lines.clear();
+	const std::string snapshotProfile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
+	lines.push_back("model = \"" + modelAlias + "\"");
+	lines.push_back("model_provider = \"llama_cpp\"");
+	lines.push_back("");
 	lines.push_back("[model_providers.llama_cpp]");
 	lines.push_back("name = \"llama.cpp local\"");
 	lines.push_back("base_url = \"" + baseUrl + "\"");
-	lines.push_back("wire_api = \"responses\"");
+	lines.push_back("wire_api = \"" + (wireApi.empty() ? "responses" : wireApi) + "\"");
 	lines.push_back("stream_idle_timeout_ms = 10000000");
 	lines.push_back("");
-	lines.push_back("[profiles.ofxggml_local]");
+	lines.push_back("[profiles." + snapshotProfile + "]");
 	lines.push_back("model = \"" + modelAlias + "\"");
 	lines.push_back("model_provider = \"llama_cpp\"");
 	lines.push_back("");
@@ -1212,8 +1726,10 @@ void ofApp::rebuildLines() {
 	lines.push_back("  server root: " + serverUrl);
 	lines.push_back("  GGUF model:  " + (modelPath.empty() ? "(not found)" : modelPath));
 	lines.push_back("  server exe:  " + (serverExe.empty() ? "(not found)" : serverExe));
+	lines.push_back("  codex exe:   " + (codexExe.empty() ? "(not found)" : codexExe));
 	lines.push_back("  GPU layers:  " + std::to_string(gpuLayers));
 	lines.push_back("  context:     " + std::to_string(contextSize));
+	lines.push_back("  skip chat parsing: " + std::string(skipChatParsing ? "on" : "off"));
 	appendWrapped("Use this provider/profile with Codex after the server is ready. You can auto-write the same sections to local config from the UI.", 96);
 }
 

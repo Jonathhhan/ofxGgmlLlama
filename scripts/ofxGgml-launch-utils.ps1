@@ -197,11 +197,12 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[Nullable[int]]$ContextSize = $null,
 		[string]$Temperature = "",
 		[string]$TopP = "",
-		[string]$MinP = "",
-		[switch]$NoCudaGraphs,
-		[switch]$ForceNew,
-		[switch]$NoAutoServer,
-		[switch]$Embeddings
+	[string]$MinP = "",
+	[switch]$NoCudaGraphs,
+	[switch]$SkipChatParsing,
+	[switch]$ForceNew,
+	[switch]$NoAutoServer,
+	[switch]$Embeddings
 	)
 
 	if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlLocalServerUrl $ServerUrl))) {
@@ -245,6 +246,9 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	if (![string]::IsNullOrWhiteSpace($MinP)) {
 		$args += "-MinP"
 		$args += $MinP
+	}
+	if ($SkipChatParsing) {
+		$args += "-SkipChatParsing"
 	}
 	if ($NoCudaGraphs) {
 		$args += "-NoCudaGraphs"
