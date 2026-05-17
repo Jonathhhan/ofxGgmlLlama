@@ -26,10 +26,12 @@ stale build-cache paths.
 
 For llama-lane planning and backend boundaries, see
 [`docs/LLAMA_WORKFLOWS.md`](docs/LLAMA_WORKFLOWS.md).
-For Codex, GitHub Copilot, Hermes Agent, or other local coding assistants using
-`llama-server`, see
+For Codex, OpenCode, GitHub Copilot, Hermes Agent, or other local coding
+assistants using `llama-server`, see
 [`docs/CODEX_COPILOT_LOCAL_SERVER.md`](docs/CODEX_COPILOT_LOCAL_SERVER.md).
-For hybrid routing across Codex, Claude Code, Copilot, and local helper tasks,
+For OpenCode's native custom-provider path, see
+[`docs/OPENCODE_LOCAL_SERVER.md`](docs/OPENCODE_LOCAL_SERVER.md).
+For hybrid routing across Codex, OpenCode, Claude Code, Copilot, and local helper tasks,
 see [`docs/LOCAL_AGENT_ROUTING.md`](docs/LOCAL_AGENT_ROUTING.md).
 
 ## First Run
@@ -44,6 +46,7 @@ scripts\build-llama-server.bat
 scripts\list-models.bat -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\plan-local-codex.bat -SummaryOnly
+scripts\plan-local-opencode.bat -SummaryOnly
 scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
@@ -86,6 +89,15 @@ interactive Codex session:
 scripts\plan-local-codex.bat -SummaryOnly
 scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
+```
+
+The OpenCode planner uses the same local endpoint and emits a compatible
+`opencode.json` provider/agent snippet without editing your OpenCode config:
+
+```powershell
+scripts\plan-local-opencode.bat -SummaryOnly
+scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
+scripts\plan-local-opencode.bat -UseServedModel -Json -SummaryOnly
 ```
 
 Codex executable discovery is automatic: `OFXGGML_CODEX_EXE` override, Codex
@@ -147,6 +159,7 @@ scripts/run-example.*
 scripts/build-llama-server.*
 scripts/doctor-llama.*
 scripts/plan-local-codex.*
+scripts/plan-local-opencode.*
 scripts/test-local-codex.*
 scripts/start-llama-server.*
 scripts/stop-llama-server.*

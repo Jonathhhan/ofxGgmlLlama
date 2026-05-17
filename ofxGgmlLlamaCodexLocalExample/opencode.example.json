@@ -1,0 +1,104 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "small_model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "default_agent": "build",
+  "provider": {
+    "llama_cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8001/v1",
+        "apiKey": "local",
+        "timeout": 600000,
+        "chunkTimeout": 60000
+      },
+      "models": {
+        "local/GLM-4.7-Flash-UD-Q4_K_XL": {
+          "name": "GLM-4.7 Flash local",
+          "limit": {
+            "context": 65536,
+            "output": 8000
+          },
+          "options": {
+            "temperature": 0.7,
+            "topP": 0.9
+          }
+        }
+      }
+    }
+  },
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "temperature": 0.2,
+      "topP": 0.9,
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "edit": "ask",
+        "bash": "ask",
+        "task": "ask",
+        "external_directory": "ask",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+    "plan": {
+      "mode": "primary",
+      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "temperature": 0.1,
+      "topP": 0.9,
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "edit": "deny",
+        "bash": "ask",
+        "task": "ask",
+        "external_directory": "ask",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+    "explore": {
+      "mode": "subagent",
+      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "temperature": 0.1,
+      "topP": 0.9,
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "list": "allow",
+        "edit": "deny",
+        "bash": "ask",
+        "task": "deny",
+        "external_directory": "ask",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    }
+  },
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": "ask",
+    "bash": "ask",
+    "task": "ask",
+    "external_directory": "ask",
+    "webfetch": "deny",
+    "websearch": "deny"
+  },
+  "disabled_providers": [
+    "openai",
+    "anthropic",
+    "gemini"
+  ]
+}

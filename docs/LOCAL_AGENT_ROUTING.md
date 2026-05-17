@@ -4,8 +4,8 @@ This guide describes how `ofxGgmlLlama` can participate in hybrid coding-agent
 setups without owning every client integration.
 
 `ofxGgmlLlama` provides local llama.cpp endpoints, model discovery, server
-lifecycle scripts, and focused validation. Codex, Claude Code, Copilot, custom
-routers, and future agent addons can consume those endpoints.
+lifecycle scripts, and focused validation. Codex, OpenCode, Claude Code,
+Copilot, custom routers, and future agent addons can consume those endpoints.
 
 ## Boundary
 
@@ -29,17 +29,19 @@ Do not move client-specific orchestration into this addon:
 | Client | Endpoint shape | Recommended path |
 | --- | --- | --- |
 | OpenAI Codex | OpenAI-compatible Responses API | Direct `llama_cpp` provider profile |
+| OpenCode | OpenAI-compatible Chat Completions API | Direct custom provider using `@ai-sdk/openai-compatible` |
 | GitHub Copilot or similar clients | OpenAI-compatible endpoint when supported | Direct `llama-server` URL |
 | Claude Code | Anthropic-compatible Messages API | Proxy via `ANTHROPIC_BASE_URL` |
 | Custom agents | Whatever the agent owns | Use local endpoint helpers per task |
 
-Codex can use the local endpoint directly because the addon config presents a
-named OpenAI-compatible provider. Claude Code needs a proxy because
+Codex and OpenCode can use the local endpoint directly because each client can
+be given a named OpenAI-compatible provider. Claude Code needs a proxy because
 `llama-server` does not expose Anthropic's Messages API.
 
 ```mermaid
 flowchart LR
     Codex["Codex"] --> OpenAIEndpoint["llama-server /v1"]
+    OpenCode["OpenCode"] --> OpenAIEndpoint
     Copilot["OpenAI-compatible client"] --> OpenAIEndpoint
     Claude["Claude Code"] --> Router["Anthropic-compatible router"]
     Router --> Anthropic["Anthropic API"]
@@ -77,6 +79,20 @@ scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 The generated Codex config should use the `llama_cpp` provider, disable web
 search and non-function Responses tools, and keep local model reasoning
 summaries disabled when the server is launched with `--reasoning off`.
+
+## OpenCode Direct Route
+
+OpenCode uses an `opencode.json` provider entry instead of Codex TOML:
+
+```powershell
+scripts\run-example.bat codex -Build -CodexPreset quality
+scripts\plan-local-opencode.bat -SummaryOnly
+```
+
+Use `llama_cpp/local/<alias>` as the OpenCode model id, where `llama_cpp` is
+the provider key and `local/<alias>` is the model id advertised by
+`llama-server`. See `docs/OPENCODE_LOCAL_SERVER.md` for the complete
+provider/agent example.
 
 ## Claude Code Proxy Route
 
@@ -123,6 +139,7 @@ scripts\doctor-llama.bat
 scripts\list-models.bat -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\plan-local-codex.bat -SummaryOnly
+scripts\plan-local-opencode.bat -SummaryOnly
 scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 ```
 
@@ -132,5 +149,6 @@ the router will use.
 ## References
 
 - `docs/CODEX_COPILOT_LOCAL_SERVER.md`
+- `docs/OPENCODE_LOCAL_SERVER.md`
 - MindStudio's Claude Code local-model routing article:
   https://www.mindstudio.ai/blog/run-local-ai-models-with-claude-code-cut-costs

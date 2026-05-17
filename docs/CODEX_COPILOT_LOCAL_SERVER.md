@@ -1,14 +1,16 @@
-# Codex and Copilot Local Llama Server
+# Codex, OpenCode, and Copilot Local Llama Server
 
 This guide belongs in `ofxGgmlLlama` because it is llama.cpp setup, GGUF model
 download, and `llama-server` lifecycle guidance. `ofxGgmlAgents` should consume
 the resulting OpenAI-compatible endpoint, not own the model runtime setup.
 
-Use this path when Codex, GitHub Copilot, Hermes Agent, or another coding
-assistant needs a local llama.cpp server.
+Use this path when Codex, OpenCode, GitHub Copilot, Hermes Agent, or another
+coding assistant needs a local llama.cpp server.
 
-For a broader router view across Codex, Claude Code, Copilot, and local helper
-tasks, see `docs/LOCAL_AGENT_ROUTING.md`.
+For OpenCode's native custom-provider path, see
+`docs/OPENCODE_LOCAL_SERVER.md`. For a broader router view across Codex,
+OpenCode, Claude Code, Copilot, and local helper tasks, see
+`docs/LOCAL_AGENT_ROUTING.md`.
 
 For an openFrameworks-facing walkthrough, generate
 `ofxGgmlLlamaCodexLocalExample` or run:
@@ -165,7 +167,7 @@ The addon wrapper intentionally exposes a conservative common subset of
 flags such as KV cache quantization, `--kv-unified`, speculative decoding, or
 unusual sampling defaults for a coding-agent session.
 
-## Wire Codex or Copilot
+## Wire Codex, OpenCode, or Copilot
 
 Point any client that supports an OpenAI-compatible local endpoint at:
 
@@ -250,6 +252,23 @@ The role files repeat the same agent thread cap and depth so spawned
 explorer/worker sessions inherit the local server limit. They also pin
 `model_reasoning_effort = "none"` and `model_reasoning_summary = "none"` to
 match the llama-server command's disabled reasoning mode.
+
+For OpenCode, the same local server is configured in `opencode.json` with
+`@ai-sdk/openai-compatible`. The full model id is `provider_id/model_id`, so the
+default addon config uses:
+
+```text
+llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL
+```
+
+Generate the OpenCode snippet without editing local files:
+
+```powershell
+scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -SummaryOnly
+```
+
+The example config lives at
+`ofxGgmlLlamaCodexLocalExample\opencode.example.json`.
 
 Use the custom provider explicitly when launching Codex:
 
@@ -371,6 +390,7 @@ scripts\doctor-llama.bat
 scripts\list-models.bat
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\plan-local-codex.bat -SummaryOnly
+scripts\plan-local-opencode.bat -SummaryOnly
 scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 ```
 

@@ -1,7 +1,8 @@
 # ofxGgmlLlamaCodexLocalExample
 
-Root-level openFrameworks example for running local LLMs with OpenAI Codex
-through `llama.cpp` and `llama-server`.
+Root-level openFrameworks example for running local LLMs with OpenAI Codex,
+OpenCode, and other OpenAI-compatible coding clients through `llama.cpp` and
+`llama-server`.
 
 This example belongs in `ofxGgmlLlama` because this addon owns llama.cpp builds,
 GGUF model discovery, and local server lifecycle. `ofxGgmlAgents` can consume
@@ -9,6 +10,10 @@ the resulting endpoint after it is running.
 
 The setup follows the same contract as the Unsloth Codex guide:
 https://unsloth.ai/docs/de/grundlagen/codex
+
+OpenCode can reuse the same endpoint through a custom provider in
+`opencode.json`; see `opencode.example.json` and
+`..\docs\OPENCODE_LOCAL_SERVER.md`.
 
 ## Build llama.cpp
 
@@ -255,6 +260,49 @@ explicit `llama_cpp` OpenAI-compatible provider configured above.
 The disable flags keep Codex from sending non-function Responses tools such as
 app namespaces, image generation, browser, or web-search tools; llama.cpp
 accepts the function-tool shape used by shell and patch tools.
+
+## Configure OpenCode
+
+OpenCode uses JSON config instead of Codex TOML. The local provider shape is:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "small_model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "default_agent": "build",
+  "provider": {
+    "llama_cpp": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "llama.cpp local",
+      "options": {
+        "baseURL": "http://127.0.0.1:8001/v1",
+        "apiKey": "local"
+      },
+      "models": {
+        "local/GLM-4.7-Flash-UD-Q4_K_XL": {
+          "name": "GLM-4.7 Flash local"
+        }
+      }
+    }
+  },
+  "disabled_providers": ["openai", "anthropic", "gemini"]
+}
+```
+
+This folder includes `opencode.example.json` with provider, model limit, and
+conservative OpenCode `build`, `plan`, and `explore` agent settings. It makes
+`build` the default primary agent, allows read/search tools, asks before edits,
+shell commands, or primary-agent task delegation, and keeps web access disabled
+for local coding sessions. The full model id is
+`llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL`: provider key first, then the
+llama-server model alias.
+
+Plan the config from the addon root without mutating OpenCode files:
+
+```powershell
+scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -SummaryOnly
+```
 
 ## Claude Code Hybrid Option
 

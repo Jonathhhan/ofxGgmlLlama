@@ -56,7 +56,9 @@ Assert-Path (Join-Path $addonRoot "addon_config.mk") "addon config"
 Assert-Path (Join-Path $addonRoot "README.md") "README"
 Assert-Path (Join-Path $addonRoot "LICENSE") "license"
 Assert-Path (Join-Path $addonRoot "docs\LLAMA_WORKFLOWS.md") "llama workflow docs"
+Assert-Path (Join-Path $addonRoot "docs\OPENCODE_LOCAL_SERVER.md") "OpenCode local server docs"
 Assert-FileContains (Join-Path $addonRoot "README.md") "docs/LLAMA_WORKFLOWS.md" "README"
+Assert-FileContains (Join-Path $addonRoot "README.md") "docs/OPENCODE_LOCAL_SERVER.md" "README"
 Assert-FileContains (Join-Path $addonRoot "docs\LLAMA_WORKFLOWS.md") "Planning handoff" "llama workflow docs"
 Assert-FileContains (Join-Path $addonRoot "docs\LLAMA_WORKFLOWS.md") "Validation ladder" "llama workflow docs"
 Assert-FileContains (Join-Path $addonRoot "docs\LLAMA_WORKFLOWS.md") "CLI fallback" "llama workflow docs"
@@ -86,10 +88,22 @@ foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbed
 }
 Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "Codex local example README"
 Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") "Codex local example config"
+Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") "OpenCode local example config"
 Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-explorer.toml") "Codex local explorer agent config"
 Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-worker.toml") "Codex local worker agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "llama-server" "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "OpenCode" "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "wire_api" "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL"' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"default_agent": "build"' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"npm": "@ai-sdk/openai-compatible"' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"baseURL": "http://127.0.0.1:8001/v1"' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"agent":' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"websearch": "deny"' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\opencode.example.json") '"disabled_providers":' "OpenCode local example config"
+Assert-FileContains (Join-Path $addonRoot "docs\OPENCODE_LOCAL_SERVER.md") "plan-local-opencode" "OpenCode local server docs"
+Assert-FileContains (Join-Path $addonRoot "docs\OPENCODE_LOCAL_SERVER.md") "@ai-sdk/openai-compatible" "OpenCode local server docs"
+Assert-FileContains (Join-Path $addonRoot "docs\LOCAL_AGENT_ROUTING.md") "OpenCode Direct Route" "local agent routing docs"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'wire_api = "responses"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'web_search = "disabled"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[features\.multi_agent_v2\]' "Codex local example config"
@@ -144,6 +158,9 @@ foreach ($scriptName in @(
 	"plan-local-codex.ps1",
 	"plan-local-codex.bat",
 	"plan-local-codex.sh",
+	"plan-local-opencode.ps1",
+	"plan-local-opencode.bat",
+	"plan-local-opencode.sh",
 	"test-local-codex.ps1",
 	"test-local-codex.bat",
 	"test-local-codex.sh",
@@ -207,6 +224,30 @@ if ($codexPlan.LaunchCommand -notlike "*features.multi_agent_v2.max_concurrent_t
 }
 if ($codexPlan.UsesOssFlag) {
 	throw "Local Codex plan unexpectedly used --oss"
+}
+
+Write-Step "Checking local OpenCode plan"
+$openCodePlan = & (Join-Path $scriptRoot "plan-local-opencode.ps1") -Endpoint "http://127.0.0.1:9001/v1" -Model "dry-opencode-model" -ProviderId "llama_cpp" -Json -SummaryOnly | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+	throw "Local OpenCode plan failed with exit code $LASTEXITCODE"
+}
+if ($openCodePlan.FullModel -ne "llama_cpp/dry-opencode-model") {
+	throw "Local OpenCode plan did not build provider/model id"
+}
+if ($openCodePlan.ConfigSnippet -notlike '*@ai-sdk/openai-compatible*') {
+	throw "Local OpenCode plan did not use the OpenAI-compatible package"
+}
+if ($openCodePlan.ConfigSnippet -notlike '*http://127.0.0.1:9001/v1*') {
+	throw "Local OpenCode plan did not include the local baseURL"
+}
+if ($openCodePlan.ConfigSnippet -notlike '*"agent":*' -or $openCodePlan.ConfigSnippet -notlike '*"explore":*') {
+	throw "Local OpenCode plan did not include local agent settings"
+}
+if ($openCodePlan.ConfigSnippet -notlike '*"default_agent":*' -or $openCodePlan.ConfigSnippet -notlike '*"websearch":*') {
+	throw "Local OpenCode plan did not include optimized local defaults"
+}
+if ($openCodePlan.ConfigSnippet -notlike '*"disabled_providers":*') {
+	throw "Local OpenCode plan did not disable built-in cloud providers by default"
 }
 
 Write-Step "Checking local Codex exec smoke contract"
