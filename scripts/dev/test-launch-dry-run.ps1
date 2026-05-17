@@ -339,10 +339,10 @@ $codexOutput = Invoke-DryRun `
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex preset: Balanced local" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=2048 ubatch=512 flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=40960 auto_compact=30000 tool_output=5000" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex agent settings: multi_agent_v2=on max_agents=1 max_depth=1 wait_ms=2500/30000/120000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=50000 tool_output=8000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex agent settings: agents=on max_threads=1 max_depth=1 wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
@@ -362,6 +362,23 @@ $expectedDerivedAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension
 Assert-Contains $codexDerivedAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local derived alias dry-run"
 Assert-Contains $codexDerivedAliasOutput "ngl=all" "Codex local derived alias dry-run"
 Assert-NotContains $codexDerivedAliasOutput "unsloth/GLM-4.7-Flash" "Codex local derived alias dry-run"
+
+$codexFastPresetOutput = Invoke-DryRun `
+	-Label "Codex local fast preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "fast"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexFastPresetOutput "Using Codex preset: Fast coding" "Codex local fast preset dry-run"
+Assert-Contains $codexFastPresetOutput "ctx=32768 parallel=1 batch=4096 ubatch=1024" "Codex local fast preset dry-run"
+Assert-Contains $codexFastPresetOutput "cacheReuse=256" "Codex local fast preset dry-run"
+Assert-Contains $codexFastPresetOutput "model_context_window=32768 auto_compact=24000 tool_output=5000" "Codex local fast preset dry-run"
 
 $codexLongPresetOutput = Invoke-DryRun `
 	-Label "Codex local long-context preset dry-run" `

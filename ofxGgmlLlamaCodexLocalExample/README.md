@@ -64,17 +64,18 @@ Generate the project with openFrameworks projectGenerator using addons
 
 ```powershell
 scripts\run-example.bat codex -Build `
-    -CodexPreset balanced `
+    -CodexPreset quality `
     -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
     -ServerModel local/GLM-4.7-Flash-UD-Q4_K_XL `
     -GpuLayers all `
-    -ContextSize 40960 `
+    -ContextSize 65536 `
     -Parallel 1 `
-    -BatchSize 2048 `
-    -UBatchSize 512 `
-    -Temperature 1.0 `
-    -TopP 0.95 `
-    -MinP 0.01
+    -BatchSize 3072 `
+    -UBatchSize 768 `
+    -CacheReuse 256 `
+    -Temperature 0.7 `
+    -TopP 0.9 `
+    -MinP 0.02
 ```
 
 Preset choices:
@@ -82,7 +83,9 @@ Preset choices:
 | Preset | Use it for | Main settings |
 | --- | --- | --- |
 | `memory` | Smaller GPUs and first smoke tests. | `ctx=16384`, `batch=1024`, one agent slot. |
-| `balanced` | Default local coding setup. | `ctx=40960`, `batch=2048`, one agent slot. |
+| `fast` | Lower-latency coding on large local models. | `ctx=32768`, `batch=4096`, `ubatch=1024`, cache reuse on. |
+| `balanced` | Previous default local coding setup. | `ctx=40960`, `batch=2048`, one agent slot. |
+| `quality` | Quality coding default. | `ctx=65536`, `batch=3072`, `temp=0.7`, larger tool output. |
 | `long` | Large-context coding on high-VRAM systems. | `ctx=131072`, `batch=4096`, one agent slot. |
 | `concurrent` | Two local Codex sessions or subagent work. | `ctx=65536`, `parallel=2`, max agents `2`. |
 
@@ -92,6 +95,9 @@ argument or `OFXGGML_CODEX_*` setting still overrides the preset value.
 If an older local `llama-server` process is stuck on the Codex port and the
 example stays at "not ready", use the GUI's `Force new` button or launch with
 `-ForceNewServer` so the addon-owned stale server is stopped before restart.
+The script planner also flags multiple `llama-server.exe` processes targeting
+the Codex port because stale processes can leave Codex talking to a different
+server than the one you just configured.
 
 The example uses port `8001` by default for coding-agent sessions so the
 text/chat/embedding examples can keep their default ports. It discovers the
@@ -99,25 +105,25 @@ built `llama-server`, discovers a local `.gguf` model, starts the server for
 local endpoints, shows editable runtime fields in the ImGui panel, and can run
 a short OpenAI-compatible endpoint smoke request before you point Codex at it.
 
-For advanced llama.cpp flags such as KV-cache quantization, batch sizing, or
-`--kv-unified`, run `llama-server` directly from the built runtime and keep the
-same OpenAI-compatible endpoint:
+For advanced llama.cpp flags such as KV-cache quantization, `--kv-unified`, or
+speculative decoding, run `llama-server` directly from the built runtime and
+keep the same OpenAI-compatible endpoint:
 
 ```text
 http://127.0.0.1:8001/v1
 ```
 
-The Codex example defaults keep GLM thinking disabled and match the local Codex
-runtime shape by launching `llama-server` with `--jinja`,
+The Codex example defaults keep CUDA graphs enabled, keep GLM thinking disabled,
+and match the local Codex runtime shape by launching `llama-server` with `--jinja`,
 `--chat-template-kwargs '{"enable_thinking": false}'`, `--reasoning off`,
-`--reasoning-budget 0`, `-ngl all`, `--ctx-size 40960`, `--parallel 1`,
-`--flash-attn on`, `--batch-size 2048`,
-and `--ubatch-size 512`. `--skip-chat-parsing` is off by default so the model
+`--reasoning-budget 0`, `-ngl all`, `--ctx-size 65536`, `--parallel 1`,
+`--flash-attn on`, `--batch-size 3072`,
+and `--ubatch-size 768`. `--skip-chat-parsing` is off by default so the model
 chat template remains active.
 The ImGui panel exposes a `GPU layers all` toggle for literal `-ngl all` mode;
 turn it off only when you need a fixed numeric layer count.
 
-Keep `--parallel 1` for a single Codex session when you want the full 40960
+Keep `--parallel 1` for a single Codex session when you want the full 65536
 token window available to one request. Raise it only when you expect concurrent
 clients; more slots can improve throughput for simultaneous requests, but it
 increases memory pressure and may reduce the practical context available per
@@ -139,9 +145,13 @@ Use this provider/profile shape:
 ```toml
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-model_context_window = 40960
-model_auto_compact_token_limit = 30000
-tool_output_token_limit = 5000
+web_search = "disabled"
+model_context_window = 65536
+model_auto_compact_token_limit = 50000
+tool_output_token_limit = 8000
+model_reasoning_effort = "none"
+model_reasoning_summary = "none"
+hide_agent_reasoning = true
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
@@ -152,18 +162,22 @@ stream_idle_timeout_ms = 10000000
 [profiles.ofxggml_local]
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
+web_search = "disabled"
+model_reasoning_effort = "none"
+model_reasoning_summary = "none"
 
 [features.multi_agent_v2]
 enabled = true
 max_concurrent_threads_per_session = 1
 min_wait_timeout_ms = 2500
-max_wait_timeout_ms = 120000
+max_wait_timeout_ms = 180000
 default_wait_timeout_ms = 30000
 usage_hint_enabled = false
 hide_spawn_agent_metadata = true
 non_code_mode_only = true
 
 [agents]
+max_threads = 1
 max_depth = 1
 
 [agents.explorer]
@@ -197,34 +211,39 @@ It also includes `codex-agents/local-explorer.toml` and
 `codex-agents/local-worker.toml`. The example's auto-config writer creates
 matching files under your Codex home at `ofxggml/agents/` before it references
 them from `[agents.explorer]` and `[agents.worker]`. Those role files repeat
-the same max-agent cap so spawned explorer/worker sessions stay inside the
-local server budget.
+the same agent thread cap and depth so spawned explorer/worker sessions stay
+inside the local server budget and inherit the disabled-reasoning local model
+settings.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
+    -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
-    -c model_context_window=40960 `
-    -c model_auto_compact_token_limit=30000 `
-    -c tool_output_token_limit=5000 `
+    -c model_context_window=65536 `
+    -c model_auto_compact_token_limit=50000 `
+    -c tool_output_token_limit=8000 `
+    -c model_reasoning_effort=none `
+    -c model_reasoning_summary=none `
+    -c hide_agent_reasoning=true `
     -c features.multi_agent_v2.enabled=true `
     -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
     -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
-    -c features.multi_agent_v2.max_wait_timeout_ms=120000 `
+    -c features.multi_agent_v2.max_wait_timeout_ms=180000 `
     -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
+    -c agents.max_threads=1 `
     -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally conservative for local GGUF models:
-`max_concurrent_threads_per_session = 1` keeps Codex from spawning extra
-subagent work against a single local `llama-server`, and `agents.max_depth = 1`
-keeps delegation shallow. Raise the session thread count only when the model,
-VRAM, and server `--parallel` value can handle concurrent requests. If you turn
-off `multi_agent_v2`, use `agents.max_threads = 1` for the same legacy fanout
-cap. The helper scripts also accept `-MaxAgents` or `-AgentMaxAgents` as aliases
-for the upstream max-concurrent setting.
+The agent defaults are intentionally conservative for local GGUF models. The
+three practical controls are `features.multi_agent_v2.enabled` for agent
+spawning, `max_concurrent_threads_per_session` plus `agents.max_threads` for
+the thread/fanout cap, and `agents.max_depth` for nested delegation depth. Keep
+the thread cap aligned with server `--parallel`. The helper scripts accept
+`-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for
+the same cap.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -237,32 +256,50 @@ The disable flags keep Codex from sending non-function Responses tools such as
 app namespaces, image generation, browser, or web-search tools; llama.cpp
 accepts the function-tool shape used by shell and patch tools.
 
+## Claude Code Hybrid Option
+
+Claude Code cannot use this `llama-server` endpoint directly because it expects
+an Anthropic-compatible Messages API, not an OpenAI-compatible server. Use a
+local proxy or router when you want Claude Code plus local cost-saving tasks:
+
+```powershell
+$env:ANTHROPIC_BASE_URL = "http://127.0.0.1:8080"
+claude
+```
+
+Keep Claude on complex code generation and planning. Route cheap, constrained
+work to local addon endpoints: embeddings/RAG indexing, intent classification,
+short context summaries, and audio transcription. The router should validate
+local outputs and fall back to Claude when confidence is low. LiteLLM or a
+small custom FastAPI service can provide that proxy layer; this addon supplies
+the local llama.cpp endpoint and validation helpers.
+
 Optional environment overrides:
 
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 $env:OFXGGML_CODEX_MODEL = "local/GLM-4.7-Flash-UD-Q4_K_XL"
-$env:OFXGGML_CODEX_PRESET = "balanced"
+$env:OFXGGML_CODEX_PRESET = "quality"
 $env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
 $env:OFXGGML_CODEX_EXE = "C:\Users\you\AppData\Local\OpenAI\Codex\bin\codex.exe"
 $env:OFXGGML_CODEX_GPU_LAYERS = "all"
-$env:OFXGGML_CODEX_CONTEXT_SIZE = "40960"
+$env:OFXGGML_CODEX_CONTEXT_SIZE = "65536"
 $env:OFXGGML_CODEX_PARALLEL = "1"
 $env:OFXGGML_CODEX_FLASH_ATTN = "1"
-$env:OFXGGML_CODEX_BATCH_SIZE = "2048"
-$env:OFXGGML_CODEX_UBATCH_SIZE = "512"
-$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = "40960"
-$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = "30000"
-$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = "5000"
+$env:OFXGGML_CODEX_BATCH_SIZE = "3072"
+$env:OFXGGML_CODEX_UBATCH_SIZE = "768"
+$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = "65536"
+$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = "50000"
+$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = "8000"
 $env:OFXGGML_CODEX_MULTI_AGENT_V2 = "1"
 $env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = "1"
 $env:OFXGGML_CODEX_AGENT_MAX_DEPTH = "1"
 $env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = "2500"
-$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS = "120000"
+$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS = "180000"
 $env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS = "30000"
-$env:OFXGGML_CODEX_TEMP = "1.0"
-$env:OFXGGML_CODEX_TOP_P = "0.95"
-$env:OFXGGML_CODEX_MIN_P = "0.01"
+$env:OFXGGML_CODEX_TEMP = "0.7"
+$env:OFXGGML_CODEX_TOP_P = "0.9"
+$env:OFXGGML_CODEX_MIN_P = "0.02"
 $env:OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS = '{"enable_thinking": false}'
 $env:OFXGGML_CODEX_REASONING = "off"
 $env:OFXGGML_CODEX_REASONING_BUDGET = "0"
@@ -275,9 +312,12 @@ $env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
 
 The example displays the exact endpoint, model alias, server status, endpoint
-smoke result, local Codex provider snippet, and editable startup options. It
-starts the local server when possible and can automatically write the needed
-provider/profile sections into the local Codex config if
+smoke result, server-advertised `/v1/models` aliases, local Codex provider
+snippet, and editable startup options. The **Use served alias** button copies
+the model id advertised by an already-running `llama-server` into the Codex
+profile before writing config, which avoids stale aliases when you started the
+server manually. It starts the local server when possible and can automatically
+write the needed provider/profile sections into the local Codex config if
 `OFXGGML_CODEX_AUTO_CONFIG` is set to `1` (default).
 Use the UI button **Write Codex config** if you prefer a manual write.
 
@@ -299,6 +339,13 @@ endpoint visibility without mutating files:
 
 ```powershell
 scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Json -SummaryOnly
+```
+
+If `/v1/models` advertises exactly one model and your requested alias is stale,
+add `-UseServedModel` to the planner or smoke command to use the live server id:
+
+```powershell
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -UseServedModel -Json -SummaryOnly
 ```
 
 The `test-local-codex` smoke is the stronger check: it runs `codex exec` and

@@ -5,18 +5,19 @@ param(
 	[string]$CodexProfile = $(if ($env:OFXGGML_CODEX_PROFILE) { $env:OFXGGML_CODEX_PROFILE } else { "ofxggml_local" }),
 	[string]$ConfigPath = $(if ($env:OFXGGML_CODEX_CONFIG_PATH) { $env:OFXGGML_CODEX_CONFIG_PATH } else { "" }),
 	[string]$CodexExe = $(if ($env:OFXGGML_CODEX_EXE) { $env:OFXGGML_CODEX_EXE } else { "" }),
-	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 40960 }),
-	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 30000 }),
-	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 5000 }),
-	[Alias("AgentMaxAgents", "MaxAgents")]
-	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
+	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 65536 }),
+	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 50000 }),
+	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 8000 }),
+	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 1 }),
 	[int]$AgentMinWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS } else { 2500 }),
-	[int]$AgentMaxWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS } else { 120000 }),
+	[int]$AgentMaxWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS } else { 180000 }),
 	[int]$AgentDefaultWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS } else { 30000 }),
 	[string]$ExpectedMarker = "LOCAL_CODEX_OK",
 	[string]$Prompt = "",
 	[int]$TimeoutSeconds = 120,
+	[switch]$UseServedModel,
 	[switch]$DisableMultiAgentV2,
 	[switch]$DryRun,
 	[switch]$Json,
@@ -149,6 +150,9 @@ $planArgs.AgentDefaultWaitMs = $AgentDefaultWaitMs
 if ($DisableMultiAgentV2) {
 	$planArgs.DisableMultiAgentV2 = $true
 }
+if ($UseServedModel) {
+	$planArgs.UseServedModel = $true
+}
 
 $planJson = & $planScript @planArgs
 if ($LASTEXITCODE -ne 0) {
@@ -156,6 +160,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 $plan = $planJson | ConvertFrom-Json
 $resolvedCodex = if ($plan.CodexExe) { [string]$plan.CodexExe } else { "codex" }
+$resolvedModel = if ($plan.Model) { [string]$plan.Model } else { $Model }
 $codexMultiAgentV2 = if ($DisableMultiAgentV2) {
 	$false
 } elseif ($env:OFXGGML_CODEX_MULTI_AGENT_V2) {
@@ -180,34 +185,34 @@ $arguments = @(
 	"-c", "model_context_window=$ModelContextWindow",
 	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
+	"-c", "model_reasoning_effort=none",
+	"-c", "model_reasoning_summary=none",
+	"-c", "hide_agent_reasoning=true",
 	"-c", "features.multi_agent_v2.enabled=$(if ($codexMultiAgentV2) { 'true' } else { 'false' })",
 	"-c", "features.multi_agent_v2.max_concurrent_threads_per_session=$AgentMaxConcurrentThreads",
 	"-c", "features.multi_agent_v2.min_wait_timeout_ms=$AgentMinWaitMs",
 	"-c", "features.multi_agent_v2.max_wait_timeout_ms=$AgentMaxWaitMs",
 	"-c", "features.multi_agent_v2.default_wait_timeout_ms=$AgentDefaultWaitMs",
+	"-c", "agents.max_threads=$AgentMaxConcurrentThreads",
 	"-c", "agents.max_depth=$AgentMaxDepth",
-	"--model", $Model,
+	"--model", $resolvedModel,
 	"--sandbox", "read-only",
 	$Prompt
 )
-if (!$codexMultiAgentV2) {
-	$arguments = $arguments[0..($arguments.Count - 6)] +
-		@("-c", "agents.max_threads=$AgentMaxConcurrentThreads") +
-		$arguments[($arguments.Count - 5)..($arguments.Count - 1)]
-}
 
 $command = "`"$resolvedCodex`" $(Join-CodexArguments $arguments)"
 $baseSummary = @{
 	Name = "ofxGgmlLlama local Codex smoke"
 	Root = $addonRoot.Path
 	Endpoint = $Endpoint
-	Model = $Model
+	Model = $resolvedModel
 	Profile = $CodexProfile
 	CodexExe = $resolvedCodex
 	ExpectedMarker = $ExpectedMarker
 	Command = $command
 	PlanReady = [bool]$plan.Ready
 	PlanBlockers = @($plan.Blockers)
+	SuggestedModel = if ($plan.SuggestedModel) { [string]$plan.SuggestedModel } else { "" }
 	ServedModels = $plan.ServedModels
 	LocalLlamaServer = $plan.LocalLlamaServer
 	SmokeKind = "local-codex-llama-server"
@@ -223,7 +228,7 @@ if ($DryRun) {
 		Write-Host "ofxGgmlLlama local Codex smoke plan"
 		Write-Host "Ready:   $($baseSummary.PlanReady)"
 		Write-Host "Codex:   $resolvedCodex"
-		Write-Host "Model:   $Model"
+	Write-Host "Model:   $resolvedModel"
 		Write-Host "Command: $command"
 	}
 	exit 0

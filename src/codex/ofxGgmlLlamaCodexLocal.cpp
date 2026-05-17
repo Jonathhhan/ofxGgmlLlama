@@ -198,10 +198,23 @@ std::string localAgentRoleToml(
 	output << "model_context_window = " << contextWindow << "\n";
 	output << "model_auto_compact_token_limit = " << compactLimit << "\n";
 	output << "tool_output_token_limit = " << toolLimit << "\n";
+	output << "model_reasoning_effort = \"" <<
+		escapeTomlString(config.modelReasoningEffort) << "\"\n";
+	output << "model_reasoning_summary = \"" <<
+		escapeTomlString(config.modelReasoningSummary) << "\"\n";
+	output << "hide_agent_reasoning = " << (config.hideAgentReasoning ? "true" : "false") << "\n";
 	if (role == "explorer") {
-		output << "developer_instructions = \"Use the explorer role for narrow, read-only codebase questions. Prefer targeted file reads and concise answers. Avoid spawning more agents unless explicitly asked.\"\n";
+		output << "developer_instructions = \""
+			"Use the explorer role for narrow, read-only codebase questions. "
+			"Use rg first, read exact files before answering, cite paths or lines when useful, "
+			"and return concise findings. Do not edit files and avoid spawning more agents "
+			"unless explicitly asked.\"\n";
 	} else {
-		output << "developer_instructions = \"Use the worker role for bounded code changes. Keep edits scoped, respect existing dirty files, and run the smallest useful validation before reporting back.\"\n";
+		output << "developer_instructions = \""
+			"Use the worker role for bounded code changes. Read local patterns first, "
+			"follow openFrameworks addon conventions, preserve existing dirty files, "
+			"keep edits scoped, use apply_patch for manual edits, run the smallest useful "
+			"validation, and report residual risk.\"\n";
 	}
 	output << "\n[features.multi_agent_v2]\n";
 	output << "enabled = " << (config.multiAgentV2Enabled ? "true" : "false") << "\n";
@@ -213,9 +226,7 @@ std::string localAgentRoleToml(
 	output << "hide_spawn_agent_metadata = true\n";
 	output << "non_code_mode_only = true\n";
 	output << "\n[agents]\n";
-	if (!config.multiAgentV2Enabled) {
-		output << "max_threads = " << maxAgents << "\n";
-	}
+	output << "max_threads = " << maxAgents << "\n";
 	output << "max_depth = " << maxDepth << "\n\n";
 	return output.str();
 }
@@ -322,6 +333,16 @@ bool isPortableExecutableName(const std::string & executable) {
 	return executable.find('\\') == std::string::npos &&
 		executable.find('/') == std::string::npos &&
 		executable.find(':') == std::string::npos;
+}
+
+void addUniqueModelId(std::vector<std::string> & models, const std::string & value) {
+	const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(value);
+	if (trimmed.empty()) {
+		return;
+	}
+	if (std::find(models.begin(), models.end(), trimmed) == models.end()) {
+		models.push_back(trimmed);
+	}
 }
 }
 
@@ -605,6 +626,61 @@ ofxGgmlLlamaServerProbe ofxGgmlLlamaCodexLocal::probeServerHealth(
 	return probe;
 }
 
+ofxGgmlLlamaServedModels ofxGgmlLlamaCodexLocal::probeServedModels(
+	const std::string & baseUrl,
+	const std::string & expectedModel,
+	int timeoutSeconds) {
+	ofxGgmlLlamaServedModels result;
+	const auto probe = probeEndpoint(codexApiRootFromBaseUrl(baseUrl) + "/models", timeoutSeconds);
+	result.reachable = probe.reachable;
+	result.ready = probe.ready && probe.status >= 200 && probe.status < 300;
+	result.status = probe.status;
+	result.message = probe.message;
+	if (!result.ready) {
+		return result;
+	}
+#if defined(OFXGGML_LLAMA_HAS_OF_RUNTIME)
+	try {
+		const auto json = ofJson::parse(probe.message);
+		if (json.contains("data") && json["data"].is_array()) {
+			for (const auto & item : json["data"]) {
+				if (item.contains("id") && item["id"].is_string()) {
+					addUniqueModelId(result.models, item["id"].get<std::string>());
+				}
+				if (item.contains("aliases") && item["aliases"].is_array()) {
+					for (const auto & alias : item["aliases"]) {
+						if (alias.is_string()) {
+							addUniqueModelId(result.models, alias.get<std::string>());
+						}
+					}
+				}
+			}
+		}
+		if (json.contains("models") && json["models"].is_array()) {
+			for (const auto & item : json["models"]) {
+				for (const auto & key : { "model", "name", "id" }) {
+					if (item.contains(key) && item[key].is_string()) {
+						addUniqueModelId(result.models, item[key].get<std::string>());
+					}
+				}
+			}
+		}
+		std::sort(result.models.begin(), result.models.end());
+		result.expectedModelServed = !expectedModel.empty() &&
+			std::find(result.models.begin(), result.models.end(), expectedModel) != result.models.end();
+		if (result.models.empty()) {
+			result.message = "server did not advertise model ids";
+		}
+	} catch (const std::exception & exception) {
+		result.ready = false;
+		result.message = std::string("failed to parse /v1/models: ") + exception.what();
+	}
+#else
+	(void)expectedModel;
+#endif
+	return result;
+}
+
 ofxGgmlLlamaServerProbe ofxGgmlLlamaCodexLocal::waitForServerReady(
 	const std::string & serverUrl,
 	int timeoutSeconds,
@@ -658,6 +734,11 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 		output << "model_context_window = " << std::max(1024, config.modelContextWindow) << "\n";
 		output << "model_auto_compact_token_limit = " << std::max(1024, config.modelAutoCompactTokenLimit) << "\n";
 		output << "tool_output_token_limit = " << std::max(512, config.toolOutputTokenLimit) << "\n\n";
+		output << "model_reasoning_effort = \"" <<
+			escapeTomlString(config.modelReasoningEffort) << "\"\n";
+		output << "model_reasoning_summary = \"" <<
+			escapeTomlString(config.modelReasoningSummary) << "\"\n";
+		output << "hide_agent_reasoning = " << (config.hideAgentReasoning ? "true" : "false") << "\n\n";
 	}
 	output << "[model_providers." << providerId << "]\n";
 	output << "name = \"" << escapeTomlString(config.providerName) << "\"\n";
@@ -668,6 +749,10 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 	output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
 	output << "web_search = \"disabled\"\n";
+	output << "model_reasoning_effort = \"" <<
+		escapeTomlString(config.modelReasoningEffort) << "\"\n";
+	output << "model_reasoning_summary = \"" <<
+		escapeTomlString(config.modelReasoningSummary) << "\"\n";
 	if (config.writeAgentSettings) {
 		const int minWaitMs = std::max(0, config.agentMinWaitTimeoutMs);
 		const int maxWaitMs = std::max(minWaitMs, config.agentMaxWaitTimeoutMs);
@@ -685,10 +770,8 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 		output << "hide_spawn_agent_metadata = true\n";
 		output << "non_code_mode_only = true\n\n";
 		output << "[agents]\n";
-		if (!config.multiAgentV2Enabled) {
-			output << "max_threads = " <<
-				std::max(1, config.agentMaxConcurrentThreadsPerSession) << "\n";
-		}
+		output << "max_threads = " <<
+			std::max(1, config.agentMaxConcurrentThreadsPerSession) << "\n";
 		output << "max_depth = " << std::max(1, config.agentMaxDepth) << "\n\n";
 		output << "[agents.explorer]\n";
 		output << "description = \"Fast read-only codebase questions for local llama.cpp sessions.\"\n";
@@ -743,7 +826,10 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 			"web_search",
 			"model_context_window",
 			"model_auto_compact_token_limit",
-			"tool_output_token_limit"
+			"tool_output_token_limit",
+			"model_reasoning_effort",
+			"model_reasoning_summary",
+			"hide_agent_reasoning"
 		});
 	if (config.writeTopLevelSelection) {
 		updated.insert(0, buildCodexConfigSnippet(config) + "\n");
@@ -870,6 +956,21 @@ bool ofxGgmlLlamaCodexLocal::startLlamaServer(
 	args << " --parallel " << std::max(1, settings.parallel);
 	args << " --batch-size " << std::max(1, settings.batchSize);
 	args << " --ubatch-size " << std::max(1, settings.ubatchSize);
+	if (settings.threads > 0 && executableSupportsArgument(settings.serverExe, "--threads")) {
+		args << " --threads " << settings.threads;
+	}
+	if (settings.threadsBatch > 0 &&
+		executableSupportsArgument(settings.serverExe, "--threads-batch")) {
+		args << " --threads-batch " << settings.threadsBatch;
+	}
+	if (settings.threadsHttp > 0 &&
+		executableSupportsArgument(settings.serverExe, "--threads-http")) {
+		args << " --threads-http " << settings.threadsHttp;
+	}
+	if (settings.cacheReuse > 0 &&
+		executableSupportsArgument(settings.serverExe, "--cache-reuse")) {
+		args << " --cache-reuse " << settings.cacheReuse;
+	}
 	if (!settings.modelAlias.empty()) {
 		args << " --alias " << quoteArgument(settings.modelAlias);
 	}

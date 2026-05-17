@@ -13,10 +13,14 @@ param(
 	[int]$Parallel = [int]::MinValue,
 	[int]$BatchSize = [int]::MinValue,
 	[int]$UBatchSize = [int]::MinValue,
+	[int]$Threads = [int]::MinValue,
+	[int]$ThreadsBatch = [int]::MinValue,
+	[int]$ThreadsHttp = [int]::MinValue,
+	[int]$CacheReuse = [int]::MinValue,
 	[int]$ModelContextWindow = [int]::MinValue,
 	[int]$ModelAutoCompactTokenLimit = [int]::MinValue,
 	[int]$ToolOutputTokenLimit = [int]::MinValue,
-	[Alias("AgentMaxAgents", "MaxAgents")]
+	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
 	[int]$AgentMaxConcurrentThreads = [int]::MinValue,
 	[int]$AgentMaxDepth = [int]::MinValue,
 	[int]$AgentMinWaitMs = [int]::MinValue,
@@ -116,7 +120,7 @@ function Get-OfxGgmlLocalModelAlias {
 function Get-OfxGgmlCodexPresetDefaults {
 	param([string]$Name)
 
-	$preset = if ([string]::IsNullOrWhiteSpace($Name)) { "balanced" } else { $Name.Trim().ToLowerInvariant() }
+	$preset = if ([string]::IsNullOrWhiteSpace($Name)) { "quality" } else { $Name.Trim().ToLowerInvariant() }
 	switch ($preset) {
 		"memory" {
 			return @{
@@ -126,6 +130,10 @@ function Get-OfxGgmlCodexPresetDefaults {
 				Parallel = 1
 				BatchSize = 1024
 				UBatchSize = 256
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 128
 				ModelContextWindow = 16384
 				ModelAutoCompactTokenLimit = 12000
 				ToolOutputTokenLimit = 3000
@@ -135,6 +143,35 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 90000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
+				Temperature = "0.8"
+				TopP = "0.9"
+				MinP = "0.02"
+			}
+		}
+		"fast" {
+			return @{
+				Name = "fast"
+				Label = "Fast coding"
+				ContextSize = 32768
+				Parallel = 1
+				BatchSize = 4096
+				UBatchSize = 1024
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
+				ModelContextWindow = 32768
+				ModelAutoCompactTokenLimit = 24000
+				ToolOutputTokenLimit = 5000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 1
+				AgentMinWaitMs = 2500
+				AgentMaxWaitMs = 120000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 300
+				Temperature = "0.6"
+				TopP = "0.9"
+				MinP = "0.02"
 			}
 		}
 		"balanced" {
@@ -145,6 +182,10 @@ function Get-OfxGgmlCodexPresetDefaults {
 				Parallel = 1
 				BatchSize = 2048
 				UBatchSize = 512
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
 				ModelContextWindow = 40960
 				ModelAutoCompactTokenLimit = 30000
 				ToolOutputTokenLimit = 5000
@@ -154,6 +195,35 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 120000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
+				Temperature = "1.0"
+				TopP = "0.95"
+				MinP = "0.01"
+			}
+		}
+		"quality" {
+			return @{
+				Name = "quality"
+				Label = "Quality coding"
+				ContextSize = 65536
+				Parallel = 1
+				BatchSize = 3072
+				UBatchSize = 768
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
+				ModelContextWindow = 65536
+				ModelAutoCompactTokenLimit = 50000
+				ToolOutputTokenLimit = 8000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 1
+				AgentMinWaitMs = 2500
+				AgentMaxWaitMs = 180000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "0.7"
+				TopP = "0.9"
+				MinP = "0.02"
 			}
 		}
 		"long" {
@@ -164,6 +234,10 @@ function Get-OfxGgmlCodexPresetDefaults {
 				Parallel = 1
 				BatchSize = 4096
 				UBatchSize = 1024
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 512
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 100000
 				ToolOutputTokenLimit = 8000
@@ -173,6 +247,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 300000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
+				Temperature = "0.8"
+				TopP = "0.92"
+				MinP = "0.02"
 			}
 		}
 		"concurrent" {
@@ -183,6 +260,10 @@ function Get-OfxGgmlCodexPresetDefaults {
 				Parallel = 2
 				BatchSize = 2048
 				UBatchSize = 512
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
 				ModelContextWindow = 32768
 				ModelAutoCompactTokenLimit = 24000
 				ToolOutputTokenLimit = 5000
@@ -192,10 +273,13 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 180000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
+				Temperature = "0.9"
+				TopP = "0.95"
+				MinP = "0.01"
 			}
 		}
 		default {
-			throw "Unknown Codex preset '$Name'. Use memory, balanced, long, or concurrent."
+			throw "Unknown Codex preset '$Name'. Use memory, fast, balanced, quality, long, or concurrent."
 		}
 	}
 }
@@ -206,7 +290,7 @@ if ($isCodex) {
 	} elseif ($env:OFXGGML_CODEX_PRESET) {
 		$env:OFXGGML_CODEX_PRESET
 	} else {
-		"balanced"
+		"quality"
 	}
 	$codexPresetDefaults = Get-OfxGgmlCodexPresetDefaults $presetName
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
@@ -227,6 +311,18 @@ if ($isCodex) {
 	if ($UBatchSize -eq [int]::MinValue) {
 		$UBatchSize = if ($env:OFXGGML_CODEX_UBATCH_SIZE) { [int]$env:OFXGGML_CODEX_UBATCH_SIZE } else { $codexPresetDefaults.UBatchSize }
 	}
+	if ($Threads -eq [int]::MinValue) {
+		$Threads = if ($env:OFXGGML_CODEX_THREADS) { [int]$env:OFXGGML_CODEX_THREADS } else { $codexPresetDefaults.Threads }
+	}
+	if ($ThreadsBatch -eq [int]::MinValue) {
+		$ThreadsBatch = if ($env:OFXGGML_CODEX_THREADS_BATCH) { [int]$env:OFXGGML_CODEX_THREADS_BATCH } else { $codexPresetDefaults.ThreadsBatch }
+	}
+	if ($ThreadsHttp -eq [int]::MinValue) {
+		$ThreadsHttp = if ($env:OFXGGML_CODEX_THREADS_HTTP) { [int]$env:OFXGGML_CODEX_THREADS_HTTP } else { $codexPresetDefaults.ThreadsHttp }
+	}
+	if ($CacheReuse -eq [int]::MinValue) {
+		$CacheReuse = if ($env:OFXGGML_CODEX_CACHE_REUSE) { [int]$env:OFXGGML_CODEX_CACHE_REUSE } else { $codexPresetDefaults.CacheReuse }
+	}
 	if ($ModelContextWindow -eq [int]::MinValue) {
 		$ModelContextWindow = if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { $codexPresetDefaults.ModelContextWindow }
 	}
@@ -239,6 +335,8 @@ if ($isCodex) {
 	if ($AgentMaxConcurrentThreads -eq [int]::MinValue) {
 		$AgentMaxConcurrentThreads = if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) {
 			[int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS
+		} elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) {
+			[int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS
 		} elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) {
 			[int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS
 		} else {
@@ -261,13 +359,13 @@ if ($isCodex) {
 		$StartupTimeoutSeconds = if ($env:OFXGGML_CODEX_STARTUP_TIMEOUT) { [int]$env:OFXGGML_CODEX_STARTUP_TIMEOUT } else { $codexPresetDefaults.StartupTimeoutSeconds }
 	}
 	if ([string]::IsNullOrWhiteSpace($Temperature)) {
-		$Temperature = if ($env:OFXGGML_CODEX_TEMP) { $env:OFXGGML_CODEX_TEMP } else { "1.0" }
+		$Temperature = if ($env:OFXGGML_CODEX_TEMP) { $env:OFXGGML_CODEX_TEMP } else { $codexPresetDefaults.Temperature }
 	}
 	if ([string]::IsNullOrWhiteSpace($TopP)) {
-		$TopP = if ($env:OFXGGML_CODEX_TOP_P) { $env:OFXGGML_CODEX_TOP_P } else { "0.95" }
+		$TopP = if ($env:OFXGGML_CODEX_TOP_P) { $env:OFXGGML_CODEX_TOP_P } else { $codexPresetDefaults.TopP }
 	}
 	if ([string]::IsNullOrWhiteSpace($MinP)) {
-		$MinP = if ($env:OFXGGML_CODEX_MIN_P) { $env:OFXGGML_CODEX_MIN_P } else { "0.01" }
+		$MinP = if ($env:OFXGGML_CODEX_MIN_P) { $env:OFXGGML_CODEX_MIN_P } else { $codexPresetDefaults.MinP }
 	}
 	if ([string]::IsNullOrWhiteSpace($ChatTemplateKwargs)) {
 		$ChatTemplateKwargs = if ($env:OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS) { $env:OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS } else { '{"enable_thinking": false}' }
@@ -315,12 +413,17 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_PARALLEL = $Parallel.ToString()
 	$env:OFXGGML_CODEX_BATCH_SIZE = $BatchSize.ToString()
 	$env:OFXGGML_CODEX_UBATCH_SIZE = $UBatchSize.ToString()
+	$env:OFXGGML_CODEX_THREADS = $Threads.ToString()
+	$env:OFXGGML_CODEX_THREADS_BATCH = $ThreadsBatch.ToString()
+	$env:OFXGGML_CODEX_THREADS_HTTP = $ThreadsHttp.ToString()
+	$env:OFXGGML_CODEX_CACHE_REUSE = $CacheReuse.ToString()
 	$env:OFXGGML_CODEX_FLASH_ATTN = "1"
 	$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = $ModelContextWindow.ToString()
 	$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = $ModelAutoCompactTokenLimit.ToString()
 	$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = $ToolOutputTokenLimit.ToString()
 	$env:OFXGGML_CODEX_MULTI_AGENT_V2 = if ($codexMultiAgentV2) { "1" } else { "0" }
 	$env:OFXGGML_CODEX_AGENT_MAX_AGENTS = $AgentMaxConcurrentThreads.ToString()
+	$env:OFXGGML_CODEX_AGENT_MAX_THREADS = $AgentMaxConcurrentThreads.ToString()
 	$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = $AgentMaxConcurrentThreads.ToString()
 	$env:OFXGGML_CODEX_AGENT_MAX_DEPTH = $AgentMaxDepth.ToString()
 	$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = $AgentMinWaitMs.ToString()
@@ -343,9 +446,9 @@ if ($isCodex) {
 	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
 	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
-	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
+	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
-	Write-OfxGgmlStep "Using Codex agent settings: multi_agent_v2=$(if ($codexMultiAgentV2) { 'on' } else { 'off' }) max_agents=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
+	Write-OfxGgmlStep "Using Codex agent settings: agents=$(if ($codexMultiAgentV2) { 'on' } else { 'off' }) max_threads=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"
@@ -366,6 +469,10 @@ if ($isCodex) {
 		-Parallel $Parallel `
 		-BatchSize $BatchSize `
 		-UBatchSize $UBatchSize `
+		-Threads $Threads `
+		-ThreadsBatch $ThreadsBatch `
+		-ThreadsHttp $ThreadsHttp `
+		-CacheReuse $CacheReuse `
 		-Temperature $Temperature `
 		-TopP $TopP `
 		-MinP $MinP `

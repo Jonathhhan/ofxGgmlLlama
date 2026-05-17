@@ -9,6 +9,10 @@ param(
 	[int]$Parallel = 1,
 	[int]$BatchSize = 0,
 	[int]$UBatchSize = 0,
+	[int]$Threads = 0,
+	[int]$ThreadsBatch = 0,
+	[int]$ThreadsHttp = 0,
+	[int]$CacheReuse = 0,
 	[string]$Temperature = "",
 	[string]$TopP = "",
 	[string]$MinP = "",
@@ -246,6 +250,22 @@ if ($UBatchSize -gt 0) {
 	$arguments += "--ubatch-size"
 	$arguments += $UBatchSize.ToString()
 }
+if ($Threads -gt 0) {
+	$arguments += "--threads"
+	$arguments += $Threads.ToString()
+}
+if ($ThreadsBatch -gt 0) {
+	$arguments += "--threads-batch"
+	$arguments += $ThreadsBatch.ToString()
+}
+if ($ThreadsHttp -gt 0) {
+	$arguments += "--threads-http"
+	$arguments += $ThreadsHttp.ToString()
+}
+if ($CacheReuse -gt 0) {
+	$arguments += "--cache-reuse"
+	$arguments += $CacheReuse.ToString()
+}
 if (![string]::IsNullOrWhiteSpace($Alias)) {
 	$arguments += "--alias"
 	$arguments += $Alias
@@ -327,6 +347,10 @@ if ($BatchSize -gt 0) {
 if ($UBatchSize -gt 0) {
 	Write-Host "  ubatch:    $UBatchSize"
 }
+Write-Host "  threads:   $(if ($Threads -gt 0) { $Threads } else { 'auto' })"
+Write-Host "  batchTh:   $(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' })"
+Write-Host "  httpTh:    $(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' })"
+Write-Host "  cacheReuse: $(if ($CacheReuse -gt 0) { $CacheReuse } else { 'default' })"
 if (![string]::IsNullOrWhiteSpace($Temperature)) {
 	Write-Host "  temp:      $Temperature"
 }

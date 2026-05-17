@@ -17,6 +17,10 @@ struct CodexLocalPreset {
 	int parallel;
 	int batchSize;
 	int ubatchSize;
+	int threads;
+	int threadsBatch;
+	int threadsHttp;
+	int cacheReuse;
 	int modelContextWindow;
 	int modelAutoCompactTokenLimit;
 	int toolOutputTokenLimit;
@@ -26,14 +30,19 @@ struct CodexLocalPreset {
 	int agentMaxWaitMs;
 	int agentDefaultWaitMs;
 	int startupTimeoutSeconds;
+	float temperature;
+	float topP;
+	float minP;
 };
 
 const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
-		{"memory", "Memory saver", 16384, 1, 1024, 256, 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300},
-		{"balanced", "Balanced local", 40960, 1, 2048, 512, 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300},
-		{"long", "Long context", 131072, 1, 4096, 1024, 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600},
-		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600}
+		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
+		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, 32768, 24000, 5000, 1, 1, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
+		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
+		{"quality", "Quality coding", 65536, 1, 3072, 768, 0, 0, 0, 256, 65536, 50000, 8000, 1, 1, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"long", "Long context", 131072, 1, 4096, 1024, 0, 0, 0, 512, 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
+		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
 	};
 	return presets;
 }
@@ -45,7 +54,7 @@ int presetIndexFromId(const std::string & value) {
 			return static_cast<int>(i);
 		}
 	}
-	return 1;
+	return 3;
 }
 
 void appendWrapped(
@@ -123,6 +132,17 @@ bool envGpuLayersAll(const char * name, bool fallback) {
 	}
 	return false;
 }
+
+std::string joinAliases(const std::vector<std::string> & values) {
+	std::ostringstream output;
+	for (std::size_t i = 0; i < values.size(); ++i) {
+		if (i > 0) {
+			output << ", ";
+		}
+		output << values[i];
+	}
+	return output.str();
+}
 }
 
 void ofApp::setup() {
@@ -130,7 +150,7 @@ void ofApp::setup() {
 	gui.setup();
 
 	presetIndex = presetIndexFromId(
-		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PRESET", "balanced"));
+		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PRESET", "quality"));
 	applyPreset(presetIndex);
 
 	baseUrl = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
@@ -148,6 +168,10 @@ void ofApp::setup() {
 	parallel = envInt("OFXGGML_CODEX_PARALLEL", parallel);
 	batchSize = envInt("OFXGGML_CODEX_BATCH_SIZE", batchSize);
 	ubatchSize = envInt("OFXGGML_CODEX_UBATCH_SIZE", ubatchSize);
+	threads = envInt("OFXGGML_CODEX_THREADS", threads);
+	threadsBatch = envInt("OFXGGML_CODEX_THREADS_BATCH", threadsBatch);
+	threadsHttp = envInt("OFXGGML_CODEX_THREADS_HTTP", threadsHttp);
+	cacheReuse = envInt("OFXGGML_CODEX_CACHE_REUSE", cacheReuse);
 	modelContextWindow = envInt("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW", modelContextWindow);
 	modelAutoCompactTokenLimit = envInt(
 		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
@@ -155,6 +179,9 @@ void ofApp::setup() {
 	toolOutputTokenLimit = envInt("OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT", toolOutputTokenLimit);
 	agentMaxConcurrentThreadsPerSession = envInt(
 		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
+		agentMaxConcurrentThreadsPerSession);
+	agentMaxConcurrentThreadsPerSession = envInt(
+		"OFXGGML_CODEX_AGENT_MAX_THREADS",
 		agentMaxConcurrentThreadsPerSession);
 	agentMaxConcurrentThreadsPerSession = envInt(
 		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
@@ -182,6 +209,7 @@ void ofApp::setup() {
 	status = "ready";
 	wireApiProbeStatus = "wire_api defaults to responses";
 	rebuildLines();
+	refreshServerStatus();
 }
 
 void ofApp::draw() {
@@ -193,6 +221,7 @@ void ofApp::draw() {
 	bool writeConfigRequested = false;
 	bool launchRequested = false;
 	bool refreshRequested = false;
+	bool adoptServedAliasRequested = false;
 
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
@@ -211,6 +240,10 @@ void ofApp::draw() {
 		if (ImGui::InputText("Model alias", &modelAlias)) {
 			rebuildLines();
 		}
+		ImGui::SameLine();
+		ImGui::BeginDisabled(servedModelAliases.empty());
+		adoptServedAliasRequested = ImGui::Button("Use served alias");
+		ImGui::EndDisabled();
 		if (ImGui::InputText("GGUF model", &modelPath)) {
 			if (modelAlias.empty()) {
 				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
@@ -282,6 +315,10 @@ void ofApp::draw() {
 		ImGui::InputInt("Parallel", &parallel);
 		ImGui::InputInt("Batch size", &batchSize);
 		ImGui::InputInt("UBatch size", &ubatchSize);
+		ImGui::InputInt("Threads (0 auto)", &threads);
+		ImGui::InputInt("Batch threads (0 auto)", &threadsBatch);
+		ImGui::InputInt("HTTP threads (0 auto)", &threadsHttp);
+		ImGui::InputInt("Cache reuse tokens", &cacheReuse);
 		ImGui::InputInt("Model context window", &modelContextWindow);
 		ImGui::InputInt("Auto compact tokens", &modelAutoCompactTokenLimit);
 		ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit);
@@ -291,8 +328,8 @@ void ofApp::draw() {
 		ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f");
 		ImGui::Separator();
 		ImGui::TextUnformatted("Agent settings");
-		ImGui::Checkbox("Multi-agent v2", &multiAgentV2Enabled);
-		ImGui::InputInt("Max agents", &agentMaxConcurrentThreadsPerSession);
+		ImGui::Checkbox("Enable agents", &multiAgentV2Enabled);
+		ImGui::InputInt("Agent max threads", &agentMaxConcurrentThreadsPerSession);
 		ImGui::InputInt("Agent max depth", &agentMaxDepth);
 		ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs);
 		ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs);
@@ -321,6 +358,7 @@ void ofApp::draw() {
 		ImGui::Text("endpoint: %s", endpointReady ? "ready" : "not ready");
 		ImGui::TextWrapped("wire_api: %s", wireApi.empty() ? "(not detected)" : wireApi.c_str());
 		ImGui::TextWrapped("%s", wireApiProbeStatus.c_str());
+		ImGui::TextWrapped("%s", servedModelStatus.c_str());
 		ImGui::TextWrapped("%s", endpointStatus.c_str());
 		if (!endpointOutput.empty()) {
 			ImGui::TextWrapped("endpoint output: %s", endpointOutput.c_str());
@@ -338,6 +376,9 @@ void ofApp::draw() {
 	if (refreshRequested) {
 		refreshRuntimeDiscovery();
 		refreshServerStatus();
+	}
+	if (adoptServedAliasRequested) {
+		adoptServedModelAliasIfNeeded();
 	}
 	if (writeConfigRequested) {
 		requestWriteConfig();
@@ -399,6 +440,9 @@ void ofApp::runStartServerWorker(bool force) {
 	if (!force) {
 		const auto existing = ofxGgmlLlamaCodexLocal::probeServerHealth(settings.serverUrl, 2);
 		if (existing.ready) {
+			if (requestAutoConfig) {
+				syncCodexConfig();
+			}
 			std::lock_guard<std::mutex> lock(stateMutex);
 			serverReady = true;
 			status = "llama-server is already ready at " + settings.serverUrl;
@@ -549,13 +593,13 @@ void ofApp::runLaunchCodexWorker() {
 	std::string requestCodexExe;
 	std::string requestProfile;
 	std::string requestModelAlias;
-	int requestModelContextWindow = 40960;
-	int requestModelAutoCompactTokenLimit = 30000;
-	int requestToolOutputTokenLimit = 5000;
+	int requestModelContextWindow = 65536;
+	int requestModelAutoCompactTokenLimit = 50000;
+	int requestToolOutputTokenLimit = 8000;
 	int requestAgentMaxConcurrentThreadsPerSession = 1;
 	int requestAgentMaxDepth = 1;
 	int requestAgentMinWaitTimeoutMs = 2500;
-	int requestAgentMaxWaitTimeoutMs = 120000;
+	int requestAgentMaxWaitTimeoutMs = 180000;
 	int requestAgentDefaultWaitTimeoutMs = 30000;
 	bool requestMultiAgentV2Enabled = true;
 	bool requestAutoConfig = false;
@@ -579,6 +623,10 @@ void ofApp::runLaunchCodexWorker() {
 	if (requestAutoConfig && !syncCodexConfig()) {
 		ofLogWarning(LogModule) << "Codex auto-config failed; attempting launch with existing config";
 	}
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		requestModelAlias = modelAlias;
+	}
 
 	std::string arguments;
 	if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--no-alt-screen")) {
@@ -593,6 +641,9 @@ void ofApp::runLaunchCodexWorker() {
 	arguments += "-c model_context_window=" + std::to_string(requestModelContextWindow) + " ";
 	arguments += "-c model_auto_compact_token_limit=" + std::to_string(requestModelAutoCompactTokenLimit) + " ";
 	arguments += "-c tool_output_token_limit=" + std::to_string(requestToolOutputTokenLimit) + " ";
+	arguments += "-c model_reasoning_effort=none ";
+	arguments += "-c model_reasoning_summary=none ";
+	arguments += "-c hide_agent_reasoning=true ";
 	arguments += "-c features.multi_agent_v2.enabled=" +
 		std::string(requestMultiAgentV2Enabled ? "true" : "false") + " ";
 	arguments += "-c features.multi_agent_v2.max_concurrent_threads_per_session=" +
@@ -658,19 +709,38 @@ void ofApp::refreshModelMetadata() {
 
 void ofApp::refreshServerStatus() {
 	std::string requestServerUrl;
+	std::string requestBaseUrl;
+	std::string requestModelAlias;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestServerUrl = serverUrl;
+		requestBaseUrl = baseUrl;
+		requestModelAlias = modelAlias;
 	}
 	const auto probe = ofxGgmlLlamaCodexLocal::probeServerHealth(requestServerUrl, 2);
+	const auto servedModels = probe.ready
+		? ofxGgmlLlamaCodexLocal::probeServedModels(requestBaseUrl, requestModelAlias, 2)
+		: ofxGgmlLlamaServedModels {};
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = probe.ready;
 	if (serverReady) {
 		wireApi = ofxGgmlLlamaCodexLocal::detectCodexWireApi(baseUrl);
 		wireApiProbeStatus = "wire_api auto-detected as " + wireApi;
+		servedModelAliases = servedModels.models;
+		if (servedModels.ready && !servedModels.models.empty()) {
+			servedModelStatus = "served model aliases: " + joinAliases(servedModels.models);
+			if (!modelAlias.empty() && !servedModels.expectedModelServed) {
+				servedModelStatus += " (current alias is not advertised)";
+			}
+		} else {
+			servedModelStatus = "served model aliases unavailable: " +
+				ofxGgmlLlamaCodexLocal::trimCopy(servedModels.message);
+		}
 	} else {
 		endpointReady = false;
 		wireApiProbeStatus = "wire_api not available (server not ready)";
+		servedModelAliases.clear();
+		servedModelStatus = "served model aliases unavailable (server not ready)";
 	}
 	status = probe.ready
 		? "llama-server ready for Codex at " + baseUrl
@@ -691,6 +761,10 @@ void ofApp::applyPreset(int index) {
 	parallel = preset.parallel;
 	batchSize = preset.batchSize;
 	ubatchSize = preset.ubatchSize;
+	threads = preset.threads;
+	threadsBatch = preset.threadsBatch;
+	threadsHttp = preset.threadsHttp;
+	cacheReuse = preset.cacheReuse;
 	modelContextWindow = preset.modelContextWindow;
 	modelAutoCompactTokenLimit = preset.modelAutoCompactTokenLimit;
 	toolOutputTokenLimit = preset.toolOutputTokenLimit;
@@ -700,11 +774,52 @@ void ofApp::applyPreset(int index) {
 	agentMaxWaitTimeoutMs = preset.agentMaxWaitMs;
 	agentDefaultWaitTimeoutMs = preset.agentDefaultWaitMs;
 	startupTimeoutSeconds = preset.startupTimeoutSeconds;
+	temperature = preset.temperature;
+	topP = preset.topP;
+	minP = preset.minP;
 	gpuLayersAll = true;
 	multiAgentV2Enabled = true;
 }
 
+bool ofApp::adoptServedModelAliasIfNeeded() {
+	std::string requestBaseUrl;
+	std::string requestModelAlias;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		requestBaseUrl = baseUrl;
+		requestModelAlias = modelAlias;
+	}
+
+	const auto servedModels = ofxGgmlLlamaCodexLocal::probeServedModels(
+		requestBaseUrl,
+		requestModelAlias,
+		2);
+	std::lock_guard<std::mutex> lock(stateMutex);
+	servedModelAliases = servedModels.models;
+	if (!servedModels.ready || servedModels.models.empty()) {
+		servedModelStatus = "served model aliases unavailable: " +
+			ofxGgmlLlamaCodexLocal::trimCopy(servedModels.message);
+		rebuildLines();
+		return false;
+	}
+	servedModelStatus = "served model aliases: " + joinAliases(servedModels.models);
+	if (servedModels.expectedModelServed) {
+		rebuildLines();
+		return true;
+	}
+	if (servedModels.models.size() == 1) {
+		modelAlias = servedModels.models.front();
+		configWriteStatus = "using server-advertised Codex model alias: " + modelAlias;
+		rebuildLines();
+		return true;
+	}
+	servedModelStatus += " (choose the matching alias before writing Codex config)";
+	rebuildLines();
+	return false;
+}
+
 bool ofApp::syncCodexConfig() {
+	adoptServedModelAliasIfNeeded();
 	ofxGgmlLlamaCodexProviderConfig config;
 	std::string requestConfigPath;
 	{
@@ -732,6 +847,16 @@ void ofApp::rebuildLines() {
 		lines.push_back(modelLayerCount > 0
 			? "GPU layers all: " + std::to_string(modelLayerCount) + " model layers"
 			: "GPU layers all: model layer count unknown");
+	}
+	lines.push_back(
+		"Server perf: ctx=" + std::to_string(contextSize) +
+		" parallel=" + std::to_string(parallel) +
+		" batch=" + std::to_string(batchSize) +
+		" ubatch=" + std::to_string(ubatchSize) +
+		" cacheReuse=" + std::to_string(std::max(0, cacheReuse)) +
+		" cudaGraph=" + std::string(noCudaGraphs ? "off" : "on"));
+	if (!servedModelAliases.empty()) {
+		lines.push_back("Server advertises: " + joinAliases(servedModelAliases));
 	}
 	appendWrapped(
 		lines,
@@ -779,6 +904,10 @@ ofxGgmlLlamaServerStartSettings ofApp::makeServerSettings() const {
 	settings.parallel = parallel;
 	settings.batchSize = batchSize;
 	settings.ubatchSize = ubatchSize;
+	settings.threads = threads;
+	settings.threadsBatch = threadsBatch;
+	settings.threadsHttp = threadsHttp;
+	settings.cacheReuse = cacheReuse;
 	settings.temperature = temperature;
 	settings.topP = topP;
 	settings.minP = minP;

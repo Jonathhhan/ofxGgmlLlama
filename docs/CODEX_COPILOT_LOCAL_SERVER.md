@@ -7,6 +7,9 @@ the resulting OpenAI-compatible endpoint, not own the model runtime setup.
 Use this path when Codex, GitHub Copilot, Hermes Agent, or another coding
 assistant needs a local llama.cpp server.
 
+For a broader router view across Codex, Claude Code, Copilot, and local helper
+tasks, see `docs/LOCAL_AGENT_ROUTING.md`.
+
 For an openFrameworks-facing walkthrough, generate
 `ofxGgmlLlamaCodexLocalExample` or run:
 
@@ -140,21 +143,27 @@ scripts\start-llama-server.bat `
     -ChatTemplateKwargs '{"enable_thinking": false}' `
     -Reasoning off `
     -ReasoningBudget 0 `
+    -CacheReuse 256 `
     -Jinja
 ```
 
 The Codex example and `scripts\run-example.bat codex` also expose presets:
-`memory`, `balanced`, `long`, and `concurrent`. The default `balanced` preset
-uses `ctx=40960`, `batch=2048`, and one agent slot. `long` raises context to
-`131072` for high-VRAM systems. `concurrent` uses `parallel=2` and two agent
-slots, so use it only when the model and GPU have enough headroom.
+`memory`, `fast`, `balanced`, `quality`, `long`, and `concurrent`. The default
+`quality` preset uses `ctx=65536`, `batch=3072`, `temp=0.7`, larger tool output,
+and one agent slot. `fast` lowers the Codex context to `32768`, raises prompt
+batching to `4096/1024`, and keeps cache reuse enabled for lower-latency local
+coding. `long` raises context to `131072` for high-VRAM systems. `concurrent`
+uses `parallel=2` and two agent slots, so use it only when the model and GPU
+have enough headroom.
 The default GPU setting is `-GpuLayers all`, matching llama.cpp's literal
 `-ngl all`; switch to a numeric layer count only for explicit VRAM limiting.
+CUDA graphs stay enabled by default; use `-NoCudaGraphs` only to work around
+runtime-specific graph issues.
 
 The addon wrapper intentionally exposes a conservative common subset of
 `llama-server` flags. Use the direct upstream command when you need advanced
-flags such as KV cache quantization, `--kv-unified`, custom batch sizes, or
-explicit sampling defaults for a coding-agent session.
+flags such as KV cache quantization, `--kv-unified`, speculative decoding, or
+unusual sampling defaults for a coding-agent session.
 
 ## Wire Codex or Copilot
 
@@ -189,9 +198,12 @@ For Codex, the local config shape is (and is typically resolved from
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
-model_context_window = 40960
-model_auto_compact_token_limit = 30000
-tool_output_token_limit = 5000
+model_context_window = 65536
+model_auto_compact_token_limit = 50000
+tool_output_token_limit = 8000
+model_reasoning_effort = "none"
+model_reasoning_summary = "none"
+hide_agent_reasoning = true
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
@@ -203,18 +215,21 @@ stream_idle_timeout_ms = 10000000
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
+model_reasoning_effort = "none"
+model_reasoning_summary = "none"
 
 [features.multi_agent_v2]
 enabled = true
 max_concurrent_threads_per_session = 1
 min_wait_timeout_ms = 2500
-max_wait_timeout_ms = 120000
+max_wait_timeout_ms = 180000
 default_wait_timeout_ms = 30000
 usage_hint_enabled = false
 hide_spawn_agent_metadata = true
 non_code_mode_only = true
 
 [agents]
+max_threads = 1
 max_depth = 1
 
 [agents.explorer]
@@ -231,8 +246,10 @@ nickname_candidates = ["Patch", "Build"]
 The role `config_file` paths are resolved relative to the Codex config file.
 The example auto-config writer creates these files under
 `%CODEX_HOME%\ofxggml\agents` or `%USERPROFILE%\.codex\ofxggml\agents`.
-The role files repeat the same `features.multi_agent_v2` max-agent cap so
-spawned explorer/worker sessions inherit the local server limit.
+The role files repeat the same agent thread cap and depth so spawned
+explorer/worker sessions inherit the local server limit. They also pin
+`model_reasoning_effort = "none"` and `model_reasoning_summary = "none"` to
+match the llama-server command's disabled reasoning mode.
 
 Use the custom provider explicitly when launching Codex:
 
@@ -241,25 +258,29 @@ codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
     -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
-    -c model_context_window=40960 `
-    -c model_auto_compact_token_limit=30000 `
-    -c tool_output_token_limit=5000 `
+    -c model_context_window=65536 `
+    -c model_auto_compact_token_limit=50000 `
+    -c tool_output_token_limit=8000 `
+    -c model_reasoning_effort=none `
+    -c model_reasoning_summary=none `
+    -c hide_agent_reasoning=true `
     -c features.multi_agent_v2.enabled=true `
     -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
     -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
-    -c features.multi_agent_v2.max_wait_timeout_ms=120000 `
+    -c features.multi_agent_v2.max_wait_timeout_ms=180000 `
     -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
+    -c agents.max_threads=1 `
     -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally narrow for one local `llama-server`:
-one concurrent session thread, depth one, and explicit wait timeouts. Increase
-them only when your model, VRAM, and server `--parallel` setting can absorb
-concurrent Codex work. If `multi_agent_v2` is disabled, cap the legacy agent
-pool with `agents.max_threads = 1`. Helper scripts expose this as `-MaxAgents`
-or `-AgentMaxAgents`, mapped to Codex's
-`features.multi_agent_v2.max_concurrent_threads_per_session` setting.
+The agent defaults are intentionally narrow for one local `llama-server`. The
+three practical controls are `features.multi_agent_v2.enabled` for agent
+spawning, `max_concurrent_threads_per_session` plus `agents.max_threads` for
+the thread/fanout cap, and `agents.max_depth` for nested delegation depth.
+Increase them only when your model, VRAM, and server `--parallel` setting can
+absorb concurrent Codex work. Helper scripts expose the thread cap as
+`-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents`.
 
 Do not use `--oss` for this llama.cpp lane. `--oss` selects Codex's built-in
 open-source provider flow; this ecosystem lane is a named OpenAI-compatible
@@ -269,6 +290,36 @@ The disable flags are intentional for direct `llama-server` use. Codex can load
 Responses tools whose type is not `function` such as web search, image
 generation, browser, and app namespace tools; llama.cpp rejects those tool
 definitions. Shell and patch tools remain available as function tools.
+
+### Claude Code hybrid routing
+
+Claude Code is a different integration shape. Do not point Claude Code directly
+at `llama-server`: Claude Code speaks Anthropic's Messages API, while
+`llama-server` exposes an OpenAI-compatible endpoint. The useful pattern is a
+hybrid router or proxy:
+
+```powershell
+$env:ANTHROPIC_BASE_URL = "http://127.0.0.1:8080"
+claude
+```
+
+That proxy can forward complex planning, code generation, and high-risk
+decisions to Anthropic, while routing cheap local tasks to addon-owned local
+models:
+
+| Task | Local lane |
+| --- | --- |
+| Embeddings and RAG indexing | `ofxGgmlLlama` embedding server or `ofxGgmlRag` |
+| Simple classification and intent detection | `ofxGgmlLlama` text/chat server |
+| Audio transcription | `ofxGgmlAudio` / Whisper lane |
+| Summarizing local context before a Claude call | `ofxGgmlLlama` text/chat server |
+
+The proxy must decide which requests are safe to answer locally, validate
+structured local outputs, and fall back to Anthropic when the local model is
+uncertain. Tools such as LiteLLM or a small custom FastAPI service can provide
+that Anthropic-compatible front door. This addon should provide the local
+endpoints and validation helpers; it should not impersonate Claude Code's API
+directly.
 
 Before launching an interactive Codex session, run the local planner:
 
@@ -299,6 +350,12 @@ by `/v1/models` and, on local Windows runs, the `llama-server.exe -m` model file
 from the process command line. If `model = "local/GLM-4.7-Flash-UD-Q4_K_XL"` but the
 process path points at a Qwen GGUF, the server was started with a misleading
 alias and should be restarted with the intended model file or a truthful alias.
+When a manually started server advertises exactly one model id, add
+`-UseServedModel` to `plan-local-codex` or `test-local-codex` to use that live
+server id instead of a stale requested alias.
+The planner also blocks when more than one local `llama-server.exe` process is
+targeting the Codex port; stop stale servers or restart from the example with
+`Force new` so Codex talks to the intended process.
 
 Keep the client integration outside this addon unless it is just documentation
 or a smoke check. Runtime setup, model selection, and llama.cpp server lifecycle
@@ -322,6 +379,13 @@ With a compatible model available, run a real smoke:
 ```powershell
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
 scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
+```
+
+If the endpoint is already running and `/v1/models` advertises a different
+single model id, run:
+
+```powershell
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -UseServedModel -Json -SummaryOnly
 ```
 
 Use `-Backend cpu` when validating a CPU-only install.

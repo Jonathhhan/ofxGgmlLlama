@@ -29,6 +29,8 @@ For llama-lane planning and backend boundaries, see
 For Codex, GitHub Copilot, Hermes Agent, or other local coding assistants using
 `llama-server`, see
 [`docs/CODEX_COPILOT_LOCAL_SERVER.md`](docs/CODEX_COPILOT_LOCAL_SERVER.md).
+For hybrid routing across Codex, Claude Code, Copilot, and local helper tasks,
+see [`docs/LOCAL_AGENT_ROUTING.md`](docs/LOCAL_AGENT_ROUTING.md).
 
 ## First Run
 
@@ -97,6 +99,14 @@ alias from the actual GGUF path so Codex config cannot silently label Qwen as
 GLM.
 The planner also reports `/v1/models` ids and, on local Windows runs, the
 actual `llama-server.exe -m` model path so alias/model mismatches are visible.
+If a manually started server advertises exactly one model id, add
+`-UseServedModel` to the planner or smoke command to use that live id instead
+of a stale requested alias.
+It also flags multiple local `llama-server.exe` processes targeting the Codex
+port so stale servers do not quietly steal the session.
+Use `-CodexPreset fast` for lower-latency local coding: it keeps one agent slot,
+uses a smaller `32768` Codex context, larger prompt batches, cache reuse, Flash
+Attention, and CUDA graphs.
 
 ## Dependencies
 

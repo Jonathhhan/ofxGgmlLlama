@@ -198,6 +198,10 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[Nullable[int]]$Parallel = $null,
 		[Nullable[int]]$BatchSize = $null,
 		[Nullable[int]]$UBatchSize = $null,
+		[Nullable[int]]$Threads = $null,
+		[Nullable[int]]$ThreadsBatch = $null,
+		[Nullable[int]]$ThreadsHttp = $null,
+		[Nullable[int]]$CacheReuse = $null,
 		[string]$Temperature = "",
 		[string]$TopP = "",
 		[string]$MinP = "",
@@ -254,6 +258,22 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	if ($null -ne $UBatchSize) {
 		$args += "-UBatchSize"
 		$args += $UBatchSize
+	}
+	if ($null -ne $Threads) {
+		$args += "-Threads"
+		$args += $Threads
+	}
+	if ($null -ne $ThreadsBatch) {
+		$args += "-ThreadsBatch"
+		$args += $ThreadsBatch
+	}
+	if ($null -ne $ThreadsHttp) {
+		$args += "-ThreadsHttp"
+		$args += $ThreadsHttp
+	}
+	if ($null -ne $CacheReuse) {
+		$args += "-CacheReuse"
+		$args += $CacheReuse
 	}
 	if (![string]::IsNullOrWhiteSpace($Temperature)) {
 		$args += "-Temperature"

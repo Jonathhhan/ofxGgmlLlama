@@ -15,6 +15,15 @@ struct ofxGgmlLlamaServerProbe {
 	}
 };
 
+struct ofxGgmlLlamaServedModels {
+	bool reachable = false;
+	bool ready = false;
+	bool expectedModelServed = false;
+	int status = 0;
+	std::vector<std::string> models;
+	std::string message;
+};
+
 struct ofxGgmlLlamaCodexProviderConfig {
 	std::string providerId = "llama_cpp";
 	std::string providerName = "llama.cpp local";
@@ -22,15 +31,18 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	std::string baseUrl = "http://127.0.0.1:8001/v1";
 	std::string modelAlias;
 	std::string wireApi = "responses";
-	int modelContextWindow = 40960;
-	int modelAutoCompactTokenLimit = 30000;
-	int toolOutputTokenLimit = 5000;
+	int modelContextWindow = 65536;
+	int modelAutoCompactTokenLimit = 50000;
+	int toolOutputTokenLimit = 8000;
 	int agentMaxConcurrentThreadsPerSession = 1;
 	int agentMaxDepth = 1;
 	int agentMinWaitTimeoutMs = 2500;
-	int agentMaxWaitTimeoutMs = 120000;
+	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;
+	std::string modelReasoningEffort = "none";
+	std::string modelReasoningSummary = "none";
 	bool multiAgentV2Enabled = true;
+	bool hideAgentReasoning = true;
 	int streamIdleTimeoutMs = 10000000;
 	bool writeTopLevelSelection = true;
 	bool writeAgentSettings = true;
@@ -51,14 +63,18 @@ struct ofxGgmlLlamaServerStartSettings {
 	std::string modelAlias;
 	int gpuLayers = 999;
 	bool gpuLayersAll = true;
-	int contextSize = 40960;
+	int contextSize = 65536;
 	int parallel = 1;
-	int batchSize = 2048;
-	int ubatchSize = 512;
-	float temperature = 1.0f;
-	float topP = 0.95f;
-	float minP = 0.01f;
-	bool noCudaGraphs = true;
+	int batchSize = 3072;
+	int ubatchSize = 768;
+	int threads = 0;
+	int threadsBatch = 0;
+	int threadsHttp = 0;
+	int cacheReuse = 256;
+	float temperature = 0.7f;
+	float topP = 0.9f;
+	float minP = 0.02f;
+	bool noCudaGraphs = false;
 	bool skipChatParsing = false;
 	bool jinja = true;
 	bool flashAttention = true;
@@ -90,6 +106,10 @@ public:
 		int timeoutSeconds = 2);
 	static ofxGgmlLlamaServerProbe probeServerHealth(
 		const std::string & serverUrl,
+		int timeoutSeconds = 2);
+	static ofxGgmlLlamaServedModels probeServedModels(
+		const std::string & baseUrl,
+		const std::string & expectedModel,
 		int timeoutSeconds = 2);
 	static ofxGgmlLlamaServerProbe waitForServerReady(
 		const std::string & serverUrl,
