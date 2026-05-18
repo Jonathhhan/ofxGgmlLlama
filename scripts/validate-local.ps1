@@ -106,21 +106,17 @@ Assert-FileContains (Join-Path $addonRoot "docs\OPENCODE_LOCAL_SERVER.md") "@ai-
 Assert-FileContains (Join-Path $addonRoot "docs\LOCAL_AGENT_ROUTING.md") "OpenCode Direct Route" "local agent routing docs"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'wire_api = "responses"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'web_search = "disabled"' "Codex local example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[features\.multi_agent_v2\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'model_context_window = 65536' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'tool_output_token_limit = 8000' "Codex local example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_concurrent_threads_per_session = 1' "Codex local example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_wait_timeout_ms = 180000' "Codex local example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'default_wait_timeout_ms = 30000' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_threads = 1' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[agents\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_depth = 1' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[agents\.explorer\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'config_file = "ofxggml/agents/local-worker.toml"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-explorer.toml") 'developer_instructions' "Codex local explorer agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-worker.toml") 'developer_instructions' "Codex local worker agent config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-explorer.toml") 'max_concurrent_threads_per_session = 1' "Codex local explorer agent config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-worker.toml") 'max_concurrent_threads_per_session = 1' "Codex local worker agent config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'features\.multi_agent_v2\.max_concurrent_threads_per_session=1' "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-explorer.toml") 'max_threads = 1' "Codex local explorer agent config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\local-worker.toml") 'max_threads = 1' "Codex local worker agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") '-MaxAgents' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'CodexPreset quality' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Quality coding' "Codex local example README"
@@ -132,7 +128,6 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'gpuLayersAll' "Codex local example server settings"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") 'std::string\("all"\)' "Codex local server launcher"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") 'executableHelpOutput' "Codex local server launcher help cache"
-Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") 'features\.multi_agent_v2\.max_concurrent_threads_per_session=1' "Codex local server docs"
 Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") '-MaxAgents' "Codex local server docs"
 Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") '-GpuLayers all' "Codex local server docs"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
@@ -219,7 +214,7 @@ if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Pro
 if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*") {
 	throw "Local Codex plan did not include llama-server tool compatibility overrides"
 }
-if ($codexPlan.LaunchCommand -notlike "*features.multi_agent_v2.max_concurrent_threads_per_session=1*" -or $codexPlan.LaunchCommand -notlike "*agents.max_depth=1*") {
+if ($codexPlan.LaunchCommand -notlike "*agents.max_threads=1*" -or $codexPlan.LaunchCommand -notlike "*agents.max_depth=1*") {
 	throw "Local Codex plan did not include local agent settings"
 }
 if ($codexPlan.UsesOssFlag) {
@@ -261,7 +256,7 @@ if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike
 if ($codexSmoke.Command -notlike "*model_provider=llama_cpp*" -or $codexSmoke.Command -notlike "*web_search=*" -or $codexSmoke.Command -notlike "*--disable apps*") {
 	throw "Local Codex smoke did not include llama-server tool compatibility overrides"
 }
-if ($codexSmoke.Command -notlike "*features.multi_agent_v2.max_concurrent_threads_per_session=1*" -or $codexSmoke.Command -notlike "*agents.max_depth=1*") {
+if ($codexSmoke.Command -notlike "*agents.max_threads=1*" -or $codexSmoke.Command -notlike "*agents.max_depth=1*") {
 	throw "Local Codex smoke did not include local agent settings"
 }
 if (!$codexSmoke.PSObject.Properties["ServedModels"] -or !$codexSmoke.PSObject.Properties["LocalLlamaServer"]) {

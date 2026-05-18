@@ -1,10 +1,10 @@
-model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
+model = "local/example-model"
 model_provider = "llama_cpp"
 web_search = "disabled"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 hide_agent_reasoning = true
 
@@ -16,21 +16,11 @@ stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
 # Must match the llama-server alias shown as ServerModel in the example.
-model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
+model = "local/example-model"
 model_provider = "llama_cpp"
 web_search = "disabled"
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[features.multi_agent_v2]
-enabled = true
-max_concurrent_threads_per_session = 1
-min_wait_timeout_ms = 2500
-max_wait_timeout_ms = 180000
-default_wait_timeout_ms = 30000
-usage_hint_enabled = false
-hide_spawn_agent_metadata = true
-non_code_mode_only = true
 
 [agents]
 max_threads = 1

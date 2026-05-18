@@ -34,7 +34,6 @@ param(
 	[string]$Reasoning = "",
 	[string]$ReasoningBudget = "",
 	[switch]$NoCudaGraphs,
-	[switch]$DisableMultiAgentV2,
 	[switch]$ForceNewServer,
 	[switch]$Build,
 	[switch]$NoAutoServer,
@@ -382,13 +381,6 @@ if ($isCodex) {
 	} else {
 		$false
 	}
-	$codexMultiAgentV2 = if ($DisableMultiAgentV2) {
-		$false
-	} elseif ($env:OFXGGML_CODEX_MULTI_AGENT_V2) {
-		$env:OFXGGML_CODEX_MULTI_AGENT_V2 -ne "0"
-	} else {
-		$true
-	}
 	if ([string]::IsNullOrWhiteSpace($Model)) {
 		$Model = if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
 	}
@@ -399,10 +391,9 @@ if ($isCodex) {
 			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
 	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
-		if ($env:OFXGGML_CODEX_MODEL) {
+		$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
+		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $env:OFXGGML_CODEX_MODEL) {
 			$ServerModel = $env:OFXGGML_CODEX_MODEL
-		} else {
-			$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
 		}
 	}
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
@@ -421,7 +412,6 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = $ModelContextWindow.ToString()
 	$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = $ModelAutoCompactTokenLimit.ToString()
 	$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = $ToolOutputTokenLimit.ToString()
-	$env:OFXGGML_CODEX_MULTI_AGENT_V2 = if ($codexMultiAgentV2) { "1" } else { "0" }
 	$env:OFXGGML_CODEX_AGENT_MAX_AGENTS = $AgentMaxConcurrentThreads.ToString()
 	$env:OFXGGML_CODEX_AGENT_MAX_THREADS = $AgentMaxConcurrentThreads.ToString()
 	$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = $AgentMaxConcurrentThreads.ToString()
@@ -448,7 +438,7 @@ if ($isCodex) {
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
 	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
-	Write-OfxGgmlStep "Using Codex agent settings: agents=$(if ($codexMultiAgentV2) { 'on' } else { 'off' }) max_threads=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
+	Write-OfxGgmlStep "Using Codex agent settings: max_threads=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"

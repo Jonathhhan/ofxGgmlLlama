@@ -159,7 +159,7 @@ web_search = "disabled"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 hide_agent_reasoning = true
 
@@ -173,18 +173,8 @@ stream_idle_timeout_ms = 10000000
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[features.multi_agent_v2]
-enabled = true
-max_concurrent_threads_per_session = 1
-min_wait_timeout_ms = 2500
-max_wait_timeout_ms = 180000
-default_wait_timeout_ms = 30000
-usage_hint_enabled = false
-hide_spawn_agent_metadata = true
-non_code_mode_only = true
 
 [agents]
 max_threads = 1
@@ -222,7 +212,7 @@ It also includes `codex-agents/local-explorer.toml` and
 matching files under your Codex home at `ofxggml/agents/` before it references
 them from `[agents.explorer]` and `[agents.worker]`. Those role files repeat
 the same agent thread cap and depth so spawned explorer/worker sessions stay
-inside the local server budget and inherit the disabled-reasoning local model
+inside the local server budget and inherit the minimal-reasoning local model
 settings.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
@@ -234,26 +224,15 @@ codex --no-alt-screen -p ofxggml_local `
     -c model_context_window=65536 `
     -c model_auto_compact_token_limit=50000 `
     -c tool_output_token_limit=8000 `
-    -c model_reasoning_effort=none `
+    -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c hide_agent_reasoning=true `
-    -c features.multi_agent_v2.enabled=true `
-    -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
-    -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
-    -c features.multi_agent_v2.max_wait_timeout_ms=180000 `
-    -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
     -c agents.max_threads=1 `
     -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally conservative for local GGUF models. The
-three practical controls are `features.multi_agent_v2.enabled` for agent
-spawning, `max_concurrent_threads_per_session` plus `agents.max_threads` for
-the thread/fanout cap, and `agents.max_depth` for nested delegation depth. Keep
-the thread cap aligned with server `--parallel`. The helper scripts accept
-`-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for
-the same cap.
+The agent defaults are intentionally conservative for local GGUF models. `agents.max_threads` caps local worker fanout and `agents.max_depth` caps nested delegation. Keep the thread cap aligned with server `--parallel`. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for the same cap.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -344,7 +323,6 @@ $env:OFXGGML_CODEX_UBATCH_SIZE = "768"
 $env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = "65536"
 $env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = "50000"
 $env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = "8000"
-$env:OFXGGML_CODEX_MULTI_AGENT_V2 = "1"
 $env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = "1"
 $env:OFXGGML_CODEX_AGENT_MAX_DEPTH = "1"
 $env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = "2500"

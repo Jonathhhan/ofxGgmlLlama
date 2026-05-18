@@ -1,6 +1,6 @@
 param(
 	[string]$Endpoint = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }),
-	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/GLM-4.7-Flash-UD-Q4_K_XL" }),
+	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "" }),
 	[string]$Profile = $(if ($env:OFXGGML_CODEX_PROFILE) { $env:OFXGGML_CODEX_PROFILE } else { "ofxggml_local" }),
 	[string]$ConfigPath = $(if ($env:OFXGGML_CODEX_CONFIG_PATH) { $env:OFXGGML_CODEX_CONFIG_PATH } else { "" }),
 	[string]$CodexExe = $(if ($env:OFXGGML_CODEX_EXE) { $env:OFXGGML_CODEX_EXE } else { "" }),
@@ -10,10 +10,6 @@ param(
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
 	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 1 }),
-	[int]$AgentMinWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS } else { 2500 }),
-	[int]$AgentMaxWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS } else { 180000 }),
-	[int]$AgentDefaultWaitMs = $(if ($env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS) { [int]$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS } else { 30000 }),
-	[switch]$DisableMultiAgentV2,
 	[switch]$UseServedModel,
 	[int]$TimeoutSeconds = 2,
 	[switch]$Json,
@@ -314,19 +310,12 @@ $resolvedModel = Normalize-Text $Model
 $resolvedProfile = Normalize-Text $Profile
 $resolvedConfig = Resolve-ConfigPath $ConfigPath
 $resolvedCodex = Resolve-CodexExe $CodexExe
-$codexMultiAgentV2 = if ($DisableMultiAgentV2) {
-	$false
-} elseif ($env:OFXGGML_CODEX_MULTI_AGENT_V2) {
-	$env:OFXGGML_CODEX_MULTI_AGENT_V2 -ne "0"
-} else {
-	$true
-}
 $codexHelp = Test-CodexHelp $resolvedCodex
 $health = Test-Url ($serverRoot.TrimEnd("/") + "/health")
 $responsesProbe = Test-Url ($apiRoot.TrimEnd("/") + "/responses")
 $chatProbe = Test-Url ($apiRoot.TrimEnd("/") + "/chat/completions")
 $servedModels = Get-ServedModelEvidence -ApiRoot $apiRoot -ExpectedModel $resolvedModel
-if ($UseServedModel -and $servedModels.Reachable -and @($servedModels.Models).Count -eq 1) {
+if (($UseServedModel -or [string]::IsNullOrWhiteSpace($resolvedModel) -or ($servedModels.Reachable -and !$servedModels.ExpectedModelServed)) -and $servedModels.Reachable -and @($servedModels.Models).Count -eq 1) {
 	$resolvedModel = [string]@($servedModels.Models)[0]
 	$servedModels.ExpectedModelServed = $true
 }
@@ -357,18 +346,15 @@ $launchArguments = @(
 	"-c", "model_context_window=$ModelContextWindow",
 	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
-	"-c", "model_reasoning_effort=none",
+	"-c", "model_reasoning_effort=medium",
 	"-c", "model_reasoning_summary=none",
 	"-c", "hide_agent_reasoning=true",
-	"-c", "features.multi_agent_v2.enabled=$(if ($codexMultiAgentV2) { 'true' } else { 'false' })",
-	"-c", "features.multi_agent_v2.max_concurrent_threads_per_session=$AgentMaxConcurrentThreads",
-	"-c", "features.multi_agent_v2.min_wait_timeout_ms=$AgentMinWaitMs",
-	"-c", "features.multi_agent_v2.max_wait_timeout_ms=$AgentMaxWaitMs",
-	"-c", "features.multi_agent_v2.default_wait_timeout_ms=$AgentDefaultWaitMs",
 	"-c", "agents.max_threads=$AgentMaxConcurrentThreads",
-	"-c", "agents.max_depth=$AgentMaxDepth",
-	"--model", $resolvedModel
+	"-c", "agents.max_depth=$AgentMaxDepth"
 )
+if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
+	$launchArguments += @("--model", $resolvedModel)
+}
 $launchCommand = "codex " + (($launchArguments | ForEach-Object { Format-LaunchArgument $_ }) -join " ")
 $blockers = New-Object System.Collections.Generic.List[string]
 if (!$codexHelp.Found) {
@@ -430,15 +416,11 @@ $result = [ordered]@{
 		ModelContextWindow = [int]$ModelContextWindow
 		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit
 		ToolOutputTokenLimit = [int]$ToolOutputTokenLimit
-		ModelReasoningEffort = "none"
+		ModelReasoningEffort = "medium"
 		ModelReasoningSummary = "none"
 		HideAgentReasoning = $true
-		MultiAgentV2Enabled = [bool]$codexMultiAgentV2
 		AgentMaxConcurrentThreads = [int]$AgentMaxConcurrentThreads
 		AgentMaxDepth = [int]$AgentMaxDepth
-		AgentMinWaitMs = [int]$AgentMinWaitMs
-		AgentMaxWaitMs = [int]$AgentMaxWaitMs
-		AgentDefaultWaitMs = [int]$AgentDefaultWaitMs
 	}
 	UsesOssFlag = ($launchCommand -match "\s--oss(\s|$)")
 	Blockers = @($blockers)

@@ -29,7 +29,6 @@ function Invoke-DryRun {
 	$previousEmbeddingServerModel = $env:OFXGGML_EMBEDDING_SERVER_MODEL
 	$previousCodexBaseUrl = $env:OFXGGML_CODEX_BASE_URL
 	$previousCodexModel = $env:OFXGGML_CODEX_MODEL
-	$previousCodexMultiAgentV2 = $env:OFXGGML_CODEX_MULTI_AGENT_V2
 	$previousCodexAgentThreads = $env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS
 	$previousCodexAgentDepth = $env:OFXGGML_CODEX_AGENT_MAX_DEPTH
 	$previousCodexAgentMinWait = $env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS
@@ -48,7 +47,6 @@ function Invoke-DryRun {
 		"OFXGGML_CODEX_MODEL_CONTEXT_WINDOW",
 		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
 		"OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT",
-		"OFXGGML_CODEX_MULTI_AGENT_V2",
 		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
 		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
 		"OFXGGML_CODEX_AGENT_MAX_DEPTH",
@@ -133,11 +131,6 @@ function Invoke-DryRun {
 			Remove-Item Env:\OFXGGML_CODEX_MODEL -ErrorAction SilentlyContinue
 		} else {
 			$env:OFXGGML_CODEX_MODEL = $previousCodexModel
-		}
-		if ($null -eq $previousCodexMultiAgentV2) {
-			Remove-Item Env:\OFXGGML_CODEX_MULTI_AGENT_V2 -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_MULTI_AGENT_V2 = $previousCodexMultiAgentV2
 		}
 		if ($null -eq $previousCodexAgentThreads) {
 			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS -ErrorAction SilentlyContinue
@@ -342,7 +335,7 @@ Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run
 Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=50000 tool_output=8000" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex agent settings: agents=on max_threads=1 max_depth=1 wait_ms=2500/30000/180000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=1 wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
@@ -363,6 +356,21 @@ Assert-Contains $codexDerivedAliasOutput "Using Codex model alias: $expectedDeri
 Assert-Contains $codexDerivedAliasOutput "ngl=all" "Codex local derived alias dry-run"
 Assert-NotContains $codexDerivedAliasOutput "unsloth/GLM-4.7-Flash" "Codex local derived alias dry-run"
 
+$env:OFXGGML_CODEX_MODEL = "local/GLM-4.7-Flash-UD-Q4_K_XL"
+$codexStaleEnvAliasOutput = Invoke-DryRun `
+	-Label "Codex local stale env alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexStaleEnvAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local stale env alias dry-run"
+Assert-NotContains $codexStaleEnvAliasOutput "Using Codex model alias: local/GLM-4.7-Flash-UD-Q4_K_XL" "Codex local stale env alias dry-run"
+Remove-Item Env:\OFXGGML_CODEX_MODEL -ErrorAction SilentlyContinue
 $codexFastPresetOutput = Invoke-DryRun `
 	-Label "Codex local fast preset dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `

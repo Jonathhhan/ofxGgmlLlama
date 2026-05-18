@@ -47,6 +47,34 @@ const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	return presets;
 }
 
+const std::vector<const char *> & codexReasoningEfforts() {
+	static const std::vector<const char *> efforts {
+		"minimal",
+		"low",
+		"medium",
+		"high"
+	};
+	return efforts;
+}
+
+int reasoningEffortIndexFromValue(const std::string & value) {
+	const auto & efforts = codexReasoningEfforts();
+	for (std::size_t i = 0; i < efforts.size(); ++i) {
+		if (value == efforts[i]) {
+			return static_cast<int>(i);
+		}
+	}
+	return 2;
+}
+
+const char * reasoningEffortFromIndex(int index) {
+	const auto & efforts = codexReasoningEfforts();
+	if (index < 0 || index >= static_cast<int>(efforts.size())) {
+		return efforts[2];
+	}
+	return efforts[static_cast<std::size_t>(index)];
+}
+
 int presetIndexFromId(const std::string & value) {
 	const auto & presets = codexLocalPresets();
 	for (std::size_t i = 0; i < presets.size(); ++i) {
@@ -192,6 +220,10 @@ void ofApp::setup() {
 	agentDefaultWaitTimeoutMs = envInt(
 		"OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS",
 		agentDefaultWaitTimeoutMs);
+	reasoningEffortIndex = reasoningEffortIndexFromValue(
+		ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+			"OFXGGML_CODEX_REASONING_EFFORT",
+			reasoningEffortFromIndex(reasoningEffortIndex)));
 	startupTimeoutSeconds = envInt("OFXGGML_CODEX_STARTUP_TIMEOUT", startupTimeoutSeconds);
 	temperature = envFloat("OFXGGML_CODEX_TEMP", temperature);
 	topP = envFloat("OFXGGML_CODEX_TOP_P", topP);
@@ -199,7 +231,6 @@ void ofApp::setup() {
 	noCudaGraphs = envBool("OFXGGML_CODEX_NO_CUDA_GRAPHS", noCudaGraphs);
 	skipChatParsing = envBool("OFXGGML_CODEX_SKIP_CHAT_PARSING", skipChatParsing);
 	autoConfig = envBool("OFXGGML_CODEX_AUTO_CONFIG", autoConfig);
-	multiAgentV2Enabled = envBool("OFXGGML_CODEX_MULTI_AGENT_V2", multiAgentV2Enabled);
 
 	refreshRuntimeDiscovery();
 	if (modelAlias.empty()) {
@@ -244,8 +275,11 @@ void ofApp::draw() {
 		ImGui::BeginDisabled(servedModelAliases.empty());
 		adoptServedAliasRequested = ImGui::Button("Use served alias");
 		ImGui::EndDisabled();
+		const auto previousModelPath = modelPath;
 		if (ImGui::InputText("GGUF model", &modelPath)) {
-			if (modelAlias.empty()) {
+			const auto previousDerivedAlias =
+				ofxGgmlLlamaCodexLocal::modelAliasFromPath(previousModelPath);
+			if (modelAlias.empty() || modelAlias == previousDerivedAlias) {
 				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
 			}
 			refreshModelMetadata();
@@ -328,12 +362,18 @@ void ofApp::draw() {
 		ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f");
 		ImGui::Separator();
 		ImGui::TextUnformatted("Agent settings");
-		ImGui::Checkbox("Enable agents", &multiAgentV2Enabled);
 		ImGui::InputInt("Agent max threads", &agentMaxConcurrentThreadsPerSession);
 		ImGui::InputInt("Agent max depth", &agentMaxDepth);
 		ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs);
 		ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs);
 		ImGui::InputInt("Agent default wait ms", &agentDefaultWaitTimeoutMs);
+		if (ImGui::Combo(
+				"Reasoning effort",
+				&reasoningEffortIndex,
+				codexReasoningEfforts().data(),
+				static_cast<int>(codexReasoningEfforts().size()))) {
+			rebuildLines();
+		}
 		ImGui::Checkbox("No CUDA graphs", &noCudaGraphs);
 		ImGui::Checkbox("Skip chat parsing", &skipChatParsing);
 		ImGui::Checkbox("Auto-write Codex config", &autoConfig);
@@ -601,7 +641,7 @@ void ofApp::runLaunchCodexWorker() {
 	int requestAgentMinWaitTimeoutMs = 2500;
 	int requestAgentMaxWaitTimeoutMs = 180000;
 	int requestAgentDefaultWaitTimeoutMs = 30000;
-	bool requestMultiAgentV2Enabled = true;
+	std::string requestReasoningEffort;
 	bool requestAutoConfig = false;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
@@ -616,7 +656,7 @@ void ofApp::runLaunchCodexWorker() {
 		requestAgentMinWaitTimeoutMs = agentMinWaitTimeoutMs;
 		requestAgentMaxWaitTimeoutMs = agentMaxWaitTimeoutMs;
 		requestAgentDefaultWaitTimeoutMs = agentDefaultWaitTimeoutMs;
-		requestMultiAgentV2Enabled = multiAgentV2Enabled;
+		requestReasoningEffort = reasoningEffortFromIndex(reasoningEffortIndex);
 		requestAutoConfig = autoConfig;
 	}
 
@@ -641,23 +681,11 @@ void ofApp::runLaunchCodexWorker() {
 	arguments += "-c model_context_window=" + std::to_string(requestModelContextWindow) + " ";
 	arguments += "-c model_auto_compact_token_limit=" + std::to_string(requestModelAutoCompactTokenLimit) + " ";
 	arguments += "-c tool_output_token_limit=" + std::to_string(requestToolOutputTokenLimit) + " ";
-	arguments += "-c model_reasoning_effort=none ";
+	arguments += "-c model_reasoning_effort=" + requestReasoningEffort + " ";
 	arguments += "-c model_reasoning_summary=none ";
 	arguments += "-c hide_agent_reasoning=true ";
-	arguments += "-c features.multi_agent_v2.enabled=" +
-		std::string(requestMultiAgentV2Enabled ? "true" : "false") + " ";
-	arguments += "-c features.multi_agent_v2.max_concurrent_threads_per_session=" +
+	arguments += "-c agents.max_threads=" +
 		std::to_string(requestAgentMaxConcurrentThreadsPerSession) + " ";
-	arguments += "-c features.multi_agent_v2.min_wait_timeout_ms=" +
-		std::to_string(requestAgentMinWaitTimeoutMs) + " ";
-	arguments += "-c features.multi_agent_v2.max_wait_timeout_ms=" +
-		std::to_string(requestAgentMaxWaitTimeoutMs) + " ";
-	arguments += "-c features.multi_agent_v2.default_wait_timeout_ms=" +
-		std::to_string(requestAgentDefaultWaitTimeoutMs) + " ";
-	if (!requestMultiAgentV2Enabled) {
-		arguments += "-c agents.max_threads=" +
-			std::to_string(requestAgentMaxConcurrentThreadsPerSession) + " ";
-	}
 	arguments += "-c agents.max_depth=" + std::to_string(requestAgentMaxDepth) + " ";
 	if (!requestModelAlias.empty()) {
 		if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--model")) {
@@ -778,7 +806,6 @@ void ofApp::applyPreset(int index) {
 	topP = preset.topP;
 	minP = preset.minP;
 	gpuLayersAll = true;
-	multiAgentV2Enabled = true;
 }
 
 bool ofApp::adoptServedModelAliasIfNeeded() {
@@ -879,7 +906,7 @@ ofxGgmlLlamaCodexProviderConfig ofApp::makeCodexConfig() const {
 	config.modelContextWindow = modelContextWindow;
 	config.modelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
 	config.toolOutputTokenLimit = toolOutputTokenLimit;
-	config.multiAgentV2Enabled = multiAgentV2Enabled;
+	config.modelReasoningEffort = reasoningEffortFromIndex(reasoningEffortIndex);
 	config.agentMaxConcurrentThreadsPerSession = agentMaxConcurrentThreadsPerSession;
 	config.agentMaxDepth = agentMaxDepth;
 	config.agentMinWaitTimeoutMs = agentMinWaitTimeoutMs;

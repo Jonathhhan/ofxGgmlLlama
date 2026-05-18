@@ -208,7 +208,7 @@ web_search = "disabled"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 hide_agent_reasoning = true
 
@@ -222,18 +222,8 @@ stream_idle_timeout_ms = 10000000
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
 web_search = "disabled"
-model_reasoning_effort = "none"
+model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[features.multi_agent_v2]
-enabled = true
-max_concurrent_threads_per_session = 1
-min_wait_timeout_ms = 2500
-max_wait_timeout_ms = 180000
-default_wait_timeout_ms = 30000
-usage_hint_enabled = false
-hide_spawn_agent_metadata = true
-non_code_mode_only = true
 
 [agents]
 max_threads = 1
@@ -255,8 +245,8 @@ The example auto-config writer creates these files under
 `%CODEX_HOME%\ofxggml\agents` or `%USERPROFILE%\.codex\ofxggml\agents`.
 The role files repeat the same agent thread cap and depth so spawned
 explorer/worker sessions inherit the local server limit. They also pin
-`model_reasoning_effort = "none"` and `model_reasoning_summary = "none"` to
-match the llama-server command's disabled reasoning mode.
+`model_reasoning_effort = "medium"` and `model_reasoning_summary = "none"` to
+match the llama-server command's minimal reasoning mode.
 
 For OpenCode, the same local server is configured in `opencode.json` with
 `@ai-sdk/openai-compatible`. The full model id is `provider_id/model_id`, so the
@@ -285,26 +275,15 @@ codex --no-alt-screen -p ofxggml_local `
     -c model_context_window=65536 `
     -c model_auto_compact_token_limit=50000 `
     -c tool_output_token_limit=8000 `
-    -c model_reasoning_effort=none `
+    -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c hide_agent_reasoning=true `
-    -c features.multi_agent_v2.enabled=true `
-    -c features.multi_agent_v2.max_concurrent_threads_per_session=1 `
-    -c features.multi_agent_v2.min_wait_timeout_ms=2500 `
-    -c features.multi_agent_v2.max_wait_timeout_ms=180000 `
-    -c features.multi_agent_v2.default_wait_timeout_ms=30000 `
     -c agents.max_threads=1 `
     -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally narrow for one local `llama-server`. The
-three practical controls are `features.multi_agent_v2.enabled` for agent
-spawning, `max_concurrent_threads_per_session` plus `agents.max_threads` for
-the thread/fanout cap, and `agents.max_depth` for nested delegation depth.
-Increase them only when your model, VRAM, and server `--parallel` setting can
-absorb concurrent Codex work. Helper scripts expose the thread cap as
-`-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents`.
+The agent defaults are intentionally narrow for one local `llama-server`. `agents.max_threads` caps local worker fanout and `agents.max_depth` caps nested delegation. Increase them only when your model, VRAM, and server `--parallel` setting can absorb concurrent Codex work. Helper scripts expose the thread cap as `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents`.
 
 Do not use `--oss` for this llama.cpp lane. `--oss` selects Codex's built-in
 open-source provider flow; this ecosystem lane is a named OpenAI-compatible

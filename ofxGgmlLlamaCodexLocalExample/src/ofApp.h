@@ -79,6 +79,7 @@ private:
 	int agentMinWaitTimeoutMs = 2500;
 	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;
+	int reasoningEffortIndex = 2;
 	int startupTimeoutSeconds = 300;
 	int presetIndex = 2;
 	uint64_t modelLayerCount = 0;
@@ -89,7 +90,6 @@ private:
 	bool noCudaGraphs = false;
 	bool skipChatParsing = false;
 	bool autoConfig = true;
-	bool multiAgentV2Enabled = true;
 	bool serverReady = false;
 	bool endpointReady = false;
 	bool running = false;

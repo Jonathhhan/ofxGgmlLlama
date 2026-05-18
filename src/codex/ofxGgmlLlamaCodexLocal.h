@@ -39,9 +39,8 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	int agentMinWaitTimeoutMs = 2500;
 	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;
-	std::string modelReasoningEffort = "none";
+	std::string modelReasoningEffort = "medium";
 	std::string modelReasoningSummary = "none";
-	bool multiAgentV2Enabled = true;
 	bool hideAgentReasoning = true;
 	int streamIdleTimeoutMs = 10000000;
 	bool writeTopLevelSelection = true;
