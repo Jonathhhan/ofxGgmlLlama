@@ -13,6 +13,8 @@ common:
 	ADDON_SOURCES += src/inference/ofxGgmlLlamaCliTextBackend.cpp
 	ADDON_SOURCES += src/inference/ofxGgmlLlamaServerEmbeddingBackend.cpp
 	ADDON_SOURCES += src/inference/ofxGgmlLlamaServerTextBackend.cpp
+	ADDON_SOURCES += src/inference/ofxGgmlTextGeneration.cpp
+	ADDON_SOURCES += src/inference/ofxGgmlEmbedding.cpp
 	ADDON_SOURCES_EXCLUDE = build/%
 	ADDON_SOURCES_EXCLUDE += libs/llama.cpp/.source/%
 	ADDON_SOURCES_EXCLUDE += libs/llama.cpp/build/%
