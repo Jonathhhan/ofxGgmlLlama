@@ -96,6 +96,9 @@ Preset choices:
 | `fast` | Lower-latency coding on large local models. | `ctx=32768`, `batch=4096`, `ubatch=1024`, cache reuse on. |
 | `balanced` | Previous default local coding setup. | `ctx=40960`, `batch=2048`, one agent slot. |
 | `quality` | Quality coding default. | `ctx=65536`, `batch=3072`, `temp=0.7`, larger tool output. |
+| `fullctx` | Full model-metadata context with moderate KV compression. | `ctx=0`, `parallel=1`, `ctk=q8_0`, `ctv=q8_0`, `auto_compact=112000`, `tool_output=12000`. |
+| `fullctx-q5` | Full model-metadata context with smaller KV cache. | `ctx=0`, `parallel=1`, `ctk=q5_0`, `ctv=q5_0`, `batch=2048`, `ubatch=512`. |
+| `fullctx-q4` | Full model-metadata context with the smallest preset KV cache. | `ctx=0`, `parallel=1`, `ctk=q4_0`, `ctv=q4_0`, `batch=1536`, `ubatch=384`. |
 | `long` | Large-context coding on high-VRAM systems. | `ctx=131072`, `batch=4096`, one agent slot. |
 | `concurrent` | Two local Codex sessions or subagent work. | `ctx=65536`, `parallel=2`, max agents `2`. |
 
@@ -114,10 +117,15 @@ text/chat/embedding examples can keep their default ports. It discovers the
 built `llama-server`, discovers a local `.gguf` model, starts the server for
 local endpoints, shows editable runtime fields in the ImGui panel, and can run
 a short OpenAI-compatible endpoint smoke request before you point Codex at it.
+The ImGui panel now shows a preflight line near the top and disables only the
+actions that are missing required inputs: starting a local server requires a
+valid `llama-server` executable and GGUF path, while launching Codex only needs
+the endpoint/profile/model alias, Codex config path, and Codex executable. If a
+button is disabled, the preflight line names the next field to fix.
 
-For advanced llama.cpp flags such as KV-cache quantization, `--kv-unified`, or
-speculative decoding, run `llama-server` directly from the built runtime and
-keep the same OpenAI-compatible endpoint:
+For less common llama.cpp flags such as `--kv-unified` or speculative decoding,
+run `llama-server` directly from the built runtime and keep the same
+OpenAI-compatible endpoint:
 
 ```text
 http://127.0.0.1:8001/v1
@@ -130,11 +138,25 @@ and match the local Codex runtime shape by launching `llama-server` with `--jinj
 `--flash-attn on`, `--batch-size 3072`,
 and `--ubatch-size 768`. `--skip-chat-parsing` is off by default so the model
 chat template remains active.
+Set the GUI's **Spec type** dropdown to `ngram-cache` when llama.cpp asks for a
+speculative decoding implementation but you are not using a separate draft
+model.
 The ImGui panel exposes a `GPU layers all` toggle for literal `-ngl all` mode;
 turn it off only when you need a fixed numeric layer count.
 
-Keep `--parallel 1` for a single Codex session when you want the full 65536
-token window available to one request. Raise it only when you expect concurrent
+Use `-CodexPreset fullctx` when Codex should be allowed to occupy the model's
+full metadata context. It passes `--ctx-size 0`, keeps `--parallel 1`, enables
+Flash Attention, uses `-ngl all`, and sets both `-ctk` and `-ctv` to `q8_0`.
+Use `fullctx-q5` or `fullctx-q4` when the full context needs a smaller KV cache
+to fit in VRAM. The Codex config window still has to be numeric; when the
+example can read GGUF metadata, it copies the model's `context_length` into
+`model_context_window` and sets auto-compact to about 85% of that window.
+If metadata is unavailable, these presets fall back to `model_context_window=131072`.
+The GUI exposes **KV cache K type** and **KV cache V type** dropdowns for the
+same cache type values supported by the bundled `llama-server`.
+
+Keep `--parallel 1` for a single Codex session when you want the full token
+window available to one request. Raise it only when you expect concurrent
 clients; more slots can improve throughput for simultaneous requests, but it
 increases memory pressure and may reduce the practical context available per
 slot depending on the llama.cpp build and model.
@@ -179,16 +201,6 @@ model_reasoning_summary = "none"
 [agents]
 max_threads = 1
 max_depth = 1
-
-[agents.explorer]
-description = "Fast read-only codebase questions for local llama.cpp sessions."
-config_file = "ofxggml/agents/local-explorer.toml"
-nickname_candidates = ["Scout", "Trace"]
-
-[agents.worker]
-description = "Bounded code edits with focused validation for local llama.cpp sessions."
-config_file = "ofxggml/agents/local-worker.toml"
-nickname_candidates = ["Patch", "Build"]
 ```
 
 `profiles.ofxggml_local.model` must match the llama-server alias used by the
@@ -207,13 +219,11 @@ model_provider = "llama_cpp"
 ```
 
 This folder includes `codex-config.example.toml` with the same starting point.
-It also includes `codex-agents/local-explorer.toml` and
-`codex-agents/local-worker.toml`. The example's auto-config writer creates
-matching files under your Codex home at `ofxggml/agents/` before it references
-them from `[agents.explorer]` and `[agents.worker]`. Those role files repeat
-the same agent thread cap and depth so spawned explorer/worker sessions stay
-inside the local server budget and inherit the minimal-reasoning local model
-settings.
+It also includes `codex-agents/explorer.toml` and `codex-agents/worker.toml`.
+The example's auto-config writer refreshes matching built-in role override
+files under your Codex home at `agents/`. The main config does not reference
+those files with `config_file`; Codex loads `agents/explorer.toml` and
+`agents/worker.toml` as overrides for its built-in agent names.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
 ```powershell
@@ -320,6 +330,8 @@ $env:OFXGGML_CODEX_PARALLEL = "1"
 $env:OFXGGML_CODEX_FLASH_ATTN = "1"
 $env:OFXGGML_CODEX_BATCH_SIZE = "3072"
 $env:OFXGGML_CODEX_UBATCH_SIZE = "768"
+$env:OFXGGML_CODEX_KV_CACHE_KEY_TYPE = "q8_0"
+$env:OFXGGML_CODEX_KV_CACHE_VALUE_TYPE = "q8_0"
 $env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = "65536"
 $env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = "50000"
 $env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT = "8000"

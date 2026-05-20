@@ -29,9 +29,15 @@ private:
 	void refreshRuntimeDiscovery();
 	void refreshServerStatus();
 	void refreshModelMetadata();
+	void refreshModelAliasForPath(const std::string & previousModelPath);
+	void applyModelContextMetadataDefaults();
 	void applyPreset(int index);
 	bool adoptServedModelAliasIfNeeded();
 	bool syncCodexConfig();
+	std::vector<std::string> collectPreflightIssues(
+		bool requireLocalServer,
+		bool requireCodexExecutable) const;
+	std::string formatPreflightSummary(const std::vector<std::string> & issues) const;
 	void rebuildLines();
 	void joinWorker();
 
@@ -57,6 +63,7 @@ private:
 	std::string endpointStatus;
 	std::string endpointOutput;
 	std::string configWriteStatus;
+	std::string preflightStatus;
 	std::string wireApiProbeStatus;
 	std::string servedModelStatus;
 	std::vector<std::string> servedModelAliases;
@@ -71,6 +78,9 @@ private:
 	int threadsBatch = 0;
 	int threadsHttp = 0;
 	int cacheReuse = 256;
+	std::string kvCacheKeyType;
+	std::string kvCacheValueType;
+	std::string specType;
 	int modelContextWindow = 65536;
 	int modelAutoCompactTokenLimit = 50000;
 	int toolOutputTokenLimit = 8000;
@@ -83,6 +93,7 @@ private:
 	int startupTimeoutSeconds = 300;
 	int presetIndex = 2;
 	uint64_t modelLayerCount = 0;
+	uint64_t modelContextLength = 0;
 	float temperature = 0.7f;
 	float topP = 0.9f;
 	float minP = 0.02f;
@@ -90,6 +101,9 @@ private:
 	bool noCudaGraphs = false;
 	bool skipChatParsing = false;
 	bool autoConfig = true;
+	bool modelAliasManuallyEdited = false;
+	bool modelContextWindowManuallyEdited = false;
+	bool modelAutoCompactManuallyEdited = false;
 	bool serverReady = false;
 	bool endpointReady = false;
 	bool running = false;

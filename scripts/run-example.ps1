@@ -17,6 +17,9 @@ param(
 	[int]$ThreadsBatch = [int]::MinValue,
 	[int]$ThreadsHttp = [int]::MinValue,
 	[int]$CacheReuse = [int]::MinValue,
+	[string]$KvCacheKeyType = "",
+	[string]$KvCacheValueType = "",
+	[string]$SpecType = "",
 	[int]$ModelContextWindow = [int]::MinValue,
 	[int]$ModelAutoCompactTokenLimit = [int]::MinValue,
 	[int]$ToolOutputTokenLimit = [int]::MinValue,
@@ -133,6 +136,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 128
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 16384
 				ModelAutoCompactTokenLimit = 12000
 				ToolOutputTokenLimit = 3000
@@ -159,6 +164,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 256
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 32768
 				ModelAutoCompactTokenLimit = 24000
 				ToolOutputTokenLimit = 5000
@@ -185,6 +192,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 256
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 40960
 				ModelAutoCompactTokenLimit = 30000
 				ToolOutputTokenLimit = 5000
@@ -211,6 +220,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 256
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 65536
 				ModelAutoCompactTokenLimit = 50000
 				ToolOutputTokenLimit = 8000
@@ -218,6 +229,90 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxDepth = 1
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 180000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "0.7"
+				TopP = "0.9"
+				MinP = "0.02"
+			}
+		}
+		"fullctx" {
+			return @{
+				Name = "fullctx"
+				Label = "Full context Q8"
+				ContextSize = 0
+				Parallel = 1
+				BatchSize = 2048
+				UBatchSize = 512
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 512
+				KvCacheKeyType = "q8_0"
+				KvCacheValueType = "q8_0"
+				ModelContextWindow = 131072
+				ModelAutoCompactTokenLimit = 112000
+				ToolOutputTokenLimit = 12000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 1
+				AgentMinWaitMs = 5000
+				AgentMaxWaitMs = 240000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "0.7"
+				TopP = "0.9"
+				MinP = "0.02"
+			}
+		}
+		"fullctx-q5" {
+			return @{
+				Name = "fullctx-q5"
+				Label = "Full context Q5"
+				ContextSize = 0
+				Parallel = 1
+				BatchSize = 2048
+				UBatchSize = 512
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 512
+				KvCacheKeyType = "q5_0"
+				KvCacheValueType = "q5_0"
+				ModelContextWindow = 131072
+				ModelAutoCompactTokenLimit = 112000
+				ToolOutputTokenLimit = 12000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 1
+				AgentMinWaitMs = 5000
+				AgentMaxWaitMs = 240000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "0.7"
+				TopP = "0.9"
+				MinP = "0.02"
+			}
+		}
+		"fullctx-q4" {
+			return @{
+				Name = "fullctx-q4"
+				Label = "Full context Q4"
+				ContextSize = 0
+				Parallel = 1
+				BatchSize = 1536
+				UBatchSize = 384
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 512
+				KvCacheKeyType = "q4_0"
+				KvCacheValueType = "q4_0"
+				ModelContextWindow = 131072
+				ModelAutoCompactTokenLimit = 112000
+				ToolOutputTokenLimit = 12000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 1
+				AgentMinWaitMs = 5000
+				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
 				Temperature = "0.7"
@@ -237,6 +332,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 512
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 100000
 				ToolOutputTokenLimit = 8000
@@ -263,6 +360,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ThreadsBatch = 0
 				ThreadsHttp = 0
 				CacheReuse = 256
+				KvCacheKeyType = ""
+				KvCacheValueType = ""
 				ModelContextWindow = 32768
 				ModelAutoCompactTokenLimit = 24000
 				ToolOutputTokenLimit = 5000
@@ -278,7 +377,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 			}
 		}
 		default {
-			throw "Unknown Codex preset '$Name'. Use memory, fast, balanced, quality, long, or concurrent."
+			throw "Unknown Codex preset '$Name'. Use memory, fast, balanced, quality, fullctx, fullctx-q5, fullctx-q4, long, or concurrent."
 		}
 	}
 }
@@ -321,6 +420,15 @@ if ($isCodex) {
 	}
 	if ($CacheReuse -eq [int]::MinValue) {
 		$CacheReuse = if ($env:OFXGGML_CODEX_CACHE_REUSE) { [int]$env:OFXGGML_CODEX_CACHE_REUSE } else { $codexPresetDefaults.CacheReuse }
+	}
+	if ([string]::IsNullOrWhiteSpace($KvCacheKeyType)) {
+		$KvCacheKeyType = if ($env:OFXGGML_CODEX_KV_CACHE_KEY_TYPE) { $env:OFXGGML_CODEX_KV_CACHE_KEY_TYPE } else { $codexPresetDefaults.KvCacheKeyType }
+	}
+	if ([string]::IsNullOrWhiteSpace($KvCacheValueType)) {
+		$KvCacheValueType = if ($env:OFXGGML_CODEX_KV_CACHE_VALUE_TYPE) { $env:OFXGGML_CODEX_KV_CACHE_VALUE_TYPE } else { $codexPresetDefaults.KvCacheValueType }
+	}
+	if ([string]::IsNullOrWhiteSpace($SpecType)) {
+		$SpecType = if ($env:OFXGGML_CODEX_SPEC_TYPE) { $env:OFXGGML_CODEX_SPEC_TYPE } else { "" }
 	}
 	if ($ModelContextWindow -eq [int]::MinValue) {
 		$ModelContextWindow = if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { $codexPresetDefaults.ModelContextWindow }
@@ -408,6 +516,9 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_THREADS_BATCH = $ThreadsBatch.ToString()
 	$env:OFXGGML_CODEX_THREADS_HTTP = $ThreadsHttp.ToString()
 	$env:OFXGGML_CODEX_CACHE_REUSE = $CacheReuse.ToString()
+	$env:OFXGGML_CODEX_KV_CACHE_KEY_TYPE = $KvCacheKeyType
+	$env:OFXGGML_CODEX_KV_CACHE_VALUE_TYPE = $KvCacheValueType
+	$env:OFXGGML_CODEX_SPEC_TYPE = $SpecType
 	$env:OFXGGML_CODEX_FLASH_ATTN = "1"
 	$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = $ModelContextWindow.ToString()
 	$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = $ModelAutoCompactTokenLimit.ToString()
@@ -436,7 +547,7 @@ if ($isCodex) {
 	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
 	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
-	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
+	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
 	Write-OfxGgmlStep "Using Codex agent settings: max_threads=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
 	if ($DryRun) {
@@ -463,6 +574,9 @@ if ($isCodex) {
 		-ThreadsBatch $ThreadsBatch `
 		-ThreadsHttp $ThreadsHttp `
 		-CacheReuse $CacheReuse `
+		-KvCacheKeyType $KvCacheKeyType `
+		-KvCacheValueType $KvCacheValueType `
+		-SpecType $SpecType `
 		-Temperature $Temperature `
 		-TopP $TopP `
 		-MinP $MinP `

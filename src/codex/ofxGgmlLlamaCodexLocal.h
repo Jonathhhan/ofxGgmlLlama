@@ -70,6 +70,9 @@ struct ofxGgmlLlamaServerStartSettings {
 	int threadsBatch = 0;
 	int threadsHttp = 0;
 	int cacheReuse = 256;
+	std::string kvCacheKeyType;
+	std::string kvCacheValueType;
+	std::string specType;
 	float temperature = 0.7f;
 	float topP = 0.9f;
 	float minP = 0.02f;

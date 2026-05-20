@@ -42,6 +42,18 @@ function Assert-GuardedPostBuild {
 	}
 }
 
+function Assert-ProjectDoesNotContain {
+	param(
+		[string]$Project,
+		[string]$Text,
+		[string]$Message
+	)
+	$content = Get-Content -LiteralPath $Project -Raw
+	if ($content -like "*$Text*") {
+		throw "$Message still contains $Text"
+	}
+}
+
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $examples = @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample", "ofxGgmlLlamaCodexLocalExample")
@@ -59,6 +71,10 @@ foreach ($example in $examples) {
 	$project = Join-Path $addonRoot "$example\$example.vcxproj"
 	Assert-IncludeDirectory -Project $project -IncludeDirectory "..\src"
 	Assert-IncludeDirectory -Project $project -IncludeDirectory "..\..\ofxGgmlCore\src"
+	Assert-ProjectDoesNotContain `
+		-Project $project `
+		-Text "..\..\ofxGgmlCore\src\inference\ofxGgmlTextGeneration.cpp" `
+		-Message "$example project"
 	Assert-GuardedPostBuild -Project $project
 }
 

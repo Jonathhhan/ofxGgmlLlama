@@ -12,11 +12,13 @@ add_executable(ofxGgmlLlama_tests
 	test_llama_cli_text.cpp
 	test_llama_server_text.cpp
 	test_llama_server_embedding.cpp
+	test_codex_local_config.cpp
 	../src/inference/ofxGgmlLlamaCliTextBackend.cpp
 	../src/inference/ofxGgmlLlamaServerTextBackend.cpp
 	../src/inference/ofxGgmlLlamaServerEmbeddingBackend.cpp
-	${OFX_GGML_CORE_ROOT}/src/inference/ofxGgmlTextGeneration.cpp
-	${OFX_GGML_CORE_ROOT}/src/inference/ofxGgmlEmbedding.cpp)
+	../src/codex/ofxGgmlLlamaCodexLocal.cpp
+	../src/inference/ofxGgmlTextGeneration.cpp
+	../src/inference/ofxGgmlEmbedding.cpp)
 
 target_include_directories(ofxGgmlLlama_tests PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/../src

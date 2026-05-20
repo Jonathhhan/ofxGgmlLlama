@@ -13,6 +13,9 @@ param(
 	[int]$ThreadsBatch = 0,
 	[int]$ThreadsHttp = 0,
 	[int]$CacheReuse = 0,
+	[string]$KvCacheKeyType = "",
+	[string]$KvCacheValueType = "",
+	[string]$SpecType = "",
 	[string]$Temperature = "",
 	[string]$TopP = "",
 	[string]$MinP = "",
@@ -232,7 +235,8 @@ $arguments = @(
 	"--host", $HostName,
 	"--port", $Port.ToString(),
 	"-ngl", $GpuLayers,
-	"-c", ([Math]::Max(512, $ContextSize)).ToString()
+	"-c", ([Math]::Max(0, $ContextSize)).ToString(),
+	"--kv-unified"
 )
 if ($Parallel -gt 0) {
 	$arguments += "--parallel"
@@ -265,6 +269,18 @@ if ($ThreadsHttp -gt 0) {
 if ($CacheReuse -gt 0) {
 	$arguments += "--cache-reuse"
 	$arguments += $CacheReuse.ToString()
+}
+if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) {
+	$arguments += "-ctk"
+	$arguments += $KvCacheKeyType
+}
+if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) {
+	$arguments += "-ctv"
+	$arguments += $KvCacheValueType
+}
+if (![string]::IsNullOrWhiteSpace($SpecType)) {
+	$arguments += "--spec-type"
+	$arguments += $SpecType
 }
 if (![string]::IsNullOrWhiteSpace($Alias)) {
 	$arguments += "--alias"
@@ -340,6 +356,7 @@ if (![string]::IsNullOrWhiteSpace($Alias)) {
 }
 Write-Host "  ngl:       $GpuLayers"
 Write-Host "  ctx:       $ContextSize"
+Write-Host "  kvUnified:  on"
 Write-Host "  parallel:  $Parallel"
 if ($BatchSize -gt 0) {
 	Write-Host "  batch:     $BatchSize"
@@ -351,6 +368,9 @@ Write-Host "  threads:   $(if ($Threads -gt 0) { $Threads } else { 'auto' })"
 Write-Host "  batchTh:   $(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' })"
 Write-Host "  httpTh:    $(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' })"
 Write-Host "  cacheReuse: $(if ($CacheReuse -gt 0) { $CacheReuse } else { 'default' })"
+Write-Host "  ctk:       $(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' })"
+Write-Host "  ctv:       $(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' })"
+Write-Host "  specType:  $(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' })"
 if (![string]::IsNullOrWhiteSpace($Temperature)) {
 	Write-Host "  temp:      $Temperature"
 }

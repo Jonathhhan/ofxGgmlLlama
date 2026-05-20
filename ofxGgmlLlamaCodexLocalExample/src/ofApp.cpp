@@ -4,6 +4,7 @@
 #include "model/ofxGgmlModel.h"
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <sstream>
 
@@ -21,6 +22,8 @@ struct CodexLocalPreset {
 	int threadsBatch;
 	int threadsHttp;
 	int cacheReuse;
+	const char * kvCacheKeyType;
+	const char * kvCacheValueType;
 	int modelContextWindow;
 	int modelAutoCompactTokenLimit;
 	int toolOutputTokenLimit;
@@ -37,12 +40,15 @@ struct CodexLocalPreset {
 
 const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
-		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
-		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, 32768, 24000, 5000, 1, 1, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
-		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
-		{"quality", "Quality coding", 65536, 1, 3072, 768, 0, 0, 0, 256, 65536, 50000, 8000, 1, 1, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"long", "Long context", 131072, 1, 4096, 1024, 0, 0, 0, 512, 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
-		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
+		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
+		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 1, 1, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
+		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
+		{"quality", "Quality coding", 65536, 1, 3072, 768, 0, 0, 0, 256, "", "", 65536, 50000, 8000, 1, 1, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx", "Full context Q8", 0, 1, 2048, 512, 0, 0, 0, 512, "q8_0", "q8_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx-q5", "Full context Q5", 0, 1, 2048, 512, 0, 0, 0, 512, "q5_0", "q5_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx-q4", "Full context Q4", 0, 1, 1536, 384, 0, 0, 0, 512, "q4_0", "q4_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"long", "Long context", 131072, 1, 4096, 1024, 0, 0, 0, 512, "", "", 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
+		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
 	};
 	return presets;
 }
@@ -73,6 +79,62 @@ const char * reasoningEffortFromIndex(int index) {
 		return efforts[2];
 	}
 	return efforts[static_cast<std::size_t>(index)];
+}
+
+const std::vector<const char *> & specTypes() {
+	static const std::vector<const char *> types {
+		"",
+		"none",
+		"draft-simple",
+		"draft-eagle3",
+		"draft-mtp",
+		"ngram-simple",
+		"ngram-map-k",
+		"ngram-map-k4v",
+		"ngram-mod",
+		"ngram-cache"
+	};
+	return types;
+}
+
+const std::vector<const char *> & kvCacheTypes() {
+	static const std::vector<const char *> types {
+		"",
+		"f32",
+		"f16",
+		"bf16",
+		"q8_0",
+		"q4_0",
+		"q4_1",
+		"iq4_nl",
+		"q5_0",
+		"q5_1"
+	};
+	return types;
+}
+
+bool drawStringCombo(
+	const char * label,
+	std::string & value,
+	const std::vector<const char *> & options) {
+	const auto preview = value.empty() ? "default" : value.c_str();
+	bool changed = false;
+	if (ImGui::BeginCombo(label, preview)) {
+		for (const auto * option : options) {
+			const bool isDefault = option[0] == '\0';
+			const auto optionLabel = isDefault ? "default" : option;
+			const bool selected = value == option;
+			if (ImGui::Selectable(optionLabel, selected)) {
+				value = option;
+				changed = true;
+			}
+			if (selected) {
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndCombo();
+	}
+	return changed;
 }
 
 int presetIndexFromId(const std::string & value) {
@@ -130,6 +192,20 @@ int envInt(const char * name, int fallback) {
 	}
 }
 
+bool hasEnvValue(const char * name) {
+	return !ofxGgmlLlamaCodexLocal::envValue(name).empty();
+}
+
+int compactLimitForContext(int contextWindow) {
+	if (contextWindow <= 0) {
+		return 0;
+	}
+	const auto compactLimit = (static_cast<int64_t>(contextWindow) * 85) / 100;
+	return static_cast<int>(std::min<int64_t>(
+		std::max<int64_t>(2048, compactLimit),
+		std::numeric_limits<int>::max()));
+}
+
 float envFloat(const char * name, float fallback) {
 	const auto value = ofxGgmlLlamaCodexLocal::envValue(name);
 	if (value.empty()) {
@@ -171,6 +247,17 @@ std::string joinAliases(const std::vector<std::string> & values) {
 	}
 	return output.str();
 }
+
+std::string joinIssues(const std::vector<std::string> & values) {
+	std::ostringstream output;
+	for (std::size_t i = 0; i < values.size(); ++i) {
+		if (i > 0) {
+			output << "; ";
+		}
+		output << values[i];
+	}
+	return output.str();
+}
 }
 
 void ofApp::setup() {
@@ -200,7 +287,18 @@ void ofApp::setup() {
 	threadsBatch = envInt("OFXGGML_CODEX_THREADS_BATCH", threadsBatch);
 	threadsHttp = envInt("OFXGGML_CODEX_THREADS_HTTP", threadsHttp);
 	cacheReuse = envInt("OFXGGML_CODEX_CACHE_REUSE", cacheReuse);
+	kvCacheKeyType = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_KV_CACHE_KEY_TYPE",
+		kvCacheKeyType);
+	kvCacheValueType = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_KV_CACHE_VALUE_TYPE",
+		kvCacheValueType);
+	specType = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_SPEC_TYPE",
+		specType);
+	modelContextWindowManuallyEdited = hasEnvValue("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW");
 	modelContextWindow = envInt("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW", modelContextWindow);
+	modelAutoCompactManuallyEdited = hasEnvValue("OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT");
 	modelAutoCompactTokenLimit = envInt(
 		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
 		modelAutoCompactTokenLimit);
@@ -258,6 +356,10 @@ void ofApp::draw() {
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
 		std::lock_guard<std::mutex> lock(stateMutex);
 		ImGui::TextWrapped("%s", status.empty() ? "ready" : status.c_str());
+		const auto serverPreflightIssues = collectPreflightIssues(true, false);
+		const auto launchPreflightIssues = collectPreflightIssues(false, true);
+		preflightStatus = formatPreflightSummary(launchPreflightIssues);
+		ImGui::TextWrapped("%s", preflightStatus.c_str());
 		ImGui::Separator();
 
 		if (ImGui::InputText("Codex base URL", &baseUrl)) {
@@ -269,6 +371,7 @@ void ofApp::draw() {
 			rebuildLines();
 		}
 		if (ImGui::InputText("Model alias", &modelAlias)) {
+			modelAliasManuallyEdited = true;
 			rebuildLines();
 		}
 		ImGui::SameLine();
@@ -277,11 +380,7 @@ void ofApp::draw() {
 		ImGui::EndDisabled();
 		const auto previousModelPath = modelPath;
 		if (ImGui::InputText("GGUF model", &modelPath)) {
-			const auto previousDerivedAlias =
-				ofxGgmlLlamaCodexLocal::modelAliasFromPath(previousModelPath);
-			if (modelAlias.empty() || modelAlias == previousDerivedAlias) {
-				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
-			}
+			refreshModelAliasForPath(previousModelPath);
 			refreshModelMetadata();
 			rebuildLines();
 		}
@@ -291,6 +390,7 @@ void ofApp::draw() {
 			if (!selected.empty()) {
 				modelPath = selected;
 				modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
+				modelAliasManuallyEdited = false;
 				refreshModelMetadata();
 				rebuildLines();
 			}
@@ -353,8 +453,21 @@ void ofApp::draw() {
 		ImGui::InputInt("Batch threads (0 auto)", &threadsBatch);
 		ImGui::InputInt("HTTP threads (0 auto)", &threadsHttp);
 		ImGui::InputInt("Cache reuse tokens", &cacheReuse);
-		ImGui::InputInt("Model context window", &modelContextWindow);
-		ImGui::InputInt("Auto compact tokens", &modelAutoCompactTokenLimit);
+		if (drawStringCombo("KV cache K type", kvCacheKeyType, kvCacheTypes())) {
+			rebuildLines();
+		}
+		if (drawStringCombo("KV cache V type", kvCacheValueType, kvCacheTypes())) {
+			rebuildLines();
+		}
+		if (drawStringCombo("Spec type", specType, specTypes())) {
+			rebuildLines();
+		}
+		if (ImGui::InputInt("Model context window", &modelContextWindow)) {
+			modelContextWindowManuallyEdited = true;
+		}
+		if (ImGui::InputInt("Auto compact tokens", &modelAutoCompactTokenLimit)) {
+			modelAutoCompactManuallyEdited = true;
+		}
 		ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit);
 		ImGui::InputInt("Startup timeout seconds", &startupTimeoutSeconds);
 		ImGui::SliderFloat("Temperature", &temperature, 0.0f, 2.0f, "%.2f");
@@ -379,15 +492,25 @@ void ofApp::draw() {
 		ImGui::Checkbox("Auto-write Codex config", &autoConfig);
 
 		ImGui::Separator();
-		ImGui::BeginDisabled(running);
+		const bool blockServerActions = running || !serverPreflightIssues.empty();
+		const bool blockSmoke = running || modelAlias.empty() || baseUrl.empty();
+		const bool blockConfigWrite = running || modelAlias.empty() || configPath.empty();
+		const bool blockLaunch = running || !launchPreflightIssues.empty();
+		ImGui::BeginDisabled(blockServerActions);
 		startRequested = ImGui::Button("Start server");
 		ImGui::SameLine();
 		forceStartRequested = ImGui::Button("Force new");
+		ImGui::EndDisabled();
 		ImGui::SameLine();
+		ImGui::BeginDisabled(blockSmoke);
 		smokeRequested = ImGui::Button("Smoke endpoint");
+		ImGui::EndDisabled();
 		ImGui::SameLine();
+		ImGui::BeginDisabled(blockConfigWrite);
 		writeConfigRequested = ImGui::Button("Write config");
+		ImGui::EndDisabled();
 		ImGui::SameLine();
+		ImGui::BeginDisabled(blockLaunch);
 		launchRequested = ImGui::Button("Launch Codex");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
@@ -708,6 +831,7 @@ void ofApp::runLaunchCodexWorker() {
 
 void ofApp::refreshRuntimeDiscovery() {
 	std::lock_guard<std::mutex> lock(stateMutex);
+	const auto previousModelPath = modelPath;
 	if (serverExe.empty() || !ofxGgmlLlamaCodexLocal::fileExists(serverExe)) {
 		serverExe = ofxGgmlLlamaCodexLocal::discoverLlamaServer();
 	}
@@ -717,21 +841,49 @@ void ofApp::refreshRuntimeDiscovery() {
 	if (codexExe.empty() || !ofxGgmlLlamaCodexLocal::fileExists(codexExe)) {
 		codexExe = ofxGgmlLlamaCodexLocal::discoverCodexExecutable();
 	}
-	if (modelAlias.empty()) {
-		modelAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
-	}
+	refreshModelAliasForPath(previousModelPath);
 	refreshModelMetadata();
 	rebuildLines();
 }
 
+void ofApp::refreshModelAliasForPath(const std::string & previousModelPath) {
+	const auto previousDerivedAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(previousModelPath);
+	const auto nextDerivedAlias = ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath);
+	if (nextDerivedAlias.empty()) {
+		return;
+	}
+	if (!modelAliasManuallyEdited || modelAlias.empty() || modelAlias == previousDerivedAlias) {
+		modelAlias = nextDerivedAlias;
+		modelAliasManuallyEdited = false;
+	}
+}
+
 void ofApp::refreshModelMetadata() {
 	modelLayerCount = 0;
+	modelContextLength = 0;
 	if (modelPath.empty() || !ofxGgmlLlamaCodexLocal::fileExists(modelPath)) {
 		return;
 	}
 	const auto result = ofxGgmlModel().inspect(modelPath);
 	if (result.isOk()) {
 		modelLayerCount = result.value().layerCount;
+		modelContextLength = result.value().contextLength;
+		applyModelContextMetadataDefaults();
+	}
+}
+
+void ofApp::applyModelContextMetadataDefaults() {
+	if (contextSize != 0 || modelContextLength == 0) {
+		return;
+	}
+	const auto safeContextLength = static_cast<int>(std::min<uint64_t>(
+		modelContextLength,
+		static_cast<uint64_t>(std::numeric_limits<int>::max())));
+	if (!modelContextWindowManuallyEdited) {
+		modelContextWindow = safeContextLength;
+	}
+	if (!modelAutoCompactManuallyEdited) {
+		modelAutoCompactTokenLimit = compactLimitForContext(modelContextWindow);
 	}
 }
 
@@ -793,8 +945,13 @@ void ofApp::applyPreset(int index) {
 	threadsBatch = preset.threadsBatch;
 	threadsHttp = preset.threadsHttp;
 	cacheReuse = preset.cacheReuse;
+	kvCacheKeyType = preset.kvCacheKeyType;
+	kvCacheValueType = preset.kvCacheValueType;
 	modelContextWindow = preset.modelContextWindow;
 	modelAutoCompactTokenLimit = preset.modelAutoCompactTokenLimit;
+	modelContextWindowManuallyEdited = false;
+	modelAutoCompactManuallyEdited = false;
+	applyModelContextMetadataDefaults();
 	toolOutputTokenLimit = preset.toolOutputTokenLimit;
 	agentMaxConcurrentThreadsPerSession = preset.agentMaxConcurrentThreads;
 	agentMaxDepth = preset.agentMaxDepth;
@@ -836,6 +993,7 @@ bool ofApp::adoptServedModelAliasIfNeeded() {
 	}
 	if (servedModels.models.size() == 1) {
 		modelAlias = servedModels.models.front();
+		modelAliasManuallyEdited = true;
 		configWriteStatus = "using server-advertised Codex model alias: " + modelAlias;
 		rebuildLines();
 		return true;
@@ -846,7 +1004,6 @@ bool ofApp::adoptServedModelAliasIfNeeded() {
 }
 
 bool ofApp::syncCodexConfig() {
-	adoptServedModelAliasIfNeeded();
 	ofxGgmlLlamaCodexProviderConfig config;
 	std::string requestConfigPath;
 	{
@@ -862,6 +1019,63 @@ bool ofApp::syncCodexConfig() {
 	return result.ok;
 }
 
+std::vector<std::string> ofApp::collectPreflightIssues(
+	bool requireLocalServer,
+	bool requireCodexExecutable) const {
+	std::vector<std::string> issues;
+	if (baseUrl.empty()) {
+		issues.push_back("Codex base URL is empty");
+	}
+	if (serverUrl.empty()) {
+		issues.push_back("llama-server root is empty");
+	}
+	if (modelAlias.empty()) {
+		issues.push_back("model alias is empty");
+	}
+	if (requireLocalServer) {
+		if (modelPath.empty()) {
+			issues.push_back("GGUF model path is empty");
+		} else if (!ofxGgmlLlamaCodexLocal::fileExists(modelPath)) {
+			issues.push_back("GGUF model file was not found");
+		}
+		if (serverExe.empty()) {
+			issues.push_back("llama-server executable is empty");
+		} else if (!ofxGgmlLlamaCodexLocal::fileExists(serverExe)) {
+			issues.push_back("llama-server executable was not found");
+		}
+	}
+	if (requireCodexExecutable) {
+		if (configPath.empty()) {
+			issues.push_back("Codex config path is empty");
+		}
+		if (codexExe.empty()) {
+			issues.push_back("Codex executable is empty");
+		} else if (!ofxGgmlLlamaCodexLocal::fileExists(codexExe) && codexExe != "codex") {
+			issues.push_back("Codex executable was not found");
+		}
+	}
+	if (contextSize < 0) {
+		issues.push_back("context size must be zero or positive");
+	}
+	if (parallel < 1) {
+		issues.push_back("parallel slots must be at least 1");
+	}
+	if (batchSize < 1 || ubatchSize < 1) {
+		issues.push_back("batch and ubatch sizes must be at least 1");
+	}
+	if (agentMaxConcurrentThreadsPerSession > std::max(1, parallel)) {
+		issues.push_back("agent max threads is higher than server parallel slots");
+	}
+	return issues;
+}
+
+std::string ofApp::formatPreflightSummary(const std::vector<std::string> & issues) const {
+	if (issues.empty()) {
+		return "preflight: ready for local Codex launch";
+	}
+	return "preflight: " + joinIssues(issues);
+}
+
 void ofApp::rebuildLines() {
 	lines.clear();
 	const auto config = makeCodexConfig();
@@ -875,16 +1089,25 @@ void ofApp::rebuildLines() {
 			? "GPU layers all: " + std::to_string(modelLayerCount) + " model layers"
 			: "GPU layers all: model layer count unknown");
 	}
+	if (modelContextLength > 0 && contextSize == 0) {
+		lines.push_back(
+			"Model metadata context: " + std::to_string(modelContextLength) +
+			" tokens");
+	}
 	lines.push_back(
 		"Server perf: ctx=" + std::to_string(contextSize) +
 		" parallel=" + std::to_string(parallel) +
 		" batch=" + std::to_string(batchSize) +
 		" ubatch=" + std::to_string(ubatchSize) +
 		" cacheReuse=" + std::to_string(std::max(0, cacheReuse)) +
+		" ctk=" + (kvCacheKeyType.empty() ? std::string("default") : kvCacheKeyType) +
+		" ctv=" + (kvCacheValueType.empty() ? std::string("default") : kvCacheValueType) +
+		" spec=" + (specType.empty() ? std::string("default") : specType) +
 		" cudaGraph=" + std::string(noCudaGraphs ? "off" : "on"));
 	if (!servedModelAliases.empty()) {
 		lines.push_back("Server advertises: " + joinAliases(servedModelAliases));
 	}
+	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));
 	appendWrapped(
 		lines,
 		"Use this provider/profile with Codex after the server is ready. The reusable config and llama-server helpers live in ofxGgmlLlama/src/codex.",
@@ -935,6 +1158,9 @@ ofxGgmlLlamaServerStartSettings ofApp::makeServerSettings() const {
 	settings.threadsBatch = threadsBatch;
 	settings.threadsHttp = threadsHttp;
 	settings.cacheReuse = cacheReuse;
+	settings.kvCacheKeyType = kvCacheKeyType;
+	settings.kvCacheValueType = kvCacheValueType;
+	settings.specType = specType;
 	settings.temperature = temperature;
 	settings.topP = topP;
 	settings.minP = minP;

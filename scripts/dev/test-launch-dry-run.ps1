@@ -43,16 +43,25 @@ function Invoke-DryRun {
 		"OFXGGML_CODEX_PARALLEL",
 		"OFXGGML_CODEX_BATCH_SIZE",
 		"OFXGGML_CODEX_UBATCH_SIZE",
+		"OFXGGML_CODEX_THREADS",
+		"OFXGGML_CODEX_THREADS_BATCH",
+		"OFXGGML_CODEX_THREADS_HTTP",
+		"OFXGGML_CODEX_CACHE_REUSE",
+		"OFXGGML_CODEX_KV_CACHE_KEY_TYPE",
+		"OFXGGML_CODEX_KV_CACHE_VALUE_TYPE",
+		"OFXGGML_CODEX_SPEC_TYPE",
 		"OFXGGML_CODEX_FLASH_ATTN",
 		"OFXGGML_CODEX_MODEL_CONTEXT_WINDOW",
 		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
 		"OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT",
 		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
+		"OFXGGML_CODEX_AGENT_MAX_THREADS",
 		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
 		"OFXGGML_CODEX_AGENT_MAX_DEPTH",
 		"OFXGGML_CODEX_AGENT_MIN_WAIT_MS",
 		"OFXGGML_CODEX_AGENT_MAX_WAIT_MS",
 		"OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS",
+		"OFXGGML_CODEX_STARTUP_TIMEOUT",
 		"OFXGGML_CODEX_TEMP",
 		"OFXGGML_CODEX_TOP_P",
 		"OFXGGML_CODEX_MIN_P",
@@ -326,6 +335,7 @@ $codexOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
+		SpecType = "ngram-cache"
 		Configuration = $Configuration
 		Platform = $Platform
 	}
@@ -333,7 +343,7 @@ Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=default ctv=default spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=50000 tool_output=8000" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=1 wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
@@ -388,6 +398,55 @@ Assert-Contains $codexFastPresetOutput "ctx=32768 parallel=1 batch=4096 ubatch=1
 Assert-Contains $codexFastPresetOutput "cacheReuse=256" "Codex local fast preset dry-run"
 Assert-Contains $codexFastPresetOutput "model_context_window=32768 auto_compact=24000 tool_output=5000" "Codex local fast preset dry-run"
 
+$codexFullContextPresetOutput = Invoke-DryRun `
+	-Label "Codex local full-context preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "fullctx"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexFullContextPresetOutput "Using Codex preset: Full context Q8" "Codex local full-context preset dry-run"
+Assert-Contains $codexFullContextPresetOutput "ctx=0 parallel=1 batch=2048 ubatch=512" "Codex local full-context preset dry-run"
+Assert-Contains $codexFullContextPresetOutput "cacheReuse=512 ctk=q8_0 ctv=q8_0" "Codex local full-context preset dry-run"
+Assert-Contains $codexFullContextPresetOutput "model_context_window=131072 auto_compact=112000 tool_output=12000" "Codex local full-context preset dry-run"
+
+$codexFullContextQ5PresetOutput = Invoke-DryRun `
+	-Label "Codex local full-context q5 preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "fullctx-q5"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexFullContextQ5PresetOutput "Using Codex preset: Full context Q5" "Codex local full-context q5 preset dry-run"
+Assert-Contains $codexFullContextQ5PresetOutput "ctx=0 parallel=1 batch=2048 ubatch=512" "Codex local full-context q5 preset dry-run"
+Assert-Contains $codexFullContextQ5PresetOutput "cacheReuse=512 ctk=q5_0 ctv=q5_0" "Codex local full-context q5 preset dry-run"
+
+$codexFullContextQ4PresetOutput = Invoke-DryRun `
+	-Label "Codex local full-context q4 preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "fullctx-q4"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexFullContextQ4PresetOutput "Using Codex preset: Full context Q4" "Codex local full-context q4 preset dry-run"
+Assert-Contains $codexFullContextQ4PresetOutput "ctx=0 parallel=1 batch=1536 ubatch=384" "Codex local full-context q4 preset dry-run"
+Assert-Contains $codexFullContextQ4PresetOutput "cacheReuse=512 ctk=q4_0 ctv=q4_0" "Codex local full-context q4 preset dry-run"
+
 $codexLongPresetOutput = Invoke-DryRun `
 	-Label "Codex local long-context preset dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `
@@ -440,6 +499,7 @@ $serverOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
+		SpecType = "ngram-cache"
 		NoCudaGraphs = $true
 	}
 Assert-Contains $serverOutput "exe:       $serverExe" "Server dry-run"
@@ -452,6 +512,9 @@ Assert-Contains $serverOutput "temp:      1.1" "Server dry-run"
 Assert-Contains $serverOutput "top_p:     0.91" "Server dry-run"
 Assert-Contains $serverOutput "min_p:     0.03" "Server dry-run"
 Assert-Contains $serverOutput "cudaGraph: off" "Server dry-run"
+Assert-Contains $serverOutput "specType:  ngram-cache" "Server dry-run"
+Assert-Contains $serverOutput "--kv-unified" "Server dry-run"
+Assert-Contains $serverOutput "--spec-type ngram-cache" "Server dry-run"
 Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
 

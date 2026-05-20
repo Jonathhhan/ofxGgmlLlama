@@ -228,25 +228,13 @@ model_reasoning_summary = "none"
 [agents]
 max_threads = 1
 max_depth = 1
-
-[agents.explorer]
-description = "Fast read-only codebase questions for local llama.cpp sessions."
-config_file = "ofxggml/agents/local-explorer.toml"
-nickname_candidates = ["Scout", "Trace"]
-
-[agents.worker]
-description = "Bounded code edits with focused validation for local llama.cpp sessions."
-config_file = "ofxggml/agents/local-worker.toml"
-nickname_candidates = ["Patch", "Build"]
 ```
 
-The role `config_file` paths are resolved relative to the Codex config file.
-The example auto-config writer creates these files under
-`%CODEX_HOME%\ofxggml\agents` or `%USERPROFILE%\.codex\ofxggml\agents`.
-The role files repeat the same agent thread cap and depth so spawned
-explorer/worker sessions inherit the local server limit. They also pin
-`model_reasoning_effort = "medium"` and `model_reasoning_summary = "none"` to
-match the llama-server command's minimal reasoning mode.
+The example auto-config writer also refreshes `%CODEX_HOME%\agents\explorer.toml`
+and `%CODEX_HOME%\agents\worker.toml` (or the matching `%USERPROFILE%\.codex`
+path). These files override Codex's built-in explorer and worker roles so
+spawned agents stay on the local llama.cpp provider. The main config does not
+reference them with `config_file`.
 
 For OpenCode, the same local server is configured in `opencode.json` with
 `@ai-sdk/openai-compatible`. The full model id is `provider_id/model_id`, so the

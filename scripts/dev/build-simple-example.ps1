@@ -226,6 +226,28 @@ function Test-GeneratedAddonPath {
 		($normalized -match '(^|\\)libs\\sam3\.cpp\\sam3\.cpp$')
 }
 
+function Test-MissingSiblingAddonPath {
+	param(
+		[string]$ProjectDir,
+		[string]$Path
+	)
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		return $false
+	}
+
+	$normalized = $Path -replace "/", "\"
+	if ($normalized -notmatch '^(\.\.\\src|\.\.\\\.\.\\ofxGgml[^\\]+|\.\.\\\.\.\\ofxImGui)(\\|$)') {
+		return $false
+	}
+
+	$candidate = if ([System.IO.Path]::IsPathRooted($normalized)) {
+		$normalized
+	} else {
+		Join-Path $ProjectDir $normalized
+	}
+	return !(Test-Path -LiteralPath $candidate -PathType Leaf)
+}
+
 function Get-RelativeProjectPath {
 	param(
 		[string]$ProjectDir,
@@ -397,7 +419,12 @@ function Repair-VisualStudioProjectFile {
 			$extension = [System.IO.Path]::GetExtension($normalizedInclude)
 			$headerCompiledAsSource = $tag -eq "ClCompile" -and $extension -in @(".h", ".hpp")
 			$duplicateInclude = $seenIncludes.ContainsKey($normalizedInclude.ToLowerInvariant())
-			if ((Test-GeneratedAddonPath $node.Include) -or $headerCompiledAsSource -or $duplicateInclude) {
+			$missingSiblingAddonPath = $tag -in @("ClCompile", "ClInclude") -and
+				(Test-MissingSiblingAddonPath -ProjectDir (Split-Path -Parent $Path) -Path $node.Include)
+			if ((Test-GeneratedAddonPath $node.Include) -or
+				$headerCompiledAsSource -or
+				$duplicateInclude -or
+				$missingSiblingAddonPath) {
 				[void]$node.ParentNode.RemoveChild($node)
 				$changed = $true
 			} else {

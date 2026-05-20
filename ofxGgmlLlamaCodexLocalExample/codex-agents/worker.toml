@@ -1,0 +1,7 @@
+# Copy to %CODEX_HOME%\agents\worker.toml or
+# %USERPROFILE%\.codex\agents\worker.toml.
+name = "worker"
+description = "Execution-focused local worker using llama.cpp."
+model = "local/example-model"
+model_provider = "llama_cpp"
+developer_instructions = "Use the worker role for bounded code changes. Read local patterns first, follow openFrameworks addon conventions, preserve existing dirty files, keep edits scoped, use apply_patch for manual edits, run the smallest useful validation, and report residual risk."

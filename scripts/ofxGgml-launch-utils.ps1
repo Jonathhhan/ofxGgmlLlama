@@ -202,6 +202,9 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[Nullable[int]]$ThreadsBatch = $null,
 		[Nullable[int]]$ThreadsHttp = $null,
 		[Nullable[int]]$CacheReuse = $null,
+		[string]$KvCacheKeyType = "",
+		[string]$KvCacheValueType = "",
+		[string]$SpecType = "",
 		[string]$Temperature = "",
 		[string]$TopP = "",
 		[string]$MinP = "",
@@ -274,6 +277,18 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	if ($null -ne $CacheReuse) {
 		$args += "-CacheReuse"
 		$args += $CacheReuse
+	}
+	if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) {
+		$args += "-KvCacheKeyType"
+		$args += $KvCacheKeyType
+	}
+	if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) {
+		$args += "-KvCacheValueType"
+		$args += $KvCacheValueType
+	}
+	if (![string]::IsNullOrWhiteSpace($SpecType)) {
+		$args += "-SpecType"
+		$args += $SpecType
 	}
 	if (![string]::IsNullOrWhiteSpace($Temperature)) {
 		$args += "-Temperature"
