@@ -88,3 +88,20 @@ OFXGGML_TEST(codex_config_writes_self_contained_local_agent_roles) {
 	OFXGGML_REQUIRE(explorer.find("agent_max_threads") == std::string::npos);
 	std::filesystem::remove_all(root);
 }
+
+OFXGGML_TEST(codex_config_snippet_includes_self_contained_provider) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.modelAlias = "local/new-selected-model";
+	config.baseUrl = "http://127.0.0.1:9001/v1";
+	config.writeAgentSettings = false;
+	config.writeAgentRoleFiles = false;
+
+	const auto snippet = ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config);
+
+	OFXGGML_REQUIRE(snippet.find("[model_providers.llama_cpp]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("base_url = \"http://127.0.0.1:9001/v1\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("wire_api = \"responses\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("stream_idle_timeout_ms = 10000000") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("[profiles.ofxggml_local]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("model = \"local/new-selected-model\"") != std::string::npos);
+}

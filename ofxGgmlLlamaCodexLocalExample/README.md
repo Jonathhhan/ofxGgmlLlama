@@ -231,6 +231,8 @@ codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
     -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
+    -c model_providers.llama_cpp.base_url='"http://127.0.0.1:8001/v1"' `
+    -c model_providers.llama_cpp.wire_api='"responses"' `
     -c model_context_window=65536 `
     -c model_auto_compact_token_limit=50000 `
     -c tool_output_token_limit=8000 `
@@ -254,6 +256,9 @@ explicit `llama_cpp` OpenAI-compatible provider configured above.
 The disable flags keep Codex from sending non-function Responses tools such as
 app namespaces, image generation, browser, or web-search tools; llama.cpp
 accepts the function-tool shape used by shell and patch tools.
+The provider `base_url` and `wire_api` are also passed as one-shot overrides so
+the launch path stays tied to the visible example endpoint instead of silently
+depending on a stale global Codex provider config.
 
 ## Configure OpenCode
 

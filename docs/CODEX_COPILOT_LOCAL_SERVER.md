@@ -235,6 +235,10 @@ and `%CODEX_HOME%\agents\worker.toml` (or the matching `%USERPROFILE%\.codex`
 path). These files override Codex's built-in explorer and worker roles so
 spawned agents stay on the local llama.cpp provider. The main config does not
 reference them with `config_file`.
+The launch and smoke helpers also pass `model_providers.llama_cpp.base_url`,
+`model_providers.llama_cpp.wire_api`, and the stream idle timeout with `codex -c`
+overrides. That keeps one-shot local Codex runs bound to the visible
+`llama-server` endpoint even when the active global config is missing or stale.
 
 For OpenCode, the same local server is configured in `opencode.json` with
 `@ai-sdk/openai-compatible`. The full model id is `provider_id/model_id`, so the

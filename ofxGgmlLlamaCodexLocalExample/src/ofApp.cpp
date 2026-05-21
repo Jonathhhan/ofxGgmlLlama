@@ -258,6 +258,15 @@ std::string joinIssues(const std::vector<std::string> & values) {
 	}
 	return output.str();
 }
+
+void appendCodexConfigOverride(
+	std::string & arguments,
+	const std::string & key,
+	const std::string & value) {
+	arguments += "-c ";
+	arguments += ofxGgmlLlamaCodexLocal::quoteArgument(key + "=" + value);
+	arguments += " ";
+}
 }
 
 void ofApp::setup() {
@@ -755,6 +764,7 @@ void ofApp::requestLaunchCodex() {
 void ofApp::runLaunchCodexWorker() {
 	std::string requestCodexExe;
 	std::string requestProfile;
+	std::string requestBaseUrl;
 	std::string requestModelAlias;
 	int requestModelContextWindow = 65536;
 	int requestModelAutoCompactTokenLimit = 50000;
@@ -770,6 +780,7 @@ void ofApp::runLaunchCodexWorker() {
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestCodexExe = codexExe;
 		requestProfile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
+		requestBaseUrl = baseUrl;
 		requestModelAlias = modelAlias;
 		requestModelContextWindow = modelContextWindow;
 		requestModelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
@@ -799,17 +810,38 @@ void ofApp::runLaunchCodexWorker() {
 		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
 	}
 	arguments += "-p " + ofxGgmlLlamaCodexLocal::quoteArgument(requestProfile) + " ";
-	arguments += "-c " + ofxGgmlLlamaCodexLocal::quoteArgument("web_search=\"disabled\"") + " ";
-	arguments += "-c model_provider=llama_cpp ";
-	arguments += "-c model_context_window=" + std::to_string(requestModelContextWindow) + " ";
-	arguments += "-c model_auto_compact_token_limit=" + std::to_string(requestModelAutoCompactTokenLimit) + " ";
-	arguments += "-c tool_output_token_limit=" + std::to_string(requestToolOutputTokenLimit) + " ";
-	arguments += "-c model_reasoning_effort=" + requestReasoningEffort + " ";
-	arguments += "-c model_reasoning_summary=none ";
-	arguments += "-c hide_agent_reasoning=true ";
-	arguments += "-c agents.max_threads=" +
-		std::to_string(requestAgentMaxConcurrentThreadsPerSession) + " ";
-	arguments += "-c agents.max_depth=" + std::to_string(requestAgentMaxDepth) + " ";
+	appendCodexConfigOverride(arguments, "web_search", "\"disabled\"");
+	appendCodexConfigOverride(arguments, "model_provider", "llama_cpp");
+	appendCodexConfigOverride(arguments, "model_providers.llama_cpp.name", "\"llama.cpp local\"");
+	appendCodexConfigOverride(
+		arguments,
+		"model_providers.llama_cpp.base_url",
+		"\"" + ofxGgmlLlamaCodexLocal::codexApiRootFromBaseUrl(requestBaseUrl) + "\"");
+	appendCodexConfigOverride(arguments, "model_providers.llama_cpp.wire_api", "\"responses\"");
+	appendCodexConfigOverride(
+		arguments,
+		"model_providers.llama_cpp.stream_idle_timeout_ms",
+		"10000000");
+	appendCodexConfigOverride(
+		arguments,
+		"model_context_window",
+		std::to_string(requestModelContextWindow));
+	appendCodexConfigOverride(
+		arguments,
+		"model_auto_compact_token_limit",
+		std::to_string(requestModelAutoCompactTokenLimit));
+	appendCodexConfigOverride(
+		arguments,
+		"tool_output_token_limit",
+		std::to_string(requestToolOutputTokenLimit));
+	appendCodexConfigOverride(arguments, "model_reasoning_effort", requestReasoningEffort);
+	appendCodexConfigOverride(arguments, "model_reasoning_summary", "none");
+	appendCodexConfigOverride(arguments, "hide_agent_reasoning", "true");
+	appendCodexConfigOverride(
+		arguments,
+		"agents.max_threads",
+		std::to_string(requestAgentMaxConcurrentThreadsPerSession));
+	appendCodexConfigOverride(arguments, "agents.max_depth", std::to_string(requestAgentMaxDepth));
 	if (!requestModelAlias.empty()) {
 		if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--model")) {
 			arguments += "--model " + ofxGgmlLlamaCodexLocal::quoteArgument(requestModelAlias);

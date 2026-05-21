@@ -332,6 +332,7 @@ $configState = [ordered]@{
 	HasProvider = ($configText -match "\[model_providers\.llama_cpp\]")
 	HasProfile = ($configText -match "\[profiles\.$([regex]::Escape($resolvedProfile))\]")
 	HasModelProviderSelection = ($configText -match "model_provider\s*=\s*`"llama_cpp`"")
+	ProviderOverrideProvided = $true
 }
 $launchArguments = @(
 	"--no-alt-screen",
@@ -343,6 +344,10 @@ $launchArguments = @(
 	"--disable", "tool_search",
 	"-c", "web_search=`"disabled`"",
 	"-c", "model_provider=llama_cpp",
+	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
+	"-c", "model_providers.llama_cpp.base_url=`"$apiRoot`"",
+	"-c", "model_providers.llama_cpp.wire_api=`"responses`"",
+	"-c", "model_providers.llama_cpp.stream_idle_timeout_ms=10000000",
 	"-c", "model_context_window=$ModelContextWindow",
 	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
@@ -386,13 +391,6 @@ if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModel
 if ($localProcessEvidence.Available -and @($localProcessEvidence.Processes).Count -gt 1) {
 	$blockers.Add("multiple llama-server processes target the Codex port; stop stale servers or use Force new before Codex work")
 }
-if (!$configState.Exists) {
-	$blockers.Add("Codex config file does not exist yet")
-}
-if ($configState.Exists -and (!$configState.HasProvider -or !$configState.HasModelProviderSelection)) {
-	$blockers.Add("Codex config is missing llama_cpp provider selection")
-}
-
 $result = [ordered]@{
 	Name = "ofxGgmlLlama local Codex plan"
 	Root = $addonRoot.Path

@@ -223,6 +223,7 @@ if ($LASTEXITCODE -ne 0) {
 $plan = $planJson | ConvertFrom-Json
 $resolvedCodex = if ($plan.CodexExe) { [string]$plan.CodexExe } else { "codex" }
 $resolvedModel = if ($plan.Model) { [string]$plan.Model } else { $Model }
+$resolvedApiRoot = if ($plan.ApiRoot) { [string]$plan.ApiRoot } else { $Endpoint.TrimEnd("/") }
 $arguments = @(
 	"-a", "never",
 	"exec",
@@ -237,6 +238,10 @@ $arguments = @(
 	"--disable", "tool_search",
 	"-c", "web_search=`"disabled`"",
 	"-c", "model_provider=llama_cpp",
+	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
+	"-c", "model_providers.llama_cpp.base_url=`"$resolvedApiRoot`"",
+	"-c", "model_providers.llama_cpp.wire_api=`"responses`"",
+	"-c", "model_providers.llama_cpp.stream_idle_timeout_ms=10000000",
 	"-c", "model_context_window=$ModelContextWindow",
 	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
