@@ -105,10 +105,11 @@ scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM
 
 When the endpoint is down, JSON output includes copyable `StartServerCommand`,
 `ManualServerCommand`, `DetachedNoHealthCheckCommand`, `StatusCommand`, and
-`RecommendedActions` fields. Use `ManualServerCommand` when background startup
-times out and you want to watch `llama-server` load the model in the console.
+`WaitCommand` fields. Use `ManualServerCommand` when background startup times
+out and you want to watch `llama-server` load the model in the console, then run
+`WaitCommand` in another terminal until the Codex endpoint is ready.
 `status-llama-server` also reports the dedicated Codex endpoint with
-`-CodexServerUrl`.
+`-CodexServerUrl` and supports `-WaitReady`.
 
 The OpenCode planner uses the same local endpoint and emits a compatible
 `opencode.json` provider/agent snippet without editing your OpenCode config:

@@ -391,20 +391,25 @@ scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Json -SummaryOn
 
 When the endpoint is down, the planner includes `StartServerCommand`,
 `ManualServerCommand`, `DetachedNoHealthCheckCommand`, `StatusCommand`, and
-`RecommendedActions` fields. Those commands use the Codex port, a discovered
-local text GGUF model when available, and a truthful `local/<gguf-file-stem>`
-alias unless you pass an explicit `-Model`.
+`WaitCommand` fields. Those commands use the Codex port, a discovered local
+text GGUF model when available, and a truthful `local/<gguf-file-stem>` alias
+unless you pass an explicit `-Model`.
 
 If automatic startup times out, run `ManualServerCommand` in a terminal. It
 keeps `llama-server` in the foreground so you can see slow model loading,
 VRAM/context failures, or template warnings directly. The example UI also shows
 a manual server command below the preflight line for the currently selected
-settings.
+settings. Run `WaitCommand` from a second terminal to poll the Codex endpoint
+until it is ready.
 
 The status helper also reports the dedicated Codex endpoint:
 
 ```powershell
 scripts\status-llama-server.bat -CodexServerUrl http://127.0.0.1:8001 -Json -SummaryOnly
+```
+
+```powershell
+scripts\status-llama-server.bat -CodexServerUrl http://127.0.0.1:8001 -WaitReady -WaitLabel codex -WaitTimeoutSeconds 600 -Json -SummaryOnly
 ```
 
 If `/v1/models` advertises exactly one model and your requested alias is stale,

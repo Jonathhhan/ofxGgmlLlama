@@ -563,6 +563,9 @@ $detachedNoHealthCheckCommand = Get-CodexServerCommand `
 	-NoHealthCheck
 $statusCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
 	(Format-StartCommandArgument $serverRoot) + " -Json -SummaryOnly"
+$waitCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
+	(Format-StartCommandArgument $serverRoot) +
+	" -WaitReady -WaitLabel codex -WaitTimeoutSeconds 600 -PollSeconds 2 -Json -SummaryOnly"
 $smokeCommandArguments = @(
 	".\scripts\test-local-codex.ps1",
 	"-Endpoint", $apiRoot
@@ -576,6 +579,7 @@ $recommendedActions = New-Object System.Collections.Generic.List[string]
 if (!$health.Ready) {
 	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")
 	$recommendedActions.Add("If automatic startup times out, run the foreground manual command: $manualServerCommand")
+	$recommendedActions.Add("Wait for readiness: $waitCommand")
 	$recommendedActions.Add("Check readiness: $statusCommand")
 }
 if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModelServed) {
@@ -609,6 +613,7 @@ $result = [ordered]@{
 	ManualServerCommand = $manualServerCommand
 	DetachedNoHealthCheckCommand = $detachedNoHealthCheckCommand
 	StatusCommand = $statusCommand
+	WaitCommand = $waitCommand
 	SmokeCommand = $smokeCommand
 	CodexSettings = [pscustomobject]@{
 		ModelContextWindow = [int]$ModelContextWindow

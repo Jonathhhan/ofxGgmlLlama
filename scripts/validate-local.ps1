@@ -251,6 +251,9 @@ if (!$codexPlan.PSObject.Properties["DetachedNoHealthCheckCommand"] -or $codexPl
 if (!$codexPlan.PSObject.Properties["StatusCommand"] -or $codexPlan.StatusCommand -notlike "*status-llama-server.ps1*" -or $codexPlan.StatusCommand -notlike "*9001*") {
 	throw "Local Codex plan did not expose a matching status command"
 }
+if (!$codexPlan.PSObject.Properties["WaitCommand"] -or $codexPlan.WaitCommand -notlike "*-WaitReady*" -or $codexPlan.WaitCommand -notlike "*-WaitLabel codex*") {
+	throw "Local Codex plan did not expose a matching wait command"
+}
 if (!$codexPlan.PSObject.Properties["RecommendedActions"]) {
 	throw "Local Codex plan did not expose recommended actions"
 }

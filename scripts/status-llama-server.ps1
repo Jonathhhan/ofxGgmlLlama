@@ -3,7 +3,11 @@ param(
 	[string]$EmbeddingServerUrl = $(if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }),
 	[string]$CodexServerUrl = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001" }),
 	[int]$TimeoutSeconds = 1,
+	[int]$WaitTimeoutSeconds = 600,
+	[int]$PollSeconds = 2,
+	[string]$WaitLabel = "codex",
 	[switch]$All,
+	[switch]$WaitReady,
 	[switch]$Json,
 	[switch]$Strict
 )
@@ -80,37 +84,83 @@ function Test-ServerHealth {
 	return [pscustomobject]$result
 }
 
-$processes = @(Get-LlamaProcesses)
-$servers = @(
-	(Test-ServerHealth -Url $TextServerUrl -Label "text"),
-	(Test-ServerHealth -Url $EmbeddingServerUrl -Label "embedding"),
-	(Test-ServerHealth -Url $CodexServerUrl -Label "codex")
-)
-
-if ($Json) {
-	[pscustomobject]@{
+function Get-StatusSnapshot {
+	$processes = @(Get-LlamaProcesses)
+	$servers = @(
+		(Test-ServerHealth -Url $TextServerUrl -Label "text"),
+		(Test-ServerHealth -Url $EmbeddingServerUrl -Label "embedding"),
+		(Test-ServerHealth -Url $CodexServerUrl -Label "codex")
+	)
+	return [pscustomobject]@{
 		Root = $addonRoot.Path
 		Scope = if ($All) { "all" } else { "addon" }
 		Processes = $processes
 		Servers = $servers
+	}
+}
+
+function Test-WaitTargetReady {
+	param([object[]]$Servers)
+	$label = if ([string]::IsNullOrWhiteSpace($WaitLabel)) { "codex" } else { $WaitLabel }
+	$matches = @($Servers | Where-Object { $_.Label -ieq $label })
+	return ($matches.Count -gt 0 -and @($matches | Where-Object { $_.Ready }).Count -gt 0)
+}
+
+$started = Get-Date
+$snapshot = Get-StatusSnapshot
+$waitTimedOut = $false
+if ($WaitReady) {
+	$deadline = $started.AddSeconds([Math]::Max(1, $WaitTimeoutSeconds))
+	while (!(Test-WaitTargetReady -Servers $snapshot.Servers) -and (Get-Date) -lt $deadline) {
+		if (!$Json) {
+			$target = @($snapshot.Servers | Where-Object { $_.Label -ieq $WaitLabel } | Select-Object -First 1)
+			$status = if ($target.Count -gt 0 -and $target[0].Reachable) { "reachable" } else { "down" }
+			Write-Host ("waiting for {0} endpoint ({1})..." -f $WaitLabel, $status)
+		}
+		Start-Sleep -Seconds ([Math]::Max(1, $PollSeconds))
+		$snapshot = Get-StatusSnapshot
+	}
+	$waitTimedOut = !(Test-WaitTargetReady -Servers $snapshot.Servers)
+}
+
+$waitResult = [pscustomobject]@{
+	Enabled = [bool]$WaitReady
+	Label = if ([string]::IsNullOrWhiteSpace($WaitLabel)) { "codex" } else { $WaitLabel }
+	Ready = Test-WaitTargetReady -Servers $snapshot.Servers
+	TimedOut = [bool]$waitTimedOut
+	ElapsedSeconds = [Math]::Round(((Get-Date) - $started).TotalSeconds, 3)
+	TimeoutSeconds = [Math]::Max(1, $WaitTimeoutSeconds)
+	PollSeconds = [Math]::Max(1, $PollSeconds)
+}
+
+if ($Json) {
+	[pscustomobject]@{
+		Root = $snapshot.Root
+		Scope = $snapshot.Scope
+		Processes = $snapshot.Processes
+		Servers = $snapshot.Servers
+		Wait = $waitResult
 	} | ConvertTo-Json -Depth 4
 } else {
 	Write-Host "llama-server status"
 	Write-Host "  root:  $addonRoot"
 	Write-Host "  scope: $(if ($All) { 'all matching processes' } else { 'this addon only' })"
 	Write-Host "  timeout: $([Math]::Max(1, $TimeoutSeconds))s"
+	if ($WaitReady) {
+		Write-Host "  wait:   $($waitResult.Label) $($waitResult.ElapsedSeconds)s / $($waitResult.TimeoutSeconds)s"
+	}
 	Write-Host ""
 	Write-Host "Processes:"
-	if ($processes.Count -eq 0) {
+	if ($snapshot.Processes.Count -eq 0) {
 		Write-Host "  (none)"
 	} else {
-		foreach ($process in $processes) {
+		foreach ($process in $snapshot.Processes) {
 			Write-Host ("  {0}({1}) {2}" -f $process.ProcessName, $process.Id, $process.Path)
 		}
 	}
 	Write-Host ""
 	Write-Host "Endpoints:"
-	foreach ($server in $servers) {
+	foreach ($server in $snapshot.Servers) {
 		$status = if ($server.Ready) {
 			"ready"
 		} elseif ($server.Reachable) {
@@ -126,6 +176,7 @@ if ($Json) {
 	}
 }
 
-if ($Strict -and @($servers | Where-Object { !$_.Ready }).Count -gt 0) {
+if (($WaitReady -and $waitTimedOut) -or
+	($Strict -and @($snapshot.Servers | Where-Object { !$_.Ready }).Count -gt 0)) {
 	exit 1
 }
