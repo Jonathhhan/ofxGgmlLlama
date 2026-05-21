@@ -324,7 +324,17 @@ scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM
 
 The planner does not edit Codex config or start Codex. It reports the resolved
 Codex executable, config file, endpoint health, provider/profile readiness, and
-the exact launch command that should be used.
+the exact launch command that should be used. When the endpoint is down, JSON
+output also includes a `StartServerCommand`, `StatusCommand`, and
+`RecommendedActions` list so the next step is copyable from the same preflight
+result. If you omit `-Model`, the planner suggests a discovered local text GGUF
+and derives the server alias from that file name.
+
+Check the dedicated Codex port alongside the normal text and embedding ports:
+
+```powershell
+scripts\status-llama-server.bat -CodexServerUrl http://127.0.0.1:8001 -Json -SummaryOnly
+```
 
 Codex executable discovery is automatic. The scripts use `OFXGGML_CODEX_EXE`
 when set, then Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`,

@@ -389,6 +389,17 @@ endpoint visibility without mutating files:
 scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Json -SummaryOnly
 ```
 
+When the endpoint is down, the planner includes `StartServerCommand`,
+`StatusCommand`, and `RecommendedActions` fields. Those commands use the Codex
+port, a discovered local text GGUF model when available, and a truthful
+`local/<gguf-file-stem>` alias unless you pass an explicit `-Model`.
+
+The status helper also reports the dedicated Codex endpoint:
+
+```powershell
+scripts\status-llama-server.bat -CodexServerUrl http://127.0.0.1:8001 -Json -SummaryOnly
+```
+
 If `/v1/models` advertises exactly one model and your requested alias is stale,
 add `-UseServedModel` to the planner or smoke command to use the live server id:
 

@@ -234,6 +234,15 @@ if ($codexPlan.LaunchCommand -notlike "*model_providers.llama_cpp.base_url=*http
 if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Properties["LocalLlamaServer"]) {
 	throw "Local Codex plan did not expose served model and local server process evidence"
 }
+if (!$codexPlan.PSObject.Properties["StartServerCommand"] -or $codexPlan.StartServerCommand -notlike "*start-llama-server.ps1*" -or $codexPlan.StartServerCommand -notlike "*-Port 9001*") {
+	throw "Local Codex plan did not expose a matching start-llama-server command"
+}
+if (!$codexPlan.PSObject.Properties["StatusCommand"] -or $codexPlan.StatusCommand -notlike "*status-llama-server.ps1*" -or $codexPlan.StatusCommand -notlike "*9001*") {
+	throw "Local Codex plan did not expose a matching status command"
+}
+if (!$codexPlan.PSObject.Properties["RecommendedActions"]) {
+	throw "Local Codex plan did not expose recommended actions"
+}
 if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*") {
 	throw "Local Codex plan did not include llama-server tool compatibility overrides"
 }

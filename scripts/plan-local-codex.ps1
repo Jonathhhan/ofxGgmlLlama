@@ -21,6 +21,7 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
+. (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 function Normalize-Text {
 	param([string]$Value)
@@ -340,6 +341,98 @@ function Format-LaunchArgument {
 	return $Value
 }
 
+function Format-StartCommandArgument {
+	param([string]$Value)
+	if ($Value -match "[\s`"']") {
+		return '"' + ($Value.Replace('"', '\"')) + '"'
+	}
+	return $Value
+}
+
+function Get-ModelRoleHint {
+	param([string]$Name)
+	$lower = $Name.ToLowerInvariant()
+	if ($lower -match "embed|embedding|bge|e5|gte|nomic|jina") {
+		return "embedding"
+	}
+	return "text"
+}
+
+function Test-TinyModelHint {
+	param(
+		[string]$Name,
+		[long]$Bytes
+	)
+	$lower = $Name.ToLowerInvariant()
+	if ($lower -match "tiny|smoke|test|mini|0\.5b|0_5b|1\.5b|1_5b") {
+		return $true
+	}
+	return $Bytes -gt 0 -and $Bytes -le 2GB
+}
+
+function Get-LocalTextModelCandidate {
+	$directories = Get-OfxGgmlModelSearchDirectories `
+		-AddonRoot $addonRoot `
+		-ExampleRoot (Join-Path $addonRoot "ofxGgmlTextExample") `
+		-ExtraExampleNames @("ofxGgmlChatExample", "ofxGgmlEmbeddingExample")
+	$candidates = New-Object System.Collections.Generic.List[object]
+	foreach ($directory in @($directories)) {
+		if (!(Test-Path -LiteralPath $directory -PathType Container)) {
+			continue
+		}
+		Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
+			Sort-Object Name |
+			ForEach-Object {
+				if ((Get-ModelRoleHint $_.Name) -eq "text") {
+					$candidates.Add([pscustomobject]@{
+						Path = $_.FullName
+						Name = $_.Name
+						Alias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+						TinyCandidate = Test-TinyModelHint -Name $_.Name -Bytes ([long]$_.Length)
+					})
+				}
+			}
+	}
+	$tiny = @($candidates | Where-Object { $_.TinyCandidate } | Select-Object -First 1)
+	if ($tiny.Count -gt 0) {
+		return $tiny[0]
+	}
+	$first = @($candidates | Select-Object -First 1)
+	if ($first.Count -gt 0) {
+		return $first[0]
+	}
+	return $null
+}
+
+function Get-CodexStartServerCommand {
+	param(
+		[string]$ServerRootValue,
+		[object]$ModelCandidate,
+		[string]$AliasValue
+	)
+	$endpoint = Get-OfxGgmlServerEndpoint $ServerRootValue
+	$arguments = @(
+		".\scripts\start-llama-server.ps1",
+		"-HostName", $endpoint.HostName,
+		"-Port", $endpoint.Port.ToString(),
+		"-ContextSize", $ModelContextWindow.ToString(),
+		"-GpuLayers", "all",
+		"-Detached",
+		"-StartupTimeoutSeconds", "120",
+		"-LogDir", ".\ofxGgmlLlamaCodexLocalExample\bin\data\logs"
+	)
+	if ($null -ne $ModelCandidate -and ![string]::IsNullOrWhiteSpace($ModelCandidate.Path)) {
+		$arguments += @("-ModelPath", [string]$ModelCandidate.Path)
+		$alias = if (![string]::IsNullOrWhiteSpace($AliasValue)) {
+			$AliasValue
+		} else {
+			[string]$ModelCandidate.Alias
+		}
+		$arguments += @("-Alias", $alias)
+	}
+	return (($arguments | ForEach-Object { Format-StartCommandArgument $_ }) -join " ")
+}
+
 $resolvedEndpoint = Normalize-Text $Endpoint
 $serverRoot = Get-ServerRoot $resolvedEndpoint
 $apiRoot = if ($resolvedEndpoint.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) { $resolvedEndpoint.TrimEnd("/") } else { ($resolvedEndpoint.TrimEnd("/") + "/v1") }
@@ -358,6 +451,10 @@ if (($UseServedModel -or [string]::IsNullOrWhiteSpace($resolvedModel) -or ($serv
 }
 $endpointUri = [System.Uri]$serverRoot
 $localProcessEvidence = Get-LocalLlamaServerEvidence -Port $endpointUri.Port -ExpectedModel $resolvedModel
+$modelCandidate = Get-LocalTextModelCandidate
+if ([string]::IsNullOrWhiteSpace($resolvedModel) -and $null -ne $modelCandidate) {
+	$resolvedModel = [string]$modelCandidate.Alias
+}
 $configText = if (![string]::IsNullOrWhiteSpace($resolvedConfig) -and (Test-Path -LiteralPath $resolvedConfig -PathType Leaf)) {
 	Get-Content -LiteralPath $resolvedConfig -Raw
 } else {
@@ -428,6 +525,32 @@ if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModel
 if ($localProcessEvidence.Available -and @($localProcessEvidence.Processes).Count -gt 1) {
 	$blockers.Add("multiple llama-server processes target the Codex port; stop stale servers or use Force new before Codex work")
 }
+$startServerCommand = Get-CodexStartServerCommand `
+	-ServerRootValue $serverRoot `
+	-ModelCandidate $modelCandidate `
+	-AliasValue $resolvedModel
+$statusCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
+	(Format-StartCommandArgument $serverRoot) + " -Json -SummaryOnly"
+$smokeCommandArguments = @(
+	".\scripts\test-local-codex.ps1",
+	"-Endpoint", $apiRoot
+)
+if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
+	$smokeCommandArguments += @("-Model", $resolvedModel)
+}
+$smokeCommandArguments += @("-Json", "-SummaryOnly")
+$smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-StartCommandArgument $_ }) -join " ")
+$recommendedActions = New-Object System.Collections.Generic.List[string]
+if (!$health.Ready) {
+	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")
+	$recommendedActions.Add("Check readiness: $statusCommand")
+}
+if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModelServed) {
+	$recommendedActions.Add("Use the served model alias or restart llama-server with -Alias $resolvedModel")
+}
+if ($blockers.Count -eq 0) {
+	$recommendedActions.Add("Run the local Codex smoke: $smokeCommand")
+}
 $result = [ordered]@{
 	Name = "ofxGgmlLlama local Codex plan"
 	Root = $addonRoot.Path
@@ -437,6 +560,8 @@ $result = [ordered]@{
 	Model = $resolvedModel
 	UseServedModel = [bool]$UseServedModel
 	SuggestedModel = if ($servedModels.Reachable -and @($servedModels.Models).Count -eq 1) { [string]@($servedModels.Models)[0] } else { "" }
+	SuggestedStartModel = if ($null -ne $modelCandidate) { [string]$modelCandidate.Path } else { "" }
+	SuggestedStartAlias = if (![string]::IsNullOrWhiteSpace($resolvedModel)) { $resolvedModel } elseif ($null -ne $modelCandidate) { [string]$modelCandidate.Alias } else { "" }
 	Profile = $resolvedProfile
 	CodexExe = $resolvedCodex
 	Codex = $codexHelp
@@ -447,6 +572,9 @@ $result = [ordered]@{
 	Responses = $responsesProbe
 	Chat = $chatProbe
 	LaunchCommand = $launchCommand
+	StartServerCommand = $startServerCommand
+	StatusCommand = $statusCommand
+	SmokeCommand = $smokeCommand
 	CodexSettings = [pscustomobject]@{
 		ModelContextWindow = [int]$ModelContextWindow
 		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit
@@ -459,6 +587,7 @@ $result = [ordered]@{
 	}
 	UsesOssFlag = ($launchCommand -match "\s--oss(\s|$)")
 	Blockers = @($blockers)
+	RecommendedActions = @($recommendedActions.ToArray())
 	Ready = ($blockers.Count -eq 0)
 }
 
@@ -494,12 +623,22 @@ if ($Json) {
 	Write-Host "Launch command:"
 	Write-Host "  $($result.LaunchCommand)"
 	Write-Host ""
+	Write-Host "Server command:"
+	Write-Host "  $($result.StartServerCommand)"
+	Write-Host ""
 	if ($result.Ready) {
 		Write-Host "Ready for local Codex."
 	} else {
 		Write-Host "Blockers:"
 		foreach ($blocker in $result.Blockers) {
 			Write-Host "  - $blocker"
+		}
+		if (@($result.RecommendedActions).Count -gt 0) {
+			Write-Host ""
+			Write-Host "Next actions:"
+			foreach ($action in $result.RecommendedActions) {
+				Write-Host "  - $action"
+			}
 		}
 	}
 }

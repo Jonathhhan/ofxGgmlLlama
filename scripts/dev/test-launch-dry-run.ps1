@@ -538,6 +538,7 @@ $statusServerOutput = Invoke-DryRun `
 Assert-Contains $statusServerOutput "llama-server status" "Status server smoke"
 Assert-Contains $statusServerOutput "text      http://127.0.0.1:9080" "Status server smoke"
 Assert-Contains $statusServerOutput "embedding http://127.0.0.1:9081" "Status server smoke"
+Assert-Contains $statusServerOutput "codex     http://127.0.0.1:8001" "Status server smoke"
 
 $embeddingServerOutput = Invoke-DryRun `
 	-Label "embedding llama-server dry-run" `

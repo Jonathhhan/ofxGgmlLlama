@@ -103,6 +103,10 @@ scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM
 scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
 ```
 
+When the endpoint is down, JSON output includes copyable `StartServerCommand`,
+`StatusCommand`, and `RecommendedActions` fields. `status-llama-server` also
+reports the dedicated Codex endpoint with `-CodexServerUrl`.
+
 The OpenCode planner uses the same local endpoint and emits a compatible
 `opencode.json` provider/agent snippet without editing your OpenCode config:
 

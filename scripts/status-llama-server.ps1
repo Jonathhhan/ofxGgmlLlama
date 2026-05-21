@@ -1,6 +1,7 @@
 param(
 	[string]$TextServerUrl = $(if ($env:OFXGGML_TEXT_SERVER_URL) { $env:OFXGGML_TEXT_SERVER_URL } else { "http://127.0.0.1:8080" }),
 	[string]$EmbeddingServerUrl = $(if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }),
+	[string]$CodexServerUrl = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001" }),
 	[int]$TimeoutSeconds = 1,
 	[switch]$All,
 	[switch]$Json,
@@ -44,9 +45,14 @@ function Get-LlamaProcesses {
 
 function Test-ServerHealth {
 	param([string]$Url, [string]$Label)
+	$serverRoot = if ([string]::IsNullOrWhiteSpace($Url)) { "" } else { $Url.TrimEnd("/") }
+	if (![string]::IsNullOrWhiteSpace($serverRoot) -and
+		$serverRoot.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) {
+		$serverRoot = $serverRoot.Substring(0, $serverRoot.Length - 3)
+	}
 	$result = [ordered]@{
 		Label = $Label
-		Url = $Url
+		Url = $serverRoot
 		Reachable = $false
 		Ready = $false
 		StatusCode = 0
@@ -57,7 +63,7 @@ function Test-ServerHealth {
 		return [pscustomobject]$result
 	}
 	try {
-		$response = Invoke-WebRequest -Uri ($Url.TrimEnd("/") + "/health") -UseBasicParsing -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
+		$response = Invoke-WebRequest -Uri ($serverRoot + "/health") -UseBasicParsing -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
 		$result.Reachable = $true
 		$result.Ready = ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300)
 		$result.StatusCode = [int]$response.StatusCode
@@ -77,7 +83,8 @@ function Test-ServerHealth {
 $processes = @(Get-LlamaProcesses)
 $servers = @(
 	(Test-ServerHealth -Url $TextServerUrl -Label "text"),
-	(Test-ServerHealth -Url $EmbeddingServerUrl -Label "embedding")
+	(Test-ServerHealth -Url $EmbeddingServerUrl -Label "embedding"),
+	(Test-ServerHealth -Url $CodexServerUrl -Label "codex")
 )
 
 if ($Json) {
