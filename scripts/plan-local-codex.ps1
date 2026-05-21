@@ -404,11 +404,14 @@ function Get-LocalTextModelCandidate {
 	return $null
 }
 
-function Get-CodexStartServerCommand {
+function Get-CodexServerCommand {
 	param(
 		[string]$ServerRootValue,
 		[object]$ModelCandidate,
-		[string]$AliasValue
+		[string]$AliasValue,
+		[switch]$Detached,
+		[switch]$NoHealthCheck,
+		[int]$StartupTimeoutSeconds = 600
 	)
 	$endpoint = Get-OfxGgmlServerEndpoint $ServerRootValue
 	$arguments = @(
@@ -417,10 +420,27 @@ function Get-CodexStartServerCommand {
 		"-Port", $endpoint.Port.ToString(),
 		"-ContextSize", $ModelContextWindow.ToString(),
 		"-GpuLayers", "all",
-		"-Detached",
-		"-StartupTimeoutSeconds", "120",
-		"-LogDir", ".\ofxGgmlLlamaCodexLocalExample\bin\data\logs"
+		"-BatchSize", "3072",
+		"-UBatchSize", "768",
+		"-CacheReuse", "256",
+		"-Temperature", "0.7",
+		"-TopP", "0.9",
+		"-MinP", "0.02",
+		"-Reasoning", "off",
+		"-ReasoningBudget", "0",
+		"-Jinja",
+		"-FlashAttention"
 	)
+	if ($Detached) {
+		$arguments += @(
+			"-Detached",
+			"-StartupTimeoutSeconds", ([Math]::Max(1, $StartupTimeoutSeconds)).ToString(),
+			"-LogDir", ".\ofxGgmlLlamaCodexLocalExample\bin\data\logs"
+		)
+	}
+	if ($NoHealthCheck) {
+		$arguments += "-NoHealthCheck"
+	}
 	if ($null -ne $ModelCandidate -and ![string]::IsNullOrWhiteSpace($ModelCandidate.Path)) {
 		$arguments += @("-ModelPath", [string]$ModelCandidate.Path)
 		$alias = if (![string]::IsNullOrWhiteSpace($AliasValue)) {
@@ -525,10 +545,22 @@ if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModel
 if ($localProcessEvidence.Available -and @($localProcessEvidence.Processes).Count -gt 1) {
 	$blockers.Add("multiple llama-server processes target the Codex port; stop stale servers or use Force new before Codex work")
 }
-$startServerCommand = Get-CodexStartServerCommand `
+$startServerCommand = Get-CodexServerCommand `
+	-ServerRootValue $serverRoot `
+	-ModelCandidate $modelCandidate `
+	-AliasValue $resolvedModel `
+	-Detached `
+	-StartupTimeoutSeconds 600
+$manualServerCommand = Get-CodexServerCommand `
 	-ServerRootValue $serverRoot `
 	-ModelCandidate $modelCandidate `
 	-AliasValue $resolvedModel
+$detachedNoHealthCheckCommand = Get-CodexServerCommand `
+	-ServerRootValue $serverRoot `
+	-ModelCandidate $modelCandidate `
+	-AliasValue $resolvedModel `
+	-Detached `
+	-NoHealthCheck
 $statusCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
 	(Format-StartCommandArgument $serverRoot) + " -Json -SummaryOnly"
 $smokeCommandArguments = @(
@@ -543,6 +575,7 @@ $smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-StartCommandA
 $recommendedActions = New-Object System.Collections.Generic.List[string]
 if (!$health.Ready) {
 	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")
+	$recommendedActions.Add("If automatic startup times out, run the foreground manual command: $manualServerCommand")
 	$recommendedActions.Add("Check readiness: $statusCommand")
 }
 if ($health.Ready -and $servedModels.Reachable -and !$servedModels.ExpectedModelServed) {
@@ -573,6 +606,8 @@ $result = [ordered]@{
 	Chat = $chatProbe
 	LaunchCommand = $launchCommand
 	StartServerCommand = $startServerCommand
+	ManualServerCommand = $manualServerCommand
+	DetachedNoHealthCheckCommand = $detachedNoHealthCheckCommand
 	StatusCommand = $statusCommand
 	SmokeCommand = $smokeCommand
 	CodexSettings = [pscustomobject]@{
@@ -625,6 +660,9 @@ if ($Json) {
 	Write-Host ""
 	Write-Host "Server command:"
 	Write-Host "  $($result.StartServerCommand)"
+	Write-Host ""
+	Write-Host "Manual server command:"
+	Write-Host "  $($result.ManualServerCommand)"
 	Write-Host ""
 	if ($result.Ready) {
 		Write-Host "Ready for local Codex."

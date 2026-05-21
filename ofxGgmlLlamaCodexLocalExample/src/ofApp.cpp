@@ -174,6 +174,36 @@ void appendWrapped(
 	}
 }
 
+std::string quoteCommandArgument(const std::string & value) {
+	if (value.empty()) {
+		return "\"\"";
+	}
+	if (value.find_first_of(" \t\"'") == std::string::npos) {
+		return value;
+	}
+	std::string quoted = "\"";
+	for (const auto c : value) {
+		if (c == '"') {
+			quoted += "\\\"";
+		} else {
+			quoted += c;
+		}
+	}
+	quoted += "\"";
+	return quoted;
+}
+
+void appendCommandArgument(
+	std::vector<std::string> & arguments,
+	const std::string & name,
+	const std::string & value) {
+	if (value.empty()) {
+		return;
+	}
+	arguments.push_back(name);
+	arguments.push_back(value);
+}
+
 std::string chooseFile(const std::string & title, const std::string & currentPath) {
 	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
 	auto result = ofSystemLoadDialog(title, false, startPath);
@@ -1108,6 +1138,75 @@ std::string ofApp::formatPreflightSummary(const std::vector<std::string> & issue
 	return "preflight: " + joinIssues(issues);
 }
 
+std::string ofApp::buildManualServerCommand() const {
+	const auto effectiveModelAlias = modelAlias.empty()
+		? ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath)
+		: modelAlias;
+	std::vector<std::string> arguments {
+		"scripts\\start-llama-server.bat",
+		"-HostName",
+		"127.0.0.1",
+		"-Port",
+		std::to_string(ofxGgmlLlamaCodexLocal::serverPortFromUrl(serverUrl, 8001)),
+		"-ContextSize",
+		std::to_string(contextSize),
+		"-GpuLayers",
+		gpuLayersAll ? std::string("all") : std::to_string(gpuLayers),
+		"-ModelPath",
+		modelPath,
+		"-Alias",
+		effectiveModelAlias
+	};
+	arguments.push_back("-Parallel");
+	arguments.push_back(std::to_string(parallel));
+	arguments.push_back("-BatchSize");
+	arguments.push_back(std::to_string(batchSize));
+	arguments.push_back("-UBatchSize");
+	arguments.push_back(std::to_string(ubatchSize));
+	if (threads > 0) {
+		arguments.push_back("-Threads");
+		arguments.push_back(std::to_string(threads));
+	}
+	if (threadsBatch > 0) {
+		arguments.push_back("-ThreadsBatch");
+		arguments.push_back(std::to_string(threadsBatch));
+	}
+	if (threadsHttp > 0) {
+		arguments.push_back("-ThreadsHttp");
+		arguments.push_back(std::to_string(threadsHttp));
+	}
+	if (cacheReuse > 0) {
+		arguments.push_back("-CacheReuse");
+		arguments.push_back(std::to_string(cacheReuse));
+	}
+	appendCommandArgument(arguments, "-KvCacheKeyType", kvCacheKeyType);
+	appendCommandArgument(arguments, "-KvCacheValueType", kvCacheValueType);
+	appendCommandArgument(arguments, "-SpecType", specType);
+	arguments.push_back("-Jinja");
+	arguments.push_back("-FlashAttention");
+	if (noCudaGraphs) {
+		arguments.push_back("-NoCudaGraphs");
+	}
+	if (skipChatParsing) {
+		arguments.push_back("-SkipChatParsing");
+	}
+	arguments.push_back("-Temperature");
+	arguments.push_back(ofToString(temperature, 3));
+	arguments.push_back("-TopP");
+	arguments.push_back(ofToString(topP, 3));
+	arguments.push_back("-MinP");
+	arguments.push_back(ofToString(minP, 3));
+
+	std::ostringstream command;
+	for (std::size_t i = 0; i < arguments.size(); ++i) {
+		if (i > 0) {
+			command << " ";
+		}
+		command << quoteCommandArgument(arguments[i]);
+	}
+	return command.str();
+}
+
 void ofApp::rebuildLines() {
 	lines.clear();
 	const auto config = makeCodexConfig();
@@ -1140,6 +1239,10 @@ void ofApp::rebuildLines() {
 		lines.push_back("Server advertises: " + joinAliases(servedModelAliases));
 	}
 	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));
+	appendWrapped(
+		lines,
+		"Manual server command: " + buildManualServerCommand(),
+		96);
 	appendWrapped(
 		lines,
 		"Use this provider/profile with Codex after the server is ready. The reusable config and llama-server helpers live in ofxGgmlLlama/src/codex.",

@@ -390,9 +390,16 @@ scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Json -SummaryOn
 ```
 
 When the endpoint is down, the planner includes `StartServerCommand`,
-`StatusCommand`, and `RecommendedActions` fields. Those commands use the Codex
-port, a discovered local text GGUF model when available, and a truthful
-`local/<gguf-file-stem>` alias unless you pass an explicit `-Model`.
+`ManualServerCommand`, `DetachedNoHealthCheckCommand`, `StatusCommand`, and
+`RecommendedActions` fields. Those commands use the Codex port, a discovered
+local text GGUF model when available, and a truthful `local/<gguf-file-stem>`
+alias unless you pass an explicit `-Model`.
+
+If automatic startup times out, run `ManualServerCommand` in a terminal. It
+keeps `llama-server` in the foreground so you can see slow model loading,
+VRAM/context failures, or template warnings directly. The example UI also shows
+a manual server command below the preflight line for the currently selected
+settings.
 
 The status helper also reports the dedicated Codex endpoint:
 

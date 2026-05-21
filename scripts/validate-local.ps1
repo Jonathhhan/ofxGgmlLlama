@@ -150,6 +150,8 @@ Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") 
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "ImGui::Begin" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "appendCodexConfigOverride" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Manual server command" "Codex local manual server command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "model_provider" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "llama_cpp" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "model_providers.llama_cpp.base_url" "Codex local launch command"
@@ -236,6 +238,15 @@ if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Pro
 }
 if (!$codexPlan.PSObject.Properties["StartServerCommand"] -or $codexPlan.StartServerCommand -notlike "*start-llama-server.ps1*" -or $codexPlan.StartServerCommand -notlike "*-Port 9001*") {
 	throw "Local Codex plan did not expose a matching start-llama-server command"
+}
+if ($codexPlan.StartServerCommand -notlike "*-Detached*" -or $codexPlan.StartServerCommand -notlike "*-StartupTimeoutSeconds 600*") {
+	throw "Local Codex plan did not expose the longer detached startup command"
+}
+if (!$codexPlan.PSObject.Properties["ManualServerCommand"] -or $codexPlan.ManualServerCommand -notlike "*start-llama-server.ps1*" -or $codexPlan.ManualServerCommand -like "*-Detached*") {
+	throw "Local Codex plan did not expose a foreground manual server command"
+}
+if (!$codexPlan.PSObject.Properties["DetachedNoHealthCheckCommand"] -or $codexPlan.DetachedNoHealthCheckCommand -notlike "*-NoHealthCheck*") {
+	throw "Local Codex plan did not expose a detached no-health-check fallback command"
 }
 if (!$codexPlan.PSObject.Properties["StatusCommand"] -or $codexPlan.StatusCommand -notlike "*status-llama-server.ps1*" -or $codexPlan.StatusCommand -notlike "*9001*") {
 	throw "Local Codex plan did not expose a matching status command"
