@@ -279,8 +279,22 @@ function Test-CodexHelp {
 		$result.Message = "codex executable was not found"
 		return [pscustomobject]$result
 	}
+
+	$exeExists = $false
+	if ($Exe -eq "codex") {
+		$exeExists = $null -ne (Get-Command codex -ErrorAction SilentlyContinue)
+	} else {
+		$exeExists = Test-Path -LiteralPath $Exe -PathType Leaf
+	}
+	if ($exeExists) {
+		$result.Found = $true
+	}
+
 	try {
+		$previousErrorActionPreference = $ErrorActionPreference
+		$ErrorActionPreference = "Continue"
 		$output = & $Exe --help 2>&1 | ForEach-Object { $_.ToString() }
+		$ErrorActionPreference = $previousErrorActionPreference
 		$text = $output -join "`n"
 		$result.Found = $true
 		$result.SupportsModel = $text -match "--model| -m,"
@@ -288,9 +302,32 @@ function Test-CodexHelp {
 		$result.SupportsConfig = $text -match "--config| -c,"
 		$result.SupportsNoAltScreen = $text -match "--no-alt-screen"
 		$result.SupportsDisable = $text -match "--disable"
-		$result.Message = "codex --help succeeded"
+		if ($result.SupportsModel -or $result.SupportsProfile -or $result.SupportsConfig -or $result.SupportsDisable) {
+			$result.Message = "codex --help succeeded"
+		} elseif ($result.Found) {
+			$result.SupportsModel = $true
+			$result.SupportsProfile = $true
+			$result.SupportsConfig = $true
+			$result.SupportsNoAltScreen = $true
+			$result.SupportsDisable = $true
+			$result.Message = "codex executable found; help output did not expose flags, assuming current Codex CLI"
+		}
 	} catch {
-		$result.Message = $_.Exception.Message
+		if ($result.Found) {
+			$result.SupportsModel = $true
+			$result.SupportsProfile = $true
+			$result.SupportsConfig = $true
+			$result.SupportsNoAltScreen = $true
+			$result.SupportsDisable = $true
+			$result.Message = "codex executable found; help check failed, assuming current Codex CLI: " +
+				$_.Exception.Message
+		} else {
+			$result.Message = $_.Exception.Message
+		}
+	} finally {
+		if ($previousErrorActionPreference) {
+			$ErrorActionPreference = $previousErrorActionPreference
+		}
 	}
 	return [pscustomobject]$result
 }
