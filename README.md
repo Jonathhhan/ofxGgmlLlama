@@ -11,6 +11,14 @@ Current addon API version: `1.0.1`.
 
 Family map: https://jonathhhan.github.io/ofxGgmlCore/
 
+## Features
+
+- local chat and text generation
+- embedding extraction
+- llama.cpp CLI and server integration
+- Codex local model handoff workflow
+- model-backed runtime smoke evidence
+
 ## Examples
 
 | Example | Use it for | Server |
