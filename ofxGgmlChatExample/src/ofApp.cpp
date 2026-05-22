@@ -395,6 +395,7 @@ void ofApp::setup() {
 	ofSetWindowTitle("ofxGgml chat example");
 	ofSetFrameRate(60);
 	ofBackground(12);
+	ofLogToConsole();
 	gui.setup(nullptr, false);
 
 	settings.executablePath = normalizeEnvPath(envValue("OFXGGML_LLAMA_CLI"));
@@ -426,7 +427,8 @@ void ofApp::setup() {
 	configureGenerator();
 
 	const std::string defaultSystem =
-		"You are a concise local assistant running inside an openFrameworks example.";
+		"You are a concise local assistant running inside an openFrameworks example. "
+		"Answer greetings with one short sentence. Do not list capabilities unless asked.";
 	std::copy(defaultSystem.begin(), defaultSystem.end(), systemBuffer.begin());
 	status = "ready";
 }

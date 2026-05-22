@@ -89,6 +89,38 @@ bool containsText(const std::string & value, const std::string & needle) {
 	return value.find(needle) != std::string::npos;
 }
 
+std::string eraseDelimitedBlock(
+	std::string value,
+	const std::string & beginMarker,
+	const std::string & endMarker) {
+	std::size_t begin = value.find(beginMarker);
+	while (begin != std::string::npos) {
+		const std::size_t end = value.find(endMarker, begin + beginMarker.size());
+		const std::size_t eraseEnd = end == std::string::npos
+			? value.size()
+			: end + endMarker.size();
+		value.erase(begin, eraseEnd - begin);
+		begin = value.find(beginMarker, begin);
+	}
+	return value;
+}
+
+std::string stripReasoningBlocks(std::string value) {
+	value = eraseDelimitedBlock(value, "<think>", "</think>");
+	value = eraseDelimitedBlock(value, "<thinking>", "</thinking>");
+	value = eraseDelimitedBlock(value, "[Start thinking]", "[End thinking]");
+	value = eraseDelimitedBlock(value, "[Start thinking]", "[Stop thinking]");
+	value = eraseDelimitedBlock(value, "[Thinking]", "[/Thinking]");
+	return value;
+}
+
+bool isRoleEchoLine(const std::string & line) {
+	const std::string trimmed = trimCopy(line);
+	return startsWith(trimmed, "System:") ||
+		startsWith(trimmed, "User:") ||
+		startsWith(trimmed, "Assistant:");
+}
+
 bool isQuestionMarkBannerLine(const std::string & line) {
 	std::size_t questionMarks = 0;
 	std::size_t visible = 0;
@@ -155,16 +187,32 @@ bool isLlamaCliNoiseLine(const std::string & line) {
 }
 
 std::string sanitizeLlamaCliOutput(const std::string & output) {
-	std::istringstream lines(stripAnsiSequences(output));
+	std::istringstream lines(stripReasoningBlocks(stripAnsiSequences(output)));
 	std::ostringstream cleaned;
 	std::string line;
 	bool wroteLine = false;
+	bool sawAssistantText = false;
 	while (std::getline(lines, line)) {
 		if (!line.empty() && line.back() == '\r') {
 			line.pop_back();
 		}
 		if (isLlamaCliNoiseLine(line)) {
 			continue;
+		}
+		if (!sawAssistantText && isRoleEchoLine(line)) {
+			const std::string trimmed = trimCopy(line);
+			if (startsWith(trimmed, "Assistant:")) {
+				const std::string assistantText = trimCopy(trimmed.substr(10));
+				if (assistantText.empty()) {
+					continue;
+				}
+				line = assistantText;
+				sawAssistantText = true;
+			} else {
+				continue;
+			}
+		} else if (!trimCopy(line).empty()) {
+			sawAssistantText = true;
 		}
 		if (wroteLine) {
 			cleaned << '\n';

@@ -51,6 +51,9 @@ OFXGGML_TEST(llama_server_builds_openai_payload) {
 	OFXGGML_REQUIRE(body.find("\"role\":\"user\"") != std::string::npos);
 	OFXGGML_REQUIRE(body.find("\"max_tokens\":32") != std::string::npos);
 	OFXGGML_REQUIRE(body.find("\"stream\":false") != std::string::npos);
+	OFXGGML_REQUIRE(
+		body.find("\"chat_template_kwargs\":{\"enable_thinking\":false}") !=
+		std::string::npos);
 	OFXGGML_REQUIRE(body.find("\"stop\":[\"</s>\"]") != std::string::npos);
 
 	request.settings.stream = true;
@@ -163,6 +166,42 @@ OFXGGML_TEST(llama_server_backend_accepts_streamed_runner_output) {
 	OFXGGML_REQUIRE(streamed == "stream hello");
 }
 
+OFXGGML_TEST(llama_server_backend_filters_streamed_reasoning_output) {
+	ofxGgmlLlamaServerTextBackend backend(
+		"http://127.0.0.1:8080",
+		[](const ofxGgmlTextServerRequest & request) {
+			ofxGgmlTextServerResponse response;
+			response.started = true;
+			response.status = 200;
+			if (request.onChunk) {
+				request.onChunk("[Start thinking]");
+				request.onChunk("I should not expose this.");
+				request.onChunk("[End thinking]Hello there.");
+			}
+			response.text =
+				"[Start thinking]I should not expose this.[End thinking]Hello there.";
+			response.body = "data: {...}\n";
+			return response;
+		});
+
+	ofxGgmlTextRequest request;
+	request.prompt = "hello";
+	request.settings.stream = true;
+
+	std::string streamed;
+	const auto result = backend.generate(
+		request,
+		[&](const std::string & chunk) {
+			streamed += chunk;
+			return true;
+		});
+
+	OFXGGML_REQUIRE(result);
+	OFXGGML_REQUIRE(result.text == "Hello there.");
+	OFXGGML_REQUIRE(streamed == "Hello there.");
+	OFXGGML_REQUIRE(streamed.find("thinking") == std::string::npos);
+}
+
 OFXGGML_TEST(llama_server_backend_reports_stream_cancel) {
 	ofxGgmlLlamaServerTextBackend backend(
 		"http://127.0.0.1:8080",
@@ -201,9 +240,9 @@ OFXGGML_TEST(llama_server_backend_exposes_transport_cancel_probe) {
 			response.started = true;
 			response.status = 200;
 			if (request.onChunk) {
-				request.onChunk("partial");
+				request.onChunk("partial visible text");
 			}
-			response.text = "partial";
+			response.text = "partial visible text";
 			if (request.shouldCancel && request.shouldCancel()) {
 				response.cancelled = true;
 				response.error = "llama-server request cancelled";
@@ -219,7 +258,7 @@ OFXGGML_TEST(llama_server_backend_exposes_transport_cancel_probe) {
 	const auto result = backend.generate(
 		request,
 		[&](const std::string & chunk) {
-			if (chunk == "partial") {
+			if (!chunk.empty()) {
 				receivedText = true;
 				return true;
 			}
@@ -228,6 +267,6 @@ OFXGGML_TEST(llama_server_backend_exposes_transport_cancel_probe) {
 
 	OFXGGML_REQUIRE(receivedText);
 	OFXGGML_REQUIRE(!result);
-	OFXGGML_REQUIRE(result.text == "partial");
+	OFXGGML_REQUIRE(result.text == "partial visible text");
 	OFXGGML_REQUIRE(result.error.find("cancelled") != std::string::npos);
 }

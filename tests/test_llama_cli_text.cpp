@@ -202,6 +202,62 @@ OFXGGML_TEST(llama_cli_backend_strips_startup_noise_from_final_text) {
 	OFXGGML_REQUIRE(result.rawOutput.find("ggml_cuda_init") != std::string::npos);
 }
 
+OFXGGML_TEST(llama_cli_backend_strips_prompt_echo_and_reasoning_blocks) {
+	ofxGgmlLlamaCliTextBackend backend(
+		[](const ofxGgmlTextCommand &,
+			const ofxGgmlTextChunkCallback &) {
+			ofxGgmlTextCommandResult result;
+			result.started = true;
+			result.exitCode = 0;
+			result.output =
+				"User: hi\n"
+				"\n"
+				"[Start thinking]\n"
+				"I should explain internal planning here.\n"
+				"[End thinking]\n"
+				"Hello. What would you like to build?\n";
+			return result;
+		});
+
+	ofxGgmlTextRequest request;
+	request.settings.executablePath = "llama-cli";
+	request.modelPath = "model.gguf";
+	request.prompt = "hi";
+
+	const auto result = backend.generate(request);
+
+	OFXGGML_REQUIRE(result);
+	OFXGGML_REQUIRE(result.text == "Hello. What would you like to build?");
+	OFXGGML_REQUIRE(result.text.find("thinking") == std::string::npos);
+	OFXGGML_REQUIRE(result.text.find("User:") == std::string::npos);
+}
+
+OFXGGML_TEST(llama_cli_backend_rejects_reasoning_only_output) {
+	ofxGgmlLlamaCliTextBackend backend(
+		[](const ofxGgmlTextCommand &,
+			const ofxGgmlTextChunkCallback &) {
+			ofxGgmlTextCommandResult result;
+			result.started = true;
+			result.exitCode = 0;
+			result.output =
+				"User: hi\n"
+				"[Start thinking]\n"
+				"I should not expose this.\n";
+			return result;
+		});
+
+	ofxGgmlTextRequest request;
+	request.settings.executablePath = "llama-cli";
+	request.modelPath = "model.gguf";
+	request.prompt = "hi";
+
+	const auto result = backend.generate(request);
+
+	OFXGGML_REQUIRE(!result);
+	OFXGGML_REQUIRE(result.error.find("no text output") != std::string::npos);
+	OFXGGML_REQUIRE(result.rawOutput.find("[Start thinking]") != std::string::npos);
+}
+
 OFXGGML_TEST(llama_cli_composes_messages_when_prompt_empty) {
 	ofxGgmlTextRequest request;
 	request.systemPrompt = "be brief";

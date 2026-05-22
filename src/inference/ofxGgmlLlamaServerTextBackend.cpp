@@ -5,6 +5,7 @@
 #include <cctype>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #if __has_include("ofMain.h")
 #include "ofMain.h"
@@ -38,6 +39,11 @@ std::string trimCopy(const std::string & value) {
 bool endsWith(const std::string & value, const std::string & suffix) {
 	return value.size() >= suffix.size() &&
 		value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+bool startsWith(const std::string & value, const std::string & prefix) {
+	return value.size() >= prefix.size() &&
+		value.compare(0, prefix.size(), prefix) == 0;
 }
 
 std::string stripTrailingSlash(std::string value) {
@@ -79,6 +85,184 @@ std::string escapeJson(const std::string & value) {
 	}
 	return escaped.str();
 }
+
+std::string eraseDelimitedBlock(
+	std::string value,
+	const std::string & beginMarker,
+	const std::string & endMarker) {
+	std::size_t begin = value.find(beginMarker);
+	while (begin != std::string::npos) {
+		const std::size_t end = value.find(endMarker, begin + beginMarker.size());
+		const std::size_t eraseEnd = end == std::string::npos
+			? value.size()
+			: end + endMarker.size();
+		value.erase(begin, eraseEnd - begin);
+		begin = value.find(beginMarker, begin);
+	}
+	return value;
+}
+
+std::string stripReasoningBlocks(std::string value) {
+	value = eraseDelimitedBlock(value, "<think>", "</think>");
+	value = eraseDelimitedBlock(value, "<thinking>", "</thinking>");
+	value = eraseDelimitedBlock(value, "[Start thinking]", "[End thinking]");
+	value = eraseDelimitedBlock(value, "[Start thinking]", "[Stop thinking]");
+	value = eraseDelimitedBlock(value, "[Thinking]", "[/Thinking]");
+	return trimCopy(value);
+}
+
+std::string stripLeadingRoleEchoes(const std::string & value) {
+	std::istringstream lines(value);
+	std::ostringstream cleaned;
+	std::string line;
+	bool wroteLine = false;
+	bool sawAssistantText = false;
+	while (std::getline(lines, line)) {
+		if (!line.empty() && line.back() == '\r') {
+			line.pop_back();
+		}
+		if (!sawAssistantText) {
+			const std::string trimmed = trimCopy(line);
+			if (startsWith(trimmed, "System:") || startsWith(trimmed, "User:")) {
+				continue;
+			}
+			if (startsWith(trimmed, "Assistant:")) {
+				line = trimCopy(trimmed.substr(10));
+				if (line.empty()) {
+					continue;
+				}
+			}
+			if (!trimCopy(line).empty()) {
+				sawAssistantText = true;
+			}
+		}
+		if (wroteLine) {
+			cleaned << '\n';
+		}
+		cleaned << line;
+		wroteLine = true;
+	}
+	return trimCopy(cleaned.str());
+}
+
+std::string sanitizeModelVisibleText(const std::string & value) {
+	return stripLeadingRoleEchoes(stripReasoningBlocks(value));
+}
+
+class ReasoningStreamFilter {
+public:
+	std::string push(const std::string & chunk) {
+		if (chunk.empty()) {
+			return {};
+		}
+		pending += chunk;
+		std::string visible;
+		while (!pending.empty()) {
+			if (insideReasoning) {
+				const auto end = findEarliest(pending, endMarkers());
+				if (end.found) {
+					pending.erase(0, end.position + end.marker.size());
+					insideReasoning = false;
+					continue;
+				}
+				keepReasoningTail();
+				break;
+			}
+			const auto begin = findEarliest(pending, beginMarkers());
+			if (begin.found) {
+				visible += pending.substr(0, begin.position);
+				pending.erase(0, begin.position + begin.marker.size());
+				insideReasoning = true;
+				continue;
+			}
+			flushSafeVisiblePrefix(visible);
+			break;
+		}
+		return visible;
+	}
+
+	std::string finish() {
+		if (insideReasoning) {
+			pending.clear();
+			return {};
+		}
+		std::string visible = pending;
+		pending.clear();
+		return visible;
+	}
+
+private:
+	struct MarkerMatch {
+		bool found = false;
+		std::size_t position = std::string::npos;
+		std::string marker;
+	};
+
+	static const std::vector<std::string> & beginMarkers() {
+		static const std::vector<std::string> markers = {
+			"<think>",
+			"<thinking>",
+			"[Start thinking]",
+			"[Thinking]"
+		};
+		return markers;
+	}
+
+	static const std::vector<std::string> & endMarkers() {
+		static const std::vector<std::string> markers = {
+			"</think>",
+			"</thinking>",
+			"[End thinking]",
+			"[Stop thinking]",
+			"[/Thinking]"
+		};
+		return markers;
+	}
+
+	static MarkerMatch findEarliest(
+		const std::string & value,
+		const std::vector<std::string> & markers) {
+		MarkerMatch result;
+		for (const auto & marker : markers) {
+			const std::size_t position = value.find(marker);
+			if (position != std::string::npos &&
+				(!result.found || position < result.position)) {
+				result.found = true;
+				result.position = position;
+				result.marker = marker;
+			}
+		}
+		return result;
+	}
+
+	static std::size_t maxMarkerSize(const std::vector<std::string> & markers) {
+		std::size_t size = 0;
+		for (const auto & marker : markers) {
+			size = std::max(size, marker.size());
+		}
+		return size;
+	}
+
+	void keepReasoningTail() {
+		const std::size_t keep = maxMarkerSize(endMarkers()) - 1;
+		if (pending.size() > keep) {
+			pending.erase(0, pending.size() - keep);
+		}
+	}
+
+	void flushSafeVisiblePrefix(std::string & visible) {
+		const std::size_t keep = maxMarkerSize(beginMarkers()) - 1;
+		if (pending.size() <= keep) {
+			return;
+		}
+		const std::size_t flushCount = pending.size() - keep;
+		visible += pending.substr(0, flushCount);
+		pending.erase(0, flushCount);
+	}
+
+	std::string pending;
+	bool insideReasoning = false;
+};
 
 bool appendDecodedJsonChar(const std::string & value, std::size_t & index, std::string & out) {
 	if (index >= value.size()) {
@@ -365,13 +549,43 @@ ofxGgmlTextResult ofxGgmlLlamaServerTextBackend::generate(
 		prompt,
 		request.settings.serverModel);
 	serverRequest.stream = request.settings.stream;
-	serverRequest.onChunk = onChunk;
-	if (onChunk) {
-		serverRequest.shouldCancel = [onChunk]() {
-			return !onChunk(std::string());
+	ReasoningStreamFilter streamFilter;
+	bool streamCallbackCancelled = false;
+	if (onChunk && request.settings.stream) {
+		serverRequest.onChunk = [&streamFilter, onChunk, &streamCallbackCancelled](
+			const std::string & chunk) {
+			if (chunk.empty()) {
+				const bool keepGoing = onChunk(std::string());
+				if (!keepGoing) {
+					streamCallbackCancelled = true;
+				}
+				return keepGoing;
+			}
+			const std::string visible = streamFilter.push(chunk);
+			if (visible.empty()) {
+				return true;
+			}
+			const bool keepGoing = onChunk(visible);
+			if (!keepGoing) {
+				streamCallbackCancelled = true;
+			}
+			return keepGoing;
+		};
+	} else {
+		serverRequest.onChunk = onChunk;
+	}
+	if (serverRequest.onChunk) {
+		serverRequest.shouldCancel = [&serverRequest]() {
+			return !serverRequest.onChunk(std::string());
 		};
 	}
 	const ofxGgmlTextServerResponse response = requestRunner(serverRequest);
+	if (onChunk && request.settings.stream && !streamCallbackCancelled) {
+		const std::string tail = streamFilter.finish();
+		if (!tail.empty() && !onChunk(tail)) {
+			streamCallbackCancelled = true;
+		}
+	}
 	result.elapsedMs = std::chrono::duration<float, std::milli>(
 		std::chrono::steady_clock::now() - started).count();
 	result.rawOutput = response.body;
@@ -392,6 +606,11 @@ ofxGgmlTextResult ofxGgmlLlamaServerTextBackend::generate(
 		result.error = response.error.empty()
 			? "llama-server request cancelled"
 			: response.error;
+		return result;
+	}
+	if (streamCallbackCancelled) {
+		result.text = sanitizeModelVisibleText(response.text);
+		result.error = "llama-server request cancelled";
 		return result;
 	}
 	if (response.status <= 0) {
@@ -415,6 +634,7 @@ ofxGgmlTextResult ofxGgmlLlamaServerTextBackend::generate(
 	result.text = request.settings.stream
 		? response.text
 		: extractTextFromResponse(response.body);
+	result.text = sanitizeModelVisibleText(result.text);
 	if (result.text.empty()) {
 		result.error = "llama-server returned empty output";
 		return result;
@@ -495,7 +715,8 @@ std::string ofxGgmlLlamaServerTextBackend::buildRequestBody(
 	body << "\"max_tokens\":" << std::max(1, request.settings.maxTokens) << ",";
 	body << "\"temperature\":" << std::max(0.0f, request.settings.temperature) << ",";
 	body << "\"top_p\":" << std::clamp(request.settings.topP, 0.0f, 1.0f) << ",";
-	body << "\"stream\":" << (request.settings.stream ? "true" : "false");
+	body << "\"stream\":" << (request.settings.stream ? "true" : "false") << ",";
+	body << "\"chat_template_kwargs\":{\"enable_thinking\":false}";
 	if (request.settings.topK > 0) {
 		body << ",\"top_k\":" << request.settings.topK;
 	}
