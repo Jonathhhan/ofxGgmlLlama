@@ -211,7 +211,7 @@ function New-OpenCodePermission {
 		task = $Task
 		external_directory = "ask"
 		webfetch = "deny"
-		websearch = "deny"
+		websearch = "allow"
 	}
 }
 

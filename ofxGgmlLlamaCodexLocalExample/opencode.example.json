@@ -44,7 +44,7 @@
         "task": "ask",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     },
     "plan": {
@@ -62,7 +62,7 @@
         "task": "ask",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     },
     "explore": {
@@ -80,7 +80,7 @@
         "task": "deny",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     }
   },
@@ -94,7 +94,7 @@
     "task": "ask",
     "external_directory": "ask",
     "webfetch": "deny",
-    "websearch": "deny"
+    "websearch": "allow"
   },
   "disabled_providers": [
     "openai",

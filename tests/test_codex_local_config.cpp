@@ -64,8 +64,8 @@ OFXGGML_TEST(codex_config_writes_self_contained_local_agent_roles) {
 	config.modelContextWindow = 40960;
 	config.modelAutoCompactTokenLimit = 30000;
 	config.toolOutputTokenLimit = 5000;
-	config.agentMaxConcurrentThreadsPerSession = 1;
-	config.agentMaxDepth = 1;
+	config.agentMaxConcurrentThreadsPerSession = 0;
+	config.agentMaxDepth = 0;
 	config.writeAgentSettings = true;
 	config.writeAgentRoleFiles = true;
 	const auto result = ofxGgmlLlamaCodexLocal::writeCodexConfig(configPath.string(), config);
@@ -87,6 +87,32 @@ OFXGGML_TEST(codex_config_writes_self_contained_local_agent_roles) {
 	OFXGGML_REQUIRE(explorer.find("[agents]") == std::string::npos);
 	OFXGGML_REQUIRE(explorer.find("agent_max_threads") == std::string::npos);
 	std::filesystem::remove_all(root);
+}
+
+OFXGGML_TEST(codex_config_omits_agent_max_threads_for_auto) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.modelAlias = "local/new-selected-model";
+	config.agentMaxConcurrentThreadsPerSession = 0;
+	config.agentMaxDepth = 0;
+
+	const auto snippet = ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config);
+
+	OFXGGML_REQUIRE(snippet.find("[agents]") == std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("max_threads") == std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("max_depth") == std::string::npos);
+}
+
+OFXGGML_TEST(codex_config_writes_positive_agent_overrides) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.modelAlias = "local/new-selected-model";
+	config.agentMaxConcurrentThreadsPerSession = 2;
+	config.agentMaxDepth = 3;
+
+	const auto snippet = ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config);
+
+	OFXGGML_REQUIRE(snippet.find("[agents]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("max_threads = 2") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("max_depth = 3") != std::string::npos);
 }
 
 OFXGGML_TEST(codex_config_snippet_includes_self_contained_provider) {

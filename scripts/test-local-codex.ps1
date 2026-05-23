@@ -9,11 +9,12 @@ param(
 	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 50000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 8000 }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
-	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
-	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 1 }),
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 0 }),
+	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
 	[string]$ExpectedMarker = "LOCAL_CODEX_OK",
 	[string]$Prompt = "",
 	[int]$TimeoutSeconds = 120,
+	[string]$CodexSandbox = $(if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { "read-only" }),
 	[switch]$UseServedModel,
 	[switch]$SkipAgentRoleFiles,
 	[switch]$DryRun,
@@ -58,28 +59,34 @@ function Invoke-CodexProcess {
 	$stdoutPath = Join-Path $tempRoot "ofxggml-codex-smoke-$stamp.out"
 	$stderrPath = Join-Path $tempRoot "ofxggml-codex-smoke-$stamp.err"
 	try {
-		$process = Start-Process `
-			-FilePath $Exe `
-			-ArgumentList (Join-CodexArguments $Arguments) `
-			-RedirectStandardOutput $stdoutPath `
-			-RedirectStandardError $stderrPath `
-			-NoNewWindow `
-			-PassThru
+		$processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+		$processInfo.FileName = $Exe
+		$processInfo.Arguments = Join-CodexArguments $Arguments
+		$processInfo.UseShellExecute = $false
+		$processInfo.RedirectStandardOutput = $true
+		$processInfo.RedirectStandardError = $true
+		$processInfo.CreateNoWindow = $true
+
+		$process = [System.Diagnostics.Process]::new()
+		$process.StartInfo = $processInfo
+		[void]$process.Start()
 		if (-not $process.WaitForExit([Math]::Max(1, $Timeout) * 1000)) {
 			$process.Kill()
 			$process.WaitForExit()
 			return [pscustomobject]@{
 				ExitCode = 124
 				TimedOut = $true
-				Stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
-				Stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
+				Stdout = $process.StandardOutput.ReadToEnd()
+				Stderr = $process.StandardError.ReadToEnd()
 			}
 		}
+		$stdout = $process.StandardOutput.ReadToEnd()
+		$stderr = $process.StandardError.ReadToEnd()
 		return [pscustomobject]@{
 			ExitCode = [int]$process.ExitCode
 			TimedOut = $false
-			Stdout = if (Test-Path -LiteralPath $stdoutPath -PathType Leaf) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
-			Stderr = if (Test-Path -LiteralPath $stderrPath -PathType Leaf) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
+			Stdout = $stdout
+			Stderr = $stderr
 		}
 	} finally {
 		Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
@@ -230,13 +237,12 @@ $arguments = @(
 	"--json",
 	"--ephemeral",
 	"--skip-git-repo-check",
-	"-p", $CodexProfile,
 	"--disable", "apps",
 	"--disable", "image_generation",
 	"--disable", "browser_use",
 	"--disable", "computer_use",
 	"--disable", "tool_search",
-	"-c", "web_search=`"disabled`"",
+	"-c", "web_search=`"live`"",
 	"-c", "model_provider=llama_cpp",
 	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
 	"-c", "model_providers.llama_cpp.base_url=`"$resolvedApiRoot`"",
@@ -247,15 +253,25 @@ $arguments = @(
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
 	"-c", "model_reasoning_effort=medium",
 	"-c", "model_reasoning_summary=none",
-	"-c", "hide_agent_reasoning=true",
-	"-c", "agents.max_threads=$AgentMaxConcurrentThreads",
-	"-c", "agents.max_depth=$AgentMaxDepth"
+	"-c", "hide_agent_reasoning=true"
 )
+if ($plan.Config.HasProfile) {
+	$arguments = @("-a", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "-p", $CodexProfile) + @($arguments | Select-Object -Skip 6)
+}
+if ($AgentMaxConcurrentThreads -gt 0) {
+	$arguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
+}
+if ($AgentMaxDepth -gt 0) {
+	$arguments += @("-c", "agents.max_depth=$AgentMaxDepth")
+}
 
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$arguments += @("--model", $resolvedModel)
 }
-$arguments += @("--sandbox", "read-only", $Prompt)
+if (![string]::IsNullOrWhiteSpace($CodexSandbox)) {
+	$arguments += @("--sandbox", $CodexSandbox)
+}
+$arguments += @($Prompt)
 $command = "`"$resolvedCodex`" $(Join-CodexArguments $arguments)"
 $agentRoleFiles = [pscustomobject]@{
 	ConfigPath = $plan.Config.Path

@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <thread>
 
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
@@ -40,15 +41,15 @@ struct CodexLocalPreset {
 
 const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
-		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 1, 1, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
-		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 1, 1, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
-		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 1, 1, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
-		{"quality", "Quality coding", 65536, 1, 3072, 768, 0, 0, 0, 256, "", "", 65536, 50000, 8000, 1, 1, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx", "Full context Q8", 0, 1, 2048, 512, 0, 0, 0, 512, "q8_0", "q8_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx-q5", "Full context Q5", 0, 1, 2048, 512, 0, 0, 0, 512, "q5_0", "q5_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx-q4", "Full context Q4", 0, 1, 1536, 384, 0, 0, 0, 512, "q4_0", "q4_0", 131072, 112000, 12000, 1, 1, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"long", "Long context", 131072, 1, 4096, 1024, 0, 0, 0, 512, "", "", 131072, 100000, 8000, 1, 1, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
-		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 2, 1, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
+		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 0, 0, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
+		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
+		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 0, 0, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
+		{"quality", "Quality coding", 65536, 1, 3072, 768, 0, 0, 0, 256, "", "", 65536, 50000, 8000, 0, 0, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx", "Full context Q8", 0, 1, 2048, 512, 0, 0, 0, 512, "q8_0", "q8_0", 131072, 112000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx-q5", "Full context Q5", 0, 1, 2048, 512, 0, 0, 0, 512, "q5_0", "q5_0", 131072, 112000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"fullctx-q4", "Full context Q4", 0, 1, 1536, 384, 0, 0, 0, 512, "q4_0", "q4_0", 131072, 112000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
+		{"long", "Long context", 131072, 1, 4096, 1024, 0, 0, 0, 512, "", "", 131072, 100000, 8000, 0, 0, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
+		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 2, 0, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
 	};
 	return presets;
 }
@@ -315,6 +316,7 @@ void ofApp::setup() {
 	modelAlias = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_MODEL", "");
 	serverExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_LLAMA_SERVER_EXE", "");
 	codexExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_EXE", "");
+	codexSandbox = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_SANDBOX", "");
 	configPath = ofxGgmlLlamaCodexLocal::resolveCodexConfigPath();
 	gpuLayersAll = envGpuLayersAll("OFXGGML_CODEX_GPU_LAYERS", gpuLayersAll);
 	gpuLayers = envInt("OFXGGML_CODEX_GPU_LAYERS", gpuLayers);
@@ -351,7 +353,16 @@ void ofApp::setup() {
 	agentMaxConcurrentThreadsPerSession = envInt(
 		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
 		agentMaxConcurrentThreadsPerSession);
+	const bool hasAgentThreadEnv =
+		hasEnvValue("OFXGGML_CODEX_AGENT_MAX_AGENTS") ||
+		hasEnvValue("OFXGGML_CODEX_AGENT_MAX_THREADS") ||
+		hasEnvValue("OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS");
 	agentMaxDepth = envInt("OFXGGML_CODEX_AGENT_MAX_DEPTH", agentMaxDepth);
+	applyInteractiveThreadBudget(
+		!hasAgentThreadEnv,
+		!hasEnvValue("OFXGGML_CODEX_THREADS"),
+		!hasEnvValue("OFXGGML_CODEX_THREADS_BATCH"),
+		!hasEnvValue("OFXGGML_CODEX_THREADS_HTTP"));
 	agentMinWaitTimeoutMs = envInt("OFXGGML_CODEX_AGENT_MIN_WAIT_MS", agentMinWaitTimeoutMs);
 	agentMaxWaitTimeoutMs = envInt("OFXGGML_CODEX_AGENT_MAX_WAIT_MS", agentMaxWaitTimeoutMs);
 	agentDefaultWaitTimeoutMs = envInt(
@@ -451,6 +462,9 @@ void ofApp::draw() {
 		if (ImGui::InputText("Codex profile", &codexProfile)) {
 			rebuildLines();
 		}
+		if (ImGui::InputText("Codex sandbox", &codexSandbox)) {
+			rebuildLines();
+		}
 		ImGui::InputText("Codex config", &configPath);
 
 		ImGui::Separator();
@@ -485,7 +499,9 @@ void ofApp::draw() {
 		ImGui::InputInt("GPU layers", &gpuLayers);
 		ImGui::EndDisabled();
 		ImGui::InputInt("Context size", &contextSize);
-		ImGui::InputInt("Parallel", &parallel);
+		if (ImGui::InputInt("Parallel", &parallel)) {
+			applyInteractiveThreadBudget(true, true, true, true);
+		}
 		ImGui::InputInt("Batch size", &batchSize);
 		ImGui::InputInt("UBatch size", &ubatchSize);
 		ImGui::InputInt("Threads (0 auto)", &threads);
@@ -514,8 +530,8 @@ void ofApp::draw() {
 		ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f");
 		ImGui::Separator();
 		ImGui::TextUnformatted("Agent settings");
-		ImGui::InputInt("Agent max threads", &agentMaxConcurrentThreadsPerSession);
-		ImGui::InputInt("Agent max depth", &agentMaxDepth);
+		ImGui::InputInt("Agent max threads (0 auto)", &agentMaxConcurrentThreadsPerSession);
+		ImGui::InputInt("Agent max depth (0 auto)", &agentMaxDepth);
 		ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs);
 		ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs);
 		ImGui::InputInt("Agent default wait ms", &agentDefaultWaitTimeoutMs);
@@ -796,11 +812,12 @@ void ofApp::runLaunchCodexWorker() {
 	std::string requestProfile;
 	std::string requestBaseUrl;
 	std::string requestModelAlias;
+	std::string requestSandbox;
 	int requestModelContextWindow = 65536;
 	int requestModelAutoCompactTokenLimit = 50000;
 	int requestToolOutputTokenLimit = 8000;
-	int requestAgentMaxConcurrentThreadsPerSession = 1;
-	int requestAgentMaxDepth = 1;
+	int requestAgentMaxConcurrentThreadsPerSession = 0;
+	int requestAgentMaxDepth = 0;
 	int requestAgentMinWaitTimeoutMs = 2500;
 	int requestAgentMaxWaitTimeoutMs = 180000;
 	int requestAgentDefaultWaitTimeoutMs = 30000;
@@ -812,6 +829,7 @@ void ofApp::runLaunchCodexWorker() {
 		requestProfile = codexProfile.empty() ? "ofxggml_local" : codexProfile;
 		requestBaseUrl = baseUrl;
 		requestModelAlias = modelAlias;
+		requestSandbox = codexSandbox;
 		requestModelContextWindow = modelContextWindow;
 		requestModelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
 		requestToolOutputTokenLimit = toolOutputTokenLimit;
@@ -839,8 +857,12 @@ void ofApp::runLaunchCodexWorker() {
 	if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--disable")) {
 		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
 	}
+	if (!requestSandbox.empty() &&
+		ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--sandbox")) {
+		arguments += "--sandbox " + ofxGgmlLlamaCodexLocal::quoteArgument(requestSandbox) + " ";
+	}
 	arguments += "-p " + ofxGgmlLlamaCodexLocal::quoteArgument(requestProfile) + " ";
-	appendCodexConfigOverride(arguments, "web_search", "\"disabled\"");
+	appendCodexConfigOverride(arguments, "web_search", "\"live\"");
 	appendCodexConfigOverride(arguments, "model_provider", "llama_cpp");
 	appendCodexConfigOverride(arguments, "model_providers.llama_cpp.name", "\"llama.cpp local\"");
 	appendCodexConfigOverride(
@@ -867,11 +889,15 @@ void ofApp::runLaunchCodexWorker() {
 	appendCodexConfigOverride(arguments, "model_reasoning_effort", requestReasoningEffort);
 	appendCodexConfigOverride(arguments, "model_reasoning_summary", "none");
 	appendCodexConfigOverride(arguments, "hide_agent_reasoning", "true");
-	appendCodexConfigOverride(
-		arguments,
-		"agents.max_threads",
-		std::to_string(requestAgentMaxConcurrentThreadsPerSession));
-	appendCodexConfigOverride(arguments, "agents.max_depth", std::to_string(requestAgentMaxDepth));
+	if (requestAgentMaxConcurrentThreadsPerSession > 0) {
+		appendCodexConfigOverride(
+			arguments,
+			"agents.max_threads",
+			std::to_string(requestAgentMaxConcurrentThreadsPerSession));
+	}
+	if (requestAgentMaxDepth > 0) {
+		appendCodexConfigOverride(arguments, "agents.max_depth", std::to_string(requestAgentMaxDepth));
+	}
 	if (!requestModelAlias.empty()) {
 		if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--model")) {
 			arguments += "--model " + ofxGgmlLlamaCodexLocal::quoteArgument(requestModelAlias);
@@ -1016,6 +1042,7 @@ void ofApp::applyPreset(int index) {
 	applyModelContextMetadataDefaults();
 	toolOutputTokenLimit = preset.toolOutputTokenLimit;
 	agentMaxConcurrentThreadsPerSession = preset.agentMaxConcurrentThreads;
+	applyInteractiveThreadBudget(true, true, true, true);
 	agentMaxDepth = preset.agentMaxDepth;
 	agentMinWaitTimeoutMs = preset.agentMinWaitMs;
 	agentMaxWaitTimeoutMs = preset.agentMaxWaitMs;
@@ -1025,6 +1052,17 @@ void ofApp::applyPreset(int index) {
 	topP = preset.topP;
 	minP = preset.minP;
 	gpuLayersAll = true;
+}
+
+void ofApp::applyInteractiveThreadBudget(
+	bool overwriteAgentOverride,
+	bool overwriteThreadOverride,
+	bool overwriteBatchThreadOverride,
+	bool overwriteHttpThreadOverride) {
+	parallel = std::max(1, parallel);
+	if (overwriteAgentOverride && agentMaxConcurrentThreadsPerSession > 0) {
+		agentMaxConcurrentThreadsPerSession = std::max(1, parallel);
+	}
 }
 
 bool ofApp::adoptServedModelAliasIfNeeded() {
@@ -1125,7 +1163,8 @@ std::vector<std::string> ofApp::collectPreflightIssues(
 	if (batchSize < 1 || ubatchSize < 1) {
 		issues.push_back("batch and ubatch sizes must be at least 1");
 	}
-	if (agentMaxConcurrentThreadsPerSession > std::max(1, parallel)) {
+	if (agentMaxConcurrentThreadsPerSession > 0 &&
+		agentMaxConcurrentThreadsPerSession > std::max(1, parallel)) {
 		issues.push_back("agent max threads is higher than server parallel slots");
 	}
 	return issues;

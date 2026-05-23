@@ -125,7 +125,7 @@ means `llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL`.
 OpenCode has primary agents such as `build` and `plan`, plus subagents such as
 `explore`. The example config pins those agents to the local model, uses
 `build` as the default primary agent, allows read/search tools, asks before
-edits, shell commands, or primary-agent task delegation, and denies web access
+edits, shell commands, or primary-agent task delegation, and allows web access
 for a predictable local loop:
 
 ```json
@@ -144,7 +144,7 @@ for a predictable local loop:
         "task": "ask",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     },
     "plan": {
@@ -160,7 +160,7 @@ for a predictable local loop:
         "task": "ask",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     },
     "explore": {
@@ -176,7 +176,7 @@ for a predictable local loop:
         "task": "deny",
         "external_directory": "ask",
         "webfetch": "deny",
-        "websearch": "deny"
+        "websearch": "allow"
       }
     }
   }

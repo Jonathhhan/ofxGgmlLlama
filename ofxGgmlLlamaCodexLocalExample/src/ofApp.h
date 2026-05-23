@@ -32,6 +32,11 @@ private:
 	void refreshModelAliasForPath(const std::string & previousModelPath);
 	void applyModelContextMetadataDefaults();
 	void applyPreset(int index);
+	void applyInteractiveThreadBudget(
+		bool overwriteAgentOverride,
+		bool overwriteThreadOverride,
+		bool overwriteBatchThreadOverride,
+		bool overwriteHttpThreadOverride);
 	bool adoptServedModelAliasIfNeeded();
 	bool syncCodexConfig();
 	std::vector<std::string> collectPreflightIssues(
@@ -57,6 +62,7 @@ private:
 	std::string codexExe;
 	std::string serverExe;
 	std::string codexProfile = "ofxggml_local";
+	std::string codexSandbox = "";
 	std::string configPath;
 	std::string wireApi = "responses";
 
@@ -85,8 +91,8 @@ private:
 	int modelContextWindow = 65536;
 	int modelAutoCompactTokenLimit = 50000;
 	int toolOutputTokenLimit = 8000;
-	int agentMaxConcurrentThreadsPerSession = 1;
-	int agentMaxDepth = 1;
+	int agentMaxConcurrentThreadsPerSession = 0;
+	int agentMaxDepth = 0;
 	int agentMinWaitTimeoutMs = 2500;
 	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;

@@ -141,8 +141,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 16384
 				ModelAutoCompactTokenLimit = 12000
 				ToolOutputTokenLimit = 3000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 90000
 				AgentDefaultWaitMs = 30000
@@ -169,8 +169,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 32768
 				ModelAutoCompactTokenLimit = 24000
 				ToolOutputTokenLimit = 5000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 120000
 				AgentDefaultWaitMs = 30000
@@ -197,8 +197,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 40960
 				ModelAutoCompactTokenLimit = 30000
 				ToolOutputTokenLimit = 5000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 120000
 				AgentDefaultWaitMs = 30000
@@ -225,8 +225,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 65536
 				ModelAutoCompactTokenLimit = 50000
 				ToolOutputTokenLimit = 8000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 180000
 				AgentDefaultWaitMs = 30000
@@ -253,8 +253,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 112000
 				ToolOutputTokenLimit = 12000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 5000
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
@@ -281,8 +281,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 112000
 				ToolOutputTokenLimit = 12000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 5000
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
@@ -309,8 +309,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 112000
 				ToolOutputTokenLimit = 12000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 5000
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
@@ -337,8 +337,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelContextWindow = 131072
 				ModelAutoCompactTokenLimit = 100000
 				ToolOutputTokenLimit = 8000
-				AgentMaxConcurrentThreads = 1
-				AgentMaxDepth = 1
+				AgentMaxConcurrentThreads = 0
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 5000
 				AgentMaxWaitMs = 300000
 				AgentDefaultWaitMs = 30000
@@ -366,7 +366,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 				ModelAutoCompactTokenLimit = 24000
 				ToolOutputTokenLimit = 5000
 				AgentMaxConcurrentThreads = 2
-				AgentMaxDepth = 1
+				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
 				AgentMaxWaitMs = 180000
 				AgentDefaultWaitMs = 30000
@@ -549,7 +549,7 @@ if ($isCodex) {
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
 	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
-	Write-OfxGgmlStep "Using Codex agent settings: max_threads=$AgentMaxConcurrentThreads max_depth=$AgentMaxDepth wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
+	Write-OfxGgmlStep "Using Codex agent settings: max_threads=$(if ($AgentMaxConcurrentThreads -gt 0) { $AgentMaxConcurrentThreads } else { 'auto' }) max_depth=$(if ($AgentMaxDepth -gt 0) { $AgentMaxDepth } else { 'auto' }) wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
 	if ($DryRun) {
 		Write-OfxGgmlStep "Executable: $exampleExe"
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"

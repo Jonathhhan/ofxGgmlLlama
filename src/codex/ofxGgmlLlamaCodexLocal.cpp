@@ -707,7 +707,7 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	if (config.writeTopLevelSelection) {
 		output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 		output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
-		output << "web_search = \"disabled\"\n\n";
+		output << "web_search = \"live\"\n\n";
 		output << "model_context_window = " << std::max(1024, config.modelContextWindow) << "\n";
 		output << "model_auto_compact_token_limit = " << std::max(1024, config.modelAutoCompactTokenLimit) << "\n";
 		output << "tool_output_token_limit = " << std::max(512, config.toolOutputTokenLimit) << "\n\n";
@@ -725,16 +725,20 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	output << "[profiles." << profile << "]\n";
 	output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 	output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
-	output << "web_search = \"disabled\"\n";
+	output << "web_search = \"live\"\n";
 	output << "model_reasoning_effort = \"" <<
 		escapeTomlString(config.modelReasoningEffort) << "\"\n";
 	output << "model_reasoning_summary = \"" <<
 		escapeTomlString(config.modelReasoningSummary) << "\"\n";
-	if (config.writeAgentSettings) {
+	if (config.writeAgentSettings &&
+		(config.agentMaxConcurrentThreadsPerSession > 0 || config.agentMaxDepth > 0)) {
 		output << "\n[agents]\n";
-		output << "max_threads = " <<
-			std::max(1, config.agentMaxConcurrentThreadsPerSession) << "\n";
-		output << "max_depth = " << std::max(1, config.agentMaxDepth) << "\n";
+		if (config.agentMaxConcurrentThreadsPerSession > 0) {
+			output << "max_threads = " << config.agentMaxConcurrentThreadsPerSession << "\n";
+		}
+		if (config.agentMaxDepth > 0) {
+			output << "max_depth = " << config.agentMaxDepth << "\n";
+		}
 	}
 	return output.str();
 }

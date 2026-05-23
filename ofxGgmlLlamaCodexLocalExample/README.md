@@ -177,7 +177,7 @@ Use this provider/profile shape:
 ```toml
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
@@ -194,13 +194,9 @@ stream_idle_timeout_ms = 10000000
 [profiles.ofxggml_local]
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[agents]
-max_threads = 1
-max_depth = 1
 ```
 
 `profiles.ofxggml_local.model` must match the llama-server alias used by the
@@ -229,7 +225,7 @@ The example's **Launch Codex** button uses the same custom-provider contract:
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"disabled"' `
+    -c web_search='"live"' `
     -c model_provider=llama_cpp `
     -c model_providers.llama_cpp.base_url='"http://127.0.0.1:8001/v1"' `
     -c model_providers.llama_cpp.wire_api='"responses"' `
@@ -239,12 +235,10 @@ codex --no-alt-screen -p ofxggml_local `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c hide_agent_reasoning=true `
-    -c agents.max_threads=1 `
-    -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally conservative for local GGUF models. `agents.max_threads` caps local worker fanout and `agents.max_depth` caps nested delegation. Keep the thread cap aligned with server `--parallel`. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for the same cap.
+The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -292,7 +286,7 @@ OpenCode uses JSON config instead of Codex TOML. The local provider shape is:
 This folder includes `opencode.example.json` with provider, model limit, and
 conservative OpenCode `build`, `plan`, and `explore` agent settings. It makes
 `build` the default primary agent, allows read/search tools, asks before edits,
-shell commands, or primary-agent task delegation, and keeps web access disabled
+shell commands, or primary-agent task delegation, and keeps web access allowed
 for local coding sessions. The full model id is
 `llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL`: provider key first, then the
 llama-server model alias.
@@ -356,6 +350,7 @@ $env:OFXGGML_CODEX_AUTO_CONFIG = "1"
 $env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "0"
 $env:OFXGGML_CODEX_SKIP_CHAT_PARSING = "0"
 $env:OFXGGML_CODEX_CONFIG_PATH = "%USERPROFILE%\.codex\config.toml"
+$env:OFXGGML_CODEX_SANDBOX = "danger-full-access"
 $env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
 
@@ -368,6 +363,10 @@ server manually. It starts the local server when possible and can automatically
 write the needed provider/profile sections into the local Codex config if
 `OFXGGML_CODEX_AUTO_CONFIG` is set to `1` (default).
 Use the UI button **Write Codex config** if you prefer a manual write.
+If Codex reports that the Windows admin sandbox could not be initialized, set
+`OFXGGML_CODEX_SANDBOX` or the example's **Codex sandbox** field to a mode your
+installed Codex build supports, such as `danger-full-access`, for a local smoke
+run.
 
 ## Validate
 

@@ -1,6 +1,6 @@
 model = "local/example-model"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
@@ -18,10 +18,6 @@ stream_idle_timeout_ms = 10000000
 # Must match the llama-server alias shown as ServerModel in the example.
 model = "local/example-model"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[agents]
-max_threads = 1
-max_depth = 1

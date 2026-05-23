@@ -345,7 +345,7 @@ Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run
 Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=default ctv=default spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=50000 tool_output=8000" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=1 wait_ms=2500/30000/180000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex agent settings: max_threads=auto max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"

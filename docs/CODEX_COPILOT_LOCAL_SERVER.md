@@ -204,7 +204,7 @@ For Codex, the local config shape is (and is typically resolved from
 ```toml
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
@@ -221,13 +221,9 @@ stream_idle_timeout_ms = 10000000
 [profiles.ofxggml_local]
 model = "local/GLM-4.7-Flash-UD-Q4_K_XL"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
-
-[agents]
-max_threads = 1
-max_depth = 1
 ```
 
 The example auto-config writer also refreshes `%CODEX_HOME%\agents\explorer.toml`
@@ -262,7 +258,7 @@ Use the custom provider explicitly when launching Codex:
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"disabled"' `
+    -c web_search='"live"' `
     -c model_provider=llama_cpp `
     -c model_context_window=65536 `
     -c model_auto_compact_token_limit=50000 `
@@ -270,12 +266,15 @@ codex --no-alt-screen -p ofxggml_local `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c hide_agent_reasoning=true `
-    -c agents.max_threads=1 `
-    -c agents.max_depth=1 `
     --model local/GLM-4.7-Flash-UD-Q4_K_XL
 ```
 
-The agent defaults are intentionally narrow for one local `llama-server`. `agents.max_threads` caps local worker fanout and `agents.max_depth` caps nested delegation. Increase them only when your model, VRAM, and server `--parallel` setting can absorb concurrent Codex work. Helper scripts expose the thread cap as `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents`.
+If Codex reports that the Windows admin sandbox could not be initialized, set
+`OFXGGML_CODEX_SANDBOX` or the example's **Codex sandbox** field to a mode your
+installed Codex build supports, such as `danger-full-access`, for a local smoke
+run.
+
+The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. Helper scripts expose an explicit thread cap as `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents`, and an explicit depth cap as `-AgentMaxDepth`.
 
 Do not use `--oss` for this llama.cpp lane. `--oss` selects Codex's built-in
 open-source provider flow; this ecosystem lane is a named OpenAI-compatible

@@ -34,8 +34,8 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	int modelContextWindow = 65536;
 	int modelAutoCompactTokenLimit = 50000;
 	int toolOutputTokenLimit = 8000;
-	int agentMaxConcurrentThreadsPerSession = 1;
-	int agentMaxDepth = 1;
+	int agentMaxConcurrentThreadsPerSession = 0;
+	int agentMaxDepth = 0;
 	int agentMinWaitTimeoutMs = 2500;
 	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;

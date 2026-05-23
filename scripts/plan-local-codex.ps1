@@ -8,8 +8,8 @@ param(
 	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 50000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 8000 }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
-	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
-	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 1 }),
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 0 }),
+	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
 	[switch]$UseServedModel,
 	[int]$TimeoutSeconds = 2,
 	[switch]$Json,
@@ -490,13 +490,12 @@ $configState = [ordered]@{
 }
 $launchArguments = @(
 	"--no-alt-screen",
-	"-p", $resolvedProfile,
 	"--disable", "apps",
 	"--disable", "image_generation",
 	"--disable", "browser_use",
 	"--disable", "computer_use",
 	"--disable", "tool_search",
-	"-c", "web_search=`"disabled`"",
+	"-c", "web_search=`"live`"",
 	"-c", "model_provider=llama_cpp",
 	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
 	"-c", "model_providers.llama_cpp.base_url=`"$apiRoot`"",
@@ -507,10 +506,17 @@ $launchArguments = @(
 	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
 	"-c", "model_reasoning_effort=medium",
 	"-c", "model_reasoning_summary=none",
-	"-c", "hide_agent_reasoning=true",
-	"-c", "agents.max_threads=$AgentMaxConcurrentThreads",
-	"-c", "agents.max_depth=$AgentMaxDepth"
+	"-c", "hide_agent_reasoning=true"
 )
+if ($configState.HasProfile) {
+	$launchArguments = @("--no-alt-screen", "-p", $resolvedProfile) + @($launchArguments | Select-Object -Skip 1)
+}
+if ($AgentMaxConcurrentThreads -gt 0) {
+	$launchArguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
+}
+if ($AgentMaxDepth -gt 0) {
+	$launchArguments += @("-c", "agents.max_depth=$AgentMaxDepth")
+}
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$launchArguments += @("--model", $resolvedModel)
 }
