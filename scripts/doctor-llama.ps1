@@ -1,4 +1,4 @@
-param(
+﻿param(
 	[string]$TextServerUrl = $(if ($env:OFXGGML_TEXT_SERVER_URL) { $env:OFXGGML_TEXT_SERVER_URL } else { "http://127.0.0.1:8080" }),
 	[string]$EmbeddingServerUrl = $(if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }),
 	[switch]$Json,
@@ -79,6 +79,99 @@ function Get-ServerStatus {
 	return ($statusJson -join "`n") | ConvertFrom-Json
 }
 
+function Test-EndpointProbe {
+	param([string]$BaseUrl, [string]$ProbePath, [string]$Label, [hashtable]$Body = $null)
+	$serverRoot = $BaseUrl.TrimEnd("/")
+	$uri = "$serverRoot$ProbePath"
+	$result = [ordered]@{
+		Label = $Label
+		Uri = $uri
+		Ok = $false
+		StatusCode = 0
+		Message = ""
+	}
+	try {
+		if ($null -ne $Body) {
+			$jsonBody = $Body | ConvertTo-Json -Compress
+			$response = Invoke-WebRequest -Uri $uri -Method Post -UseBasicParsing -TimeoutSec 5 `
+				-ContentType "application/json" -Body $jsonBody -ErrorAction Stop
+		} else {
+			$response = Invoke-WebRequest -Uri $uri -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+		}
+		$result.StatusCode = [int]$response.StatusCode
+		$result.Ok = ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300)
+		$result.Message = ($response.Content | Out-String).Trim()
+		if ($result.Message.Length -gt 200) {
+			$result.Message = $result.Message.Substring(0, 200) + "..."
+		}
+	} catch {
+		if ($_.Exception.Response) {
+			$result.StatusCode = [int]$_.Exception.Response.StatusCode
+			$result.Message = $_.Exception.Message
+		} else {
+			$result.Message = $_.Exception.Message
+		}
+	}
+	return [pscustomobject]$result
+}
+
+function Test-PortConflict {
+	param([string]$HostName, [int]$Port)
+	$tcp = New-Object System.Net.Sockets.TcpClient
+	try {
+		$tcp.Connect($Host, $Port)
+		return $true
+	} catch {
+		return $false
+	} finally {
+		try { $tcp.Close() } catch {}
+	}
+}
+
+function Get-ServerReadiness {
+	param([string]$Url, [string]$Label)
+	$serverRoot = $Url.TrimEnd("/")
+	$hostPart = $serverRoot -replace '^http://', ''
+	$port = [int]($hostPart -split ':')[1]
+	$hostName = ($hostPart -split ':')[0]
+	
+	$portOpen = Test-PortConflict -HostName $hostName -Port $port
+	$probes = @()
+	
+	if ($portOpen) {
+		$probes += Test-EndpointProbe -BaseUrl $serverRoot -ProbePath "/health" -Label "$Label health"
+		$probes += Test-EndpointProbe -BaseUrl $serverRoot -ProbePath "/v1/models" -Label "$Label models"
+		$probes += Test-EndpointProbe -BaseUrl $serverRoot -ProbePath "/v1/chat/completions" -Label "$Label chat" `
+			-Body @{ model = "test"; messages = @(@{ role = "user"; content = "hi" }) }
+	}
+	
+	$healthOk = @($probes | Where-Object { $_.Label -eq "$Label health" -and $_.Ok }).Count -gt 0
+	$modelsOk = @($probes | Where-Object { $_.Label -eq "$Label models" -and $_.Ok }).Count -gt 0
+	
+	$state = "WARN"
+	$detail = "port $port closed"
+	if ($portOpen) {
+		if ($healthOk -and $modelsOk) {
+			$state = "OK"
+			$detail = "health + /v1/models responsive"
+		} elseif ($healthOk) {
+			$state = "WARN"
+			$detail = "health OK but /v1/models failed"
+		} else {
+			$state = "WARN"
+			$detail = "port open but health probe failed"
+		}
+	}
+	
+	return [pscustomobject]@{
+		State = $state
+		Label = $Label
+		Url = $serverRoot
+		Probes = $probes
+		Detail = $detail
+	}
+}
+
 $checks = @()
 $checks += New-Check "OK" "addon root" $addonRoot.Path
 
@@ -133,17 +226,12 @@ if ($models.Count -gt 0) {
 	$checks += New-Check "WARN" "GGUF models" "put models under addons\models, ofxGgmlLlama\models, or pass -Model"
 }
 
-$serverStatus = Get-ServerStatus
-if ($null -ne $serverStatus) {
-	$processCount = @($serverStatus.Processes).Count
-	$readyCount = @($serverStatus.Servers | Where-Object { $_.Ready }).Count
-	if ($processCount -gt 0 -or $readyCount -gt 0) {
-		$checks += New-Check "OK" "llama-server status" "$processCount process(es), $readyCount ready endpoint(s)"
-	} else {
-		$checks += New-Check "WARN" "llama-server status" "no local process or ready endpoint found"
-	}
-} else {
-	$checks += New-Check "WARN" "llama-server status" "status script failed"
+$serverReadiness = @(
+	Get-ServerReadiness -Url $TextServerUrl -Label "text"
+	Get-ServerReadiness -Url $EmbeddingServerUrl -Label "embedding"
+)
+foreach ($readiness in $serverReadiness) {
+	$checks += New-Check $readiness.State "$($readiness.Label) server" "$($readiness.Detail) at $($readiness.Url)"
 }
 
 $artifactTest = Join-Path $scriptRoot "dev\test-artifact-hygiene.ps1"
@@ -162,7 +250,7 @@ if ($Json) {
 		Warnings = $script:Warnings
 		Checks = $checks
 		Models = $models
-		ServerStatus = $serverStatus
+		ServerReadiness = $serverReadiness
 	} | ConvertTo-Json -Depth 6
 } else {
 	Write-Host "ofxGgmlLlama doctor"
