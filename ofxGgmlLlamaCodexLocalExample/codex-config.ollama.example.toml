@@ -1,0 +1,22 @@
+model = "hermes3:latest"
+model_provider = "local_ollama"
+web_search = "live"
+model_context_window = 32768
+model_auto_compact_token_limit = 24000
+tool_output_token_limit = 8000
+model_reasoning_effort = "medium"
+model_reasoning_summary = "none"
+hide_agent_reasoning = true
+
+[model_providers.local_ollama]
+name = "local Ollama"
+base_url = "http://127.0.0.1:11434/v1"
+wire_api = "responses"
+stream_idle_timeout_ms = 10000000
+
+[profiles.ofxggml_ollama]
+model = "hermes3:latest"
+model_provider = "local_ollama"
+web_search = "live"
+model_reasoning_effort = "medium"
+model_reasoning_summary = "none"

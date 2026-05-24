@@ -8,6 +8,9 @@ param(
 	[string]$LlamaCli = $env:OFXGGML_LLAMA_CLI,
 	[string]$Model = "",
 	[string]$CodexPreset = "",
+	[ValidateSet("local", "openai", "hybrid", "ollama", "hybrid-ollama")]
+	[string]$CodexProvider = "",
+	[string]$OpenAiModel = "",
 	[string]$GpuLayers = "",
 	[int]$ContextSize = [int]::MinValue,
 	[int]$Parallel = [int]::MinValue,
@@ -67,6 +70,8 @@ $canonicalExample = switch ($Example) {
 }
 $isEmbedding = $canonicalExample -eq "embedding"
 $isCodex = $canonicalExample -eq "codex"
+$defaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+$defaultCodexOllamaModel = "hermes3:latest"
 $exampleName = switch ($canonicalExample) {
 	"text" { "ofxGgmlTextExample" }
 	"chat" { "ofxGgmlChatExample" }
@@ -212,7 +217,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 			return @{
 				Name = "quality"
 				Label = "Quality coding"
-				ContextSize = 65536
+				ContextSize = 262144
 				Parallel = 1
 				BatchSize = 3072
 				UBatchSize = 768
@@ -222,9 +227,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				CacheReuse = 256
 				KvCacheKeyType = ""
 				KvCacheValueType = ""
-				ModelContextWindow = 65536
-				ModelAutoCompactTokenLimit = 50000
-				ToolOutputTokenLimit = 8000
+				ModelContextWindow = 262144
+				ModelAutoCompactTokenLimit = 220000
+				ToolOutputTokenLimit = 12000
 				AgentMaxConcurrentThreads = 0
 				AgentMaxDepth = 0
 				AgentMinWaitMs = 2500
@@ -250,8 +255,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				CacheReuse = 512
 				KvCacheKeyType = "q8_0"
 				KvCacheValueType = "q8_0"
-				ModelContextWindow = 131072
-				ModelAutoCompactTokenLimit = 112000
+				ModelContextWindow = 262144
+				ModelAutoCompactTokenLimit = 220000
 				ToolOutputTokenLimit = 12000
 				AgentMaxConcurrentThreads = 0
 				AgentMaxDepth = 0
@@ -278,8 +283,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				CacheReuse = 512
 				KvCacheKeyType = "q5_0"
 				KvCacheValueType = "q5_0"
-				ModelContextWindow = 131072
-				ModelAutoCompactTokenLimit = 112000
+				ModelContextWindow = 262144
+				ModelAutoCompactTokenLimit = 220000
 				ToolOutputTokenLimit = 12000
 				AgentMaxConcurrentThreads = 0
 				AgentMaxDepth = 0
@@ -306,8 +311,8 @@ function Get-OfxGgmlCodexPresetDefaults {
 				CacheReuse = 512
 				KvCacheKeyType = "q4_0"
 				KvCacheValueType = "q4_0"
-				ModelContextWindow = 131072
-				ModelAutoCompactTokenLimit = 112000
+				ModelContextWindow = 262144
+				ModelAutoCompactTokenLimit = 220000
 				ToolOutputTokenLimit = 12000
 				AgentMaxConcurrentThreads = 0
 				AgentMaxDepth = 0
@@ -324,7 +329,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 			return @{
 				Name = "long"
 				Label = "Long context"
-				ContextSize = 131072
+				ContextSize = 262144
 				Parallel = 1
 				BatchSize = 4096
 				UBatchSize = 1024
@@ -334,9 +339,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				CacheReuse = 512
 				KvCacheKeyType = ""
 				KvCacheValueType = ""
-				ModelContextWindow = 131072
-				ModelAutoCompactTokenLimit = 100000
-				ToolOutputTokenLimit = 8000
+				ModelContextWindow = 262144
+				ModelAutoCompactTokenLimit = 220000
+				ToolOutputTokenLimit = 12000
 				AgentMaxConcurrentThreads = 0
 				AgentMaxDepth = 0
 				AgentMinWaitMs = 5000
@@ -383,6 +388,32 @@ function Get-OfxGgmlCodexPresetDefaults {
 }
 
 if ($isCodex) {
+	$hasExplicitCodexModelPath = ![string]::IsNullOrWhiteSpace($Model) -or
+		![string]::IsNullOrWhiteSpace($env:OFXGGML_TEXT_MODEL)
+	$resolvedCodexProvider = if (![string]::IsNullOrWhiteSpace($CodexProvider)) {
+		$CodexProvider
+	} elseif ($env:OFXGGML_CODEX_PROVIDER) {
+		$env:OFXGGML_CODEX_PROVIDER
+	} else {
+		"local"
+	}
+	$useOllamaCodexProvider = $resolvedCodexProvider -eq "ollama" -or
+		$resolvedCodexProvider -eq "hybrid-ollama"
+	$useLlamaCppCodexProvider = $resolvedCodexProvider -eq "local" -or
+		$resolvedCodexProvider -eq "hybrid"
+	$useLocalCodexProvider = $useOllamaCodexProvider -or $useLlamaCppCodexProvider
+	$useOpenAiCodexLaunch = $resolvedCodexProvider -eq "openai" -or
+		$resolvedCodexProvider -eq "hybrid" -or
+		$resolvedCodexProvider -eq "hybrid-ollama"
+	if ([string]::IsNullOrWhiteSpace($OpenAiModel)) {
+		$OpenAiModel = if ($env:OFXGGML_CODEX_OPENAI_MODEL) {
+			$env:OFXGGML_CODEX_OPENAI_MODEL
+		} elseif ($useOpenAiCodexLaunch -and $env:OFXGGML_CODEX_MODEL -and !$useLocalCodexProvider) {
+			$env:OFXGGML_CODEX_MODEL
+		} else {
+			"gpt-5"
+		}
+	}
 	$presetName = if (![string]::IsNullOrWhiteSpace($CodexPreset)) {
 		$CodexPreset
 	} elseif ($env:OFXGGML_CODEX_PRESET) {
@@ -392,7 +423,13 @@ if ($isCodex) {
 	}
 	$codexPresetDefaults = Get-OfxGgmlCodexPresetDefaults $presetName
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
-		$ServerUrl = if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }
+		$ServerUrl = if ($env:OFXGGML_CODEX_BASE_URL) {
+			$env:OFXGGML_CODEX_BASE_URL
+		} elseif ($useOllamaCodexProvider) {
+			"http://127.0.0.1:11434/v1"
+		} else {
+			"http://127.0.0.1:8001/v1"
+		}
 	}
 	if ([string]::IsNullOrWhiteSpace($GpuLayers)) {
 		$GpuLayers = if ($env:OFXGGML_CODEX_GPU_LAYERS) { $env:OFXGGML_CODEX_GPU_LAYERS } else { "all" }
@@ -489,23 +526,35 @@ if ($isCodex) {
 	} else {
 		$false
 	}
-	if ([string]::IsNullOrWhiteSpace($Model)) {
+	if ($useLlamaCppCodexProvider -and [string]::IsNullOrWhiteSpace($Model)) {
 		$Model = if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }
 	}
-	if ([string]::IsNullOrWhiteSpace($Model)) {
+	if ($useLlamaCppCodexProvider -and [string]::IsNullOrWhiteSpace($Model)) {
 		$Model = Find-OfxGgmlFirstModel (Get-OfxGgmlModelSearchDirectories `
 			-AddonRoot $addonRoot `
 			-ExampleRoot $exampleRoot `
 			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
 	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
-		$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
-		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $env:OFXGGML_CODEX_MODEL) {
+		if ($useLlamaCppCodexProvider -and $hasExplicitCodexModelPath) {
+			$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
+		}
+		if ([string]::IsNullOrWhiteSpace($ServerModel) -and
+			$useLocalCodexProvider -and
+			$env:OFXGGML_CODEX_MODEL) {
 			$ServerModel = $env:OFXGGML_CODEX_MODEL
 		}
+		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $useOllamaCodexProvider) {
+			$ServerModel = $defaultCodexOllamaModel
+		}
+		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $useLlamaCppCodexProvider) {
+			$ServerModel = $defaultCodexModelAlias
+		}
 	}
+	$env:OFXGGML_CODEX_PROVIDER = $resolvedCodexProvider
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
 	$env:OFXGGML_CODEX_MODEL = $ServerModel
+	$env:OFXGGML_CODEX_OPENAI_MODEL = $OpenAiModel
 	$env:OFXGGML_CODEX_PRESET = $codexPresetDefaults.Name
 	$env:OFXGGML_CODEX_GPU_LAYERS = $GpuLayers
 	$env:OFXGGML_CODEX_CONTEXT_SIZE = $ContextSize.ToString()
@@ -538,14 +587,22 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_REASONING_BUDGET = $ReasoningBudget
 	$env:OFXGGML_CODEX_NO_CUDA_GRAPHS = if ($codexNoCudaGraphs) { "1" } else { "0" }
 	$env:OFXGGML_CODEX_SKIP_CHAT_PARSING = if ($codexSkipChatParsing) { "1" } else { "0" }
-	if (![string]::IsNullOrWhiteSpace($Model)) {
+	if ($useLlamaCppCodexProvider -and ![string]::IsNullOrWhiteSpace($Model)) {
 		$env:OFXGGML_TEXT_MODEL = $Model
 		Write-OfxGgmlStep "Using text model: $Model"
-	} else {
+	} elseif ($useLlamaCppCodexProvider) {
 		Write-Warning "No GGUF model found. The example can still connect to an already-running server."
 	}
-	Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
-	Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
+	Write-OfxGgmlStep "Using Codex provider: $resolvedCodexProvider"
+	if ($useLocalCodexProvider) {
+		Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
+	}
+	if (![string]::IsNullOrWhiteSpace($ServerModel)) {
+		Write-OfxGgmlStep "Using Codex model alias: $ServerModel"
+	}
+	if ($useOpenAiCodexLaunch -and ![string]::IsNullOrWhiteSpace($OpenAiModel)) {
+		Write-OfxGgmlStep "Using Codex OpenAI model: $OpenAiModel"
+	}
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
 	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
@@ -555,40 +612,42 @@ if ($isCodex) {
 		Write-OfxGgmlStep "Auto server: $(if ($NoAutoServer) { 'off' } else { 'on' })"
 		return
 	}
-	Start-OfxGgmlBundledLlamaServerIfNeeded `
-		-ScriptRoot $scriptRoot `
-		-AddonRoot $addonRoot `
-		-ServerUrl (Get-OfxGgmlServerRootUrl $ServerUrl) `
-		-Model $Model `
-		-LogDir (Join-Path $addonRoot "build\llama-codex-server") `
-		-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
-		-StartMessage "Codex llama-server is not responding; starting bundled server" `
-		-StartupTimeoutSeconds $StartupTimeoutSeconds `
-		-Alias $ServerModel `
-		-GpuLayers $GpuLayers `
-		-ContextSize $ContextSize `
-		-Parallel $Parallel `
-		-BatchSize $BatchSize `
-		-UBatchSize $UBatchSize `
-		-Threads $Threads `
-		-ThreadsBatch $ThreadsBatch `
-		-ThreadsHttp $ThreadsHttp `
-		-CacheReuse $CacheReuse `
-		-KvCacheKeyType $KvCacheKeyType `
-		-KvCacheValueType $KvCacheValueType `
-		-SpecType $SpecType `
-		-Temperature $Temperature `
-		-TopP $TopP `
-		-MinP $MinP `
-		-ChatTemplateKwargs $ChatTemplateKwargs `
-		-Reasoning $Reasoning `
-		-ReasoningBudget $ReasoningBudget `
-		-Jinja `
-		-FlashAttention `
-		-NoCudaGraphs:$codexNoCudaGraphs `
-		-SkipChatParsing:$codexSkipChatParsing `
-		-ForceNew:$ForceNewServer `
-		-NoAutoServer:$NoAutoServer
+	if ($useLlamaCppCodexProvider) {
+		Start-OfxGgmlBundledLlamaServerIfNeeded `
+			-ScriptRoot $scriptRoot `
+			-AddonRoot $addonRoot `
+			-ServerUrl (Get-OfxGgmlServerRootUrl $ServerUrl) `
+			-Model $Model `
+			-LogDir (Join-Path $addonRoot "build\llama-codex-server") `
+			-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
+			-StartMessage "Codex llama-server is not responding; starting bundled server" `
+			-StartupTimeoutSeconds $StartupTimeoutSeconds `
+			-Alias $ServerModel `
+			-GpuLayers $GpuLayers `
+			-ContextSize $ContextSize `
+			-Parallel $Parallel `
+			-BatchSize $BatchSize `
+			-UBatchSize $UBatchSize `
+			-Threads $Threads `
+			-ThreadsBatch $ThreadsBatch `
+			-ThreadsHttp $ThreadsHttp `
+			-CacheReuse $CacheReuse `
+			-KvCacheKeyType $KvCacheKeyType `
+			-KvCacheValueType $KvCacheValueType `
+			-SpecType $SpecType `
+			-Temperature $Temperature `
+			-TopP $TopP `
+			-MinP $MinP `
+			-ChatTemplateKwargs $ChatTemplateKwargs `
+			-Reasoning $Reasoning `
+			-ReasoningBudget $ReasoningBudget `
+			-Jinja `
+			-FlashAttention `
+			-NoCudaGraphs:$codexNoCudaGraphs `
+			-SkipChatParsing:$codexSkipChatParsing `
+			-ForceNew:$ForceNewServer `
+			-NoAutoServer:$NoAutoServer
+	}
 } elseif ($isEmbedding) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 		$ServerUrl = if ($env:OFXGGML_EMBEDDING_SERVER_URL) { $env:OFXGGML_EMBEDDING_SERVER_URL } else { "http://127.0.0.1:8081" }

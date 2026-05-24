@@ -58,10 +58,11 @@ private:
 	std::string baseUrl;
 	std::string serverUrl;
 	std::string modelAlias;
+	std::string openAiModelAlias = "gpt-5";
 	std::string modelPath;
 	std::string codexExe;
 	std::string serverExe;
-	std::string codexProfile = "ofxggml_local";
+	std::string codexProfile;
 	std::string codexSandbox = "";
 	std::string configPath;
 	std::string wireApi = "responses";
@@ -77,7 +78,7 @@ private:
 	std::vector<std::string> lines;
 
 	int gpuLayers = 999;
-	int contextSize = 65536;
+	int contextSize = 262144;
 	int parallel = 1;
 	int batchSize = 3072;
 	int ubatchSize = 768;
@@ -88,9 +89,9 @@ private:
 	std::string kvCacheKeyType;
 	std::string kvCacheValueType;
 	std::string specType;
-	int modelContextWindow = 65536;
-	int modelAutoCompactTokenLimit = 50000;
-	int toolOutputTokenLimit = 8000;
+	int modelContextWindow = 262144;
+	int modelAutoCompactTokenLimit = 220000;
+	int toolOutputTokenLimit = 12000;
 	int agentMaxConcurrentThreadsPerSession = 0;
 	int agentMaxDepth = 0;
 	int agentMinWaitTimeoutMs = 2500;
@@ -114,4 +115,5 @@ private:
 	bool serverReady = false;
 	bool endpointReady = false;
 	bool running = false;
+	int codexProviderMode = 0;
 };

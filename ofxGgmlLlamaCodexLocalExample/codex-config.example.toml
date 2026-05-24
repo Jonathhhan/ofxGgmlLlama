@@ -1,9 +1,9 @@
-model = "local/example-model"
+model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
 model_provider = "llama_cpp"
 web_search = "live"
-model_context_window = 65536
-model_auto_compact_token_limit = 50000
-tool_output_token_limit = 8000
+model_context_window = 262144
+model_auto_compact_token_limit = 220000
+tool_output_token_limit = 12000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 hide_agent_reasoning = true
@@ -16,7 +16,7 @@ stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
 # Must match the llama-server alias shown as ServerModel in the example.
-model = "local/example-model"
+model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
 model_provider = "llama_cpp"
 web_search = "live"
 model_reasoning_effort = "medium"

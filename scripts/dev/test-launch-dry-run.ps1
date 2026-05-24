@@ -37,6 +37,8 @@ function Invoke-DryRun {
 	$codexEnvNames = @(
 		"OFXGGML_CODEX_BASE_URL",
 		"OFXGGML_CODEX_MODEL",
+		"OFXGGML_CODEX_OPENAI_MODEL",
+		"OFXGGML_CODEX_PROVIDER",
 		"OFXGGML_CODEX_PRESET",
 		"OFXGGML_CODEX_GPU_LAYERS",
 		"OFXGGML_CODEX_CONTEXT_SIZE",
@@ -340,15 +342,99 @@ $codexOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex provider: local" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=default ctv=default spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=50000 tool_output=8000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex agent settings: max_threads=auto max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
+
+$codexOpenAiOutput = Invoke-DryRun `
+	-Label "Codex OpenAI profile dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexProvider = "openai"
+		ServerModel = "gpt-5"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexOpenAiOutput "Using Codex provider: openai" "Codex OpenAI dry-run"
+Assert-Contains $codexOpenAiOutput "Using Codex model alias: gpt-5" "Codex OpenAI dry-run"
+Assert-NotContains $codexOpenAiOutput "Using Codex local endpoint:" "Codex OpenAI dry-run"
+Assert-Contains $codexOpenAiOutput "Auto server: off" "Codex OpenAI dry-run"
+Assert-NotContains $codexOpenAiOutput "Starting bundled server" "Codex OpenAI dry-run"
+
+$codexHybridOutput = Invoke-DryRun `
+	-Label "Codex hybrid local agents dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexProvider = "hybrid"
+		OpenAiModel = "gpt-5"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexHybridOutput "Using Codex provider: hybrid" "Codex hybrid dry-run"
+Assert-Contains $codexHybridOutput "Using Codex local endpoint: http://127.0.0.1:8001/v1" "Codex hybrid dry-run"
+Assert-Contains $codexHybridOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex hybrid dry-run"
+Assert-Contains $codexHybridOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid dry-run"
+Assert-Contains $codexHybridOutput "Auto server: off" "Codex hybrid dry-run"
+Assert-NotContains $codexHybridOutput "Starting bundled server" "Codex hybrid dry-run"
+
+$codexOllamaOutput = Invoke-DryRun `
+	-Label "Codex Ollama Hermes dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexProvider = "ollama"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexOllamaOutput "Using Codex provider: ollama" "Codex Ollama dry-run"
+Assert-Contains $codexOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex Ollama dry-run"
+Assert-Contains $codexOllamaOutput "Using Codex model alias: hermes3:latest" "Codex Ollama dry-run"
+Assert-Contains $codexOllamaOutput "Auto server: off" "Codex Ollama dry-run"
+Assert-NotContains $codexOllamaOutput "Using text model:" "Codex Ollama dry-run"
+Assert-NotContains $codexOllamaOutput "Starting bundled server" "Codex Ollama dry-run"
+
+$codexHybridOllamaOutput = Invoke-DryRun `
+	-Label "Codex hybrid Ollama agents dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexProvider = "hybrid-ollama"
+		OpenAiModel = "gpt-5"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexHybridOllamaOutput "Using Codex provider: hybrid-ollama" "Codex hybrid Ollama dry-run"
+Assert-Contains $codexHybridOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex hybrid Ollama dry-run"
+Assert-Contains $codexHybridOllamaOutput "Using Codex model alias: hermes3:latest" "Codex hybrid Ollama dry-run"
+Assert-Contains $codexHybridOllamaOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid Ollama dry-run"
+Assert-Contains $codexHybridOllamaOutput "Auto server: off" "Codex hybrid Ollama dry-run"
+Assert-NotContains $codexHybridOllamaOutput "Using text model:" "Codex hybrid Ollama dry-run"
+Assert-NotContains $codexHybridOllamaOutput "Starting bundled server" "Codex hybrid Ollama dry-run"
+
+$codexDefaultAliasOutput = Invoke-DryRun `
+	-Label "Codex local default alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexDefaultAliasOutput "Using Codex provider: local" "Codex local default alias dry-run"
+Assert-Contains $codexDefaultAliasOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex local default alias dry-run"
 
 $codexDerivedAliasOutput = Invoke-DryRun `
 	-Label "Codex local derived alias dry-run" `
@@ -413,7 +499,7 @@ $codexFullContextPresetOutput = Invoke-DryRun `
 Assert-Contains $codexFullContextPresetOutput "Using Codex preset: Full context Q8" "Codex local full-context preset dry-run"
 Assert-Contains $codexFullContextPresetOutput "ctx=0 parallel=1 batch=2048 ubatch=512" "Codex local full-context preset dry-run"
 Assert-Contains $codexFullContextPresetOutput "cacheReuse=512 ctk=q8_0 ctv=q8_0" "Codex local full-context preset dry-run"
-Assert-Contains $codexFullContextPresetOutput "model_context_window=131072 auto_compact=112000 tool_output=12000" "Codex local full-context preset dry-run"
+Assert-Contains $codexFullContextPresetOutput "model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local full-context preset dry-run"
 
 $codexFullContextQ5PresetOutput = Invoke-DryRun `
 	-Label "Codex local full-context q5 preset dry-run" `
@@ -460,8 +546,8 @@ $codexLongPresetOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexLongPresetOutput "Using Codex preset: Long context" "Codex local long-context preset dry-run"
-Assert-Contains $codexLongPresetOutput "ctx=131072 parallel=1 batch=4096 ubatch=1024" "Codex local long-context preset dry-run"
-Assert-Contains $codexLongPresetOutput "model_context_window=131072 auto_compact=100000 tool_output=8000" "Codex local long-context preset dry-run"
+Assert-Contains $codexLongPresetOutput "ctx=262144 parallel=1 batch=4096 ubatch=1024" "Codex local long-context preset dry-run"
+Assert-Contains $codexLongPresetOutput "model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local long-context preset dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `
