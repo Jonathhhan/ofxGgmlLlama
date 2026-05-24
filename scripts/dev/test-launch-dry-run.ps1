@@ -39,6 +39,7 @@ function Invoke-DryRun {
 		"OFXGGML_CODEX_MODEL",
 		"OFXGGML_CODEX_OPENAI_MODEL",
 		"OFXGGML_CODEX_PROVIDER",
+		"OFXGGML_CODEX_SANDBOX",
 		"OFXGGML_CODEX_PRESET",
 		"OFXGGML_CODEX_GPU_LAYERS",
 		"OFXGGML_CODEX_CONTEXT_SIZE",
@@ -343,6 +344,7 @@ $codexOutput = Invoke-DryRun `
 	}
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex provider: local" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex sandbox: workspace-write" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
@@ -365,6 +367,7 @@ $codexOpenAiOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexOpenAiOutput "Using Codex provider: openai" "Codex OpenAI dry-run"
+Assert-Contains $codexOpenAiOutput "Using Codex sandbox: default config" "Codex OpenAI dry-run"
 Assert-Contains $codexOpenAiOutput "Using Codex model alias: gpt-5" "Codex OpenAI dry-run"
 Assert-NotContains $codexOpenAiOutput "Using Codex local endpoint:" "Codex OpenAI dry-run"
 Assert-Contains $codexOpenAiOutput "Auto server: off" "Codex OpenAI dry-run"
@@ -382,6 +385,7 @@ $codexHybridOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexHybridOutput "Using Codex provider: hybrid" "Codex hybrid dry-run"
+Assert-Contains $codexHybridOutput "Using Codex sandbox: default config" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex local endpoint: http://127.0.0.1:8001/v1" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid dry-run"
@@ -399,6 +403,7 @@ $codexOllamaOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexOllamaOutput "Using Codex provider: ollama" "Codex Ollama dry-run"
+Assert-Contains $codexOllamaOutput "Using Codex sandbox: workspace-write" "Codex Ollama dry-run"
 Assert-Contains $codexOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex Ollama dry-run"
 Assert-Contains $codexOllamaOutput "Using Codex model alias: hermes3:latest" "Codex Ollama dry-run"
 Assert-Contains $codexOllamaOutput "Auto server: off" "Codex Ollama dry-run"
@@ -417,6 +422,7 @@ $codexHybridOllamaOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexHybridOllamaOutput "Using Codex provider: hybrid-ollama" "Codex hybrid Ollama dry-run"
+Assert-Contains $codexHybridOllamaOutput "Using Codex sandbox: default config" "Codex hybrid Ollama dry-run"
 Assert-Contains $codexHybridOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex hybrid Ollama dry-run"
 Assert-Contains $codexHybridOllamaOutput "Using Codex model alias: hermes3:latest" "Codex hybrid Ollama dry-run"
 Assert-Contains $codexHybridOllamaOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid Ollama dry-run"

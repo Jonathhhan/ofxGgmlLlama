@@ -12,6 +12,7 @@
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
 constexpr const char * DefaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M";
+constexpr const char * WorkspaceWriteSandbox = "workspace-write";
 
 struct CodexLocalPreset {
 	const char * id;
@@ -118,6 +119,10 @@ std::string providerNameForMode(int mode) {
 
 std::string profileForMode(int mode) {
 	return usesOllamaCodexProvider(mode) ? "ofxggml_ollama" : "ofxggml_local";
+}
+
+std::string defaultSandboxForProviderMode(int mode) {
+	return isLocalCodexProviderMode(mode) ? WorkspaceWriteSandbox : "";
 }
 
 int codexProviderModeFromValue(const std::string & value) {
@@ -406,7 +411,10 @@ void ofApp::setup() {
 	codexProfile = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 		"OFXGGML_CODEX_PROFILE",
 		isLocalCodexProviderMode(codexProviderMode) ? profileForMode(codexProviderMode) : "");
-	codexSandbox = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_SANDBOX", "");
+	codexSandboxManuallyEdited = hasEnvValue("OFXGGML_CODEX_SANDBOX");
+	codexSandbox = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_SANDBOX",
+		defaultSandboxForProviderMode(codexProviderMode));
 	configPath = ofxGgmlLlamaCodexLocal::resolveCodexConfigPath();
 	gpuLayersAll = envGpuLayersAll("OFXGGML_CODEX_GPU_LAYERS", gpuLayersAll);
 	gpuLayers = envInt("OFXGGML_CODEX_GPU_LAYERS", gpuLayers);
@@ -521,6 +529,9 @@ void ofApp::draw() {
 				modelAlias = defaultModelForProviderMode(codexProviderMode);
 				modelAliasManuallyEdited = false;
 			}
+			if (!codexSandboxManuallyEdited) {
+				codexSandbox = defaultSandboxForProviderMode(codexProviderMode);
+			}
 			rebuildLines();
 		}
 		const bool localProviderMode = usesLocalCodexProvider(codexProviderMode);
@@ -586,6 +597,7 @@ void ofApp::draw() {
 			rebuildLines();
 		}
 		if (ImGui::InputText("Codex sandbox", &codexSandbox)) {
+			codexSandboxManuallyEdited = true;
 			rebuildLines();
 		}
 		ImGui::InputText("Codex config", &configPath);

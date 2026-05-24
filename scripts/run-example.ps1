@@ -11,6 +11,7 @@ param(
 	[ValidateSet("local", "openai", "hybrid", "ollama", "hybrid-ollama")]
 	[string]$CodexProvider = "",
 	[string]$OpenAiModel = "",
+	[string]$CodexSandbox = "",
 	[string]$GpuLayers = "",
 	[int]$ContextSize = [int]::MinValue,
 	[int]$Parallel = [int]::MinValue,
@@ -387,6 +388,15 @@ function Get-OfxGgmlCodexPresetDefaults {
 	}
 }
 
+function Get-OfxGgmlCodexDefaultSandbox {
+	param([string]$Provider)
+	switch ($Provider) {
+		"local" { return "workspace-write" }
+		"ollama" { return "workspace-write" }
+		default { return "" }
+	}
+}
+
 if ($isCodex) {
 	$hasExplicitCodexModelPath = ![string]::IsNullOrWhiteSpace($Model) -or
 		![string]::IsNullOrWhiteSpace($env:OFXGGML_TEXT_MODEL)
@@ -405,6 +415,9 @@ if ($isCodex) {
 	$useOpenAiCodexLaunch = $resolvedCodexProvider -eq "openai" -or
 		$resolvedCodexProvider -eq "hybrid" -or
 		$resolvedCodexProvider -eq "hybrid-ollama"
+	if ([string]::IsNullOrWhiteSpace($CodexSandbox)) {
+		$CodexSandbox = if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { Get-OfxGgmlCodexDefaultSandbox $resolvedCodexProvider }
+	}
 	if ([string]::IsNullOrWhiteSpace($OpenAiModel)) {
 		$OpenAiModel = if ($env:OFXGGML_CODEX_OPENAI_MODEL) {
 			$env:OFXGGML_CODEX_OPENAI_MODEL
@@ -555,6 +568,11 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_BASE_URL = $ServerUrl
 	$env:OFXGGML_CODEX_MODEL = $ServerModel
 	$env:OFXGGML_CODEX_OPENAI_MODEL = $OpenAiModel
+	if (![string]::IsNullOrWhiteSpace($CodexSandbox)) {
+		$env:OFXGGML_CODEX_SANDBOX = $CodexSandbox
+	} else {
+		Remove-Item Env:\OFXGGML_CODEX_SANDBOX -ErrorAction SilentlyContinue
+	}
 	$env:OFXGGML_CODEX_PRESET = $codexPresetDefaults.Name
 	$env:OFXGGML_CODEX_GPU_LAYERS = $GpuLayers
 	$env:OFXGGML_CODEX_CONTEXT_SIZE = $ContextSize.ToString()
@@ -603,6 +621,7 @@ if ($isCodex) {
 	if ($useOpenAiCodexLaunch -and ![string]::IsNullOrWhiteSpace($OpenAiModel)) {
 		Write-OfxGgmlStep "Using Codex OpenAI model: $OpenAiModel"
 	}
+	Write-OfxGgmlStep "Using Codex sandbox: $(if (![string]::IsNullOrWhiteSpace($CodexSandbox)) { $CodexSandbox } else { 'default config' })"
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
 	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"

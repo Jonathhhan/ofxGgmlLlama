@@ -27,6 +27,8 @@
 
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocal";
+constexpr const char * ExplorerSandboxMode = "read-only";
+constexpr const char * WorkerSandboxMode = "workspace-write";
 
 std::string escapeTomlString(const std::string & value);
 
@@ -195,13 +197,14 @@ std::string localAgentRoleToml(
 	output << "model_provider = \"" << escapeTomlString(
 		config.providerId.empty() ? "llama_cpp" : config.providerId) << "\"\n";
 	if (role == "explorer") {
-		output << "sandbox_mode = \"read-only\"\n";
+		output << "sandbox_mode = \"" << ExplorerSandboxMode << "\"\n";
 		output << "developer_instructions = \""
 			"Use the explorer role for narrow, read-only codebase questions. "
 			"Use rg first, read exact files before answering, cite paths or lines when useful, "
 			"and return concise findings. Do not edit files and avoid spawning more agents "
 			"unless explicitly asked.\"\n";
 	} else {
+		output << "sandbox_mode = \"" << WorkerSandboxMode << "\"\n";
 		output << "developer_instructions = \""
 			"Use the worker role for bounded code changes. Read local patterns first, "
 			"follow openFrameworks addon conventions, preserve existing dirty files, "

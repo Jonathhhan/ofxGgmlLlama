@@ -263,6 +263,13 @@ Codex launch, defaulting to `http://127.0.0.1:11434/v1` and
 `hermes3:latest`. `Hybrid: Ollama agents` keeps Hermes/Ollama for cheap
 explorer/worker agents while the main launch uses the OpenAI model field.
 
+Sandbox defaults are part of the provider-mode contract. `Local llama.cpp` and
+`Ollama Hermes` default the main Codex launch to `workspace-write`. `OpenAI
+profile` and the hybrid modes leave the main launch sandbox unset unless you
+provide `OFXGGML_CODEX_SANDBOX` or edit **Codex sandbox** in the UI. The
+generated `explorer` role stays `read-only`, while the generated `worker` role
+uses `workspace-write`.
+
 From the helper script:
 
 ```powershell
@@ -389,7 +396,7 @@ $env:OFXGGML_CODEX_AUTO_CONFIG = "1"
 $env:OFXGGML_CODEX_NO_CUDA_GRAPHS = "0"
 $env:OFXGGML_CODEX_SKIP_CHAT_PARSING = "0"
 $env:OFXGGML_CODEX_CONFIG_PATH = "%USERPROFILE%\.codex\config.toml"
-$env:OFXGGML_CODEX_SANDBOX = "danger-full-access"
+$env:OFXGGML_CODEX_SANDBOX = "workspace-write"
 $env:OFXGGML_CODEX_STARTUP_TIMEOUT = "300"
 ```
 
@@ -404,8 +411,8 @@ write the needed provider/profile sections into the local Codex config if
 Use the UI button **Write Codex config** if you prefer a manual write.
 If Codex reports that the Windows admin sandbox could not be initialized, set
 `OFXGGML_CODEX_SANDBOX` or the example's **Codex sandbox** field to a mode your
-installed Codex build supports, such as `danger-full-access`, for a local smoke
-run.
+installed Codex build supports. Prefer `workspace-write` for local model runs;
+use broader modes only when you deliberately need them.
 
 ## Validate
 

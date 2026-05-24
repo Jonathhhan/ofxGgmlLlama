@@ -109,6 +109,7 @@ private:
 	bool noCudaGraphs = false;
 	bool skipChatParsing = false;
 	bool autoConfig = true;
+	bool codexSandboxManuallyEdited = false;
 	bool modelAliasManuallyEdited = false;
 	bool modelContextWindowManuallyEdited = false;
 	bool modelAutoCompactManuallyEdited = false;

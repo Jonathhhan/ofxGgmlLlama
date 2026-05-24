@@ -14,7 +14,7 @@ param(
 	[string]$ExpectedMarker = "LOCAL_CODEX_OK",
 	[string]$Prompt = "",
 	[int]$TimeoutSeconds = 120,
-	[string]$CodexSandbox = $(if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { "read-only" }),
+	[string]$CodexSandbox = $(if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { "workspace-write" }),
 	[switch]$UseServedModel,
 	[switch]$SkipAgentRoleFiles,
 	[switch]$DryRun,
@@ -153,6 +153,8 @@ function Get-CodexAgentRoleToml {
 	)
 	if ($Role -eq "explorer") {
 		$lines += "sandbox_mode = `"read-only`""
+	} else {
+		$lines += "sandbox_mode = `"workspace-write`""
 	}
 	$lines += "developer_instructions = `"$instructions`""
 	return (($lines -join "`n") + "`n")

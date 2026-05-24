@@ -130,6 +130,7 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-a
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\explorer.toml") 'model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"' "Codex local explorer agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\worker.toml") 'model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"' "Codex local worker agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\explorer.toml") 'sandbox_mode = "read-only"' "Codex local explorer agent config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\worker.toml") 'sandbox_mode = "workspace-write"' "Codex local worker agent config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\explorer.toml") '\[agents\]' "Codex local explorer agent config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\worker.toml") '\[agents\]' "Codex local worker agent config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") '-MaxAgents' "Codex local example README"
