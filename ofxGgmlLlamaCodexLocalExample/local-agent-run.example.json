@@ -1,0 +1,14 @@
+{
+    "repoRoot":  "..",
+    "allowedPaths":  [
+                         "src/codex",
+                         "ofxGgmlLlamaCodexLocalExample",
+                         "scripts",
+                         "docs",
+                         "ofxggml-addon.json"
+                     ],
+    "requiredCommands":  [
+                             "scripts\\dev\\test-launch-dry-run.ps1"
+                         ],
+    "includeUntracked":  false
+}

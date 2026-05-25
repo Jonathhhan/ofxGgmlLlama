@@ -133,5 +133,6 @@ public:
 	static bool launchDetachedProcess(
 		const std::string & executable,
 		const std::string & arguments);
+	static bool launchUiProcess(const std::string & executable);
 	static bool startLlamaServer(const ofxGgmlLlamaServerStartSettings & settings);
 };

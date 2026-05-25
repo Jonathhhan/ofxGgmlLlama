@@ -12,6 +12,7 @@
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
 constexpr const char * DefaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M";
+constexpr const char * DefaultCodexOllamaModelAlias = "hermes3-codex-32k:latest";
 constexpr const char * WorkspaceWriteSandbox = "workspace-write";
 
 struct CodexLocalPreset {
@@ -43,15 +44,17 @@ struct CodexLocalPreset {
 
 const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
-		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 0, 0, 2500, 90000, 30000, 300, 0.8f, 0.9f, 0.02f},
-		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.6f, 0.9f, 0.02f},
-		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 0, 0, 2500, 120000, 30000, 300, 1.0f, 0.95f, 0.01f},
-		{"quality", "Quality coding", 262144, 1, 3072, 768, 0, 0, 0, 256, "", "", 262144, 220000, 12000, 0, 0, 2500, 180000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx", "Full context Q8", 0, 1, 2048, 512, 0, 0, 0, 512, "q8_0", "q8_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx-q5", "Full context Q5", 0, 1, 2048, 512, 0, 0, 0, 512, "q5_0", "q5_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"fullctx-q4", "Full context Q4", 0, 1, 1536, 384, 0, 0, 0, 512, "q4_0", "q4_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.7f, 0.9f, 0.02f},
-		{"long", "Long context", 262144, 1, 4096, 1024, 0, 0, 0, 512, "", "", 262144, 220000, 12000, 0, 0, 5000, 300000, 30000, 600, 0.8f, 0.92f, 0.02f},
-		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 2, 0, 2500, 180000, 30000, 600, 0.9f, 0.95f, 0.01f}
+		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 0, 0, 2500, 90000, 30000, 300, 0.2f, 0.85f, 0.03f},
+		{"qwen27b-3090", "Qwen 27B RTX 3090", 65536, 1, 1024, 256, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
+		{"rtx4090", "Qwen 27B RTX 4090", 65536, 1, 2048, 512, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
+		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.2f, 0.85f, 0.03f},
+		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.25f, 0.85f, 0.03f},
+		{"quality", "Quality coding", 262144, 1, 3072, 768, 0, 0, 0, 256, "", "", 262144, 220000, 12000, 0, 0, 2500, 180000, 30000, 600, 0.15f, 0.85f, 0.03f},
+		{"fullctx", "Full context Q8", 0, 1, 2048, 512, 0, 0, 0, 512, "q8_0", "q8_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.15f, 0.85f, 0.03f},
+		{"fullctx-q5", "Full context Q5", 0, 1, 2048, 512, 0, 0, 0, 512, "q5_0", "q5_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.15f, 0.85f, 0.03f},
+		{"fullctx-q4", "Full context Q4", 0, 1, 1536, 384, 0, 0, 0, 512, "q4_0", "q4_0", 262144, 220000, 12000, 0, 0, 5000, 240000, 30000, 600, 0.15f, 0.85f, 0.03f},
+		{"long", "Long context", 262144, 1, 4096, 1024, 0, 0, 0, 512, "", "", 262144, 220000, 12000, 0, 0, 5000, 300000, 30000, 600, 0.2f, 0.85f, 0.03f},
+		{"concurrent", "Concurrent agents", 65536, 2, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 2, 0, 2500, 180000, 30000, 600, 0.15f, 0.85f, 0.03f}
 	};
 	return presets;
 }
@@ -105,7 +108,7 @@ std::string defaultBaseUrlForProviderMode(int mode) {
 
 std::string defaultModelForProviderMode(int mode) {
 	return usesOllamaCodexProvider(mode)
-		? "hermes3:latest"
+		? DefaultCodexOllamaModelAlias
 		: DefaultCodexModelAlias;
 }
 
@@ -371,14 +374,6 @@ std::string joinIssues(const std::vector<std::string> & values) {
 	return output.str();
 }
 
-void appendCodexConfigOverride(
-	std::string & arguments,
-	const std::string & key,
-	const std::string & value) {
-	arguments += "-c ";
-	arguments += ofxGgmlLlamaCodexLocal::quoteArgument(key + "=" + value);
-	arguments += " ";
-}
 }
 
 void ofApp::setup() {
@@ -386,7 +381,7 @@ void ofApp::setup() {
 	gui.setup();
 
 	presetIndex = presetIndexFromId(
-		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PRESET", "quality"));
+		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PRESET", "qwen27b-3090"));
 	applyPreset(presetIndex);
 	codexProviderMode = codexProviderModeFromValue(
 		ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_PROVIDER", "local"));
@@ -503,6 +498,7 @@ void ofApp::draw() {
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
 		std::lock_guard<std::mutex> lock(stateMutex);
+		bool settingsChanged = false;
 		ImGui::TextWrapped("%s", status.empty() ? "ready" : status.c_str());
 		const auto serverPreflightIssues = collectPreflightIssues(true, false);
 		const auto launchPreflightIssues = collectPreflightIssues(false, true);
@@ -525,7 +521,9 @@ void ofApp::draw() {
 				baseUrl = defaultBaseUrlForProviderMode(codexProviderMode);
 				serverUrl = ofxGgmlLlamaCodexLocal::serverRootFromBaseUrl(baseUrl);
 			}
-			if (modelAlias == DefaultCodexModelAlias || modelAlias == "hermes3:latest") {
+			if (modelAlias == DefaultCodexModelAlias ||
+				modelAlias == "hermes3:latest" ||
+				modelAlias == DefaultCodexOllamaModelAlias) {
 				modelAlias = defaultModelForProviderMode(codexProviderMode);
 				modelAliasManuallyEdited = false;
 			}
@@ -619,7 +617,9 @@ void ofApp::draw() {
 			applyPreset(presetIndex);
 			rebuildLines();
 		}
-		ImGui::Checkbox("GPU layers all", &gpuLayersAll);
+		if (ImGui::Checkbox("GPU layers all", &gpuLayersAll)) {
+			settingsChanged = true;
+		}
 		if (gpuLayersAll) {
 			ImGui::SameLine();
 			if (modelLayerCount > 0) {
@@ -631,57 +631,105 @@ void ofApp::draw() {
 			}
 		}
 		ImGui::BeginDisabled(gpuLayersAll);
-		ImGui::InputInt("GPU layers", &gpuLayers);
+		if (ImGui::InputInt("GPU layers", &gpuLayers)) {
+			settingsChanged = true;
+		}
 		ImGui::EndDisabled();
-		ImGui::InputInt("Context size", &contextSize);
+		if (ImGui::InputInt("Context size", &contextSize)) {
+			settingsChanged = true;
+		}
 		if (ImGui::InputInt("Parallel", &parallel)) {
 			applyInteractiveThreadBudget(true, true, true, true);
+			settingsChanged = true;
 		}
-		ImGui::InputInt("Batch size", &batchSize);
-		ImGui::InputInt("UBatch size", &ubatchSize);
-		ImGui::InputInt("Threads (0 auto)", &threads);
-		ImGui::InputInt("Batch threads (0 auto)", &threadsBatch);
-		ImGui::InputInt("HTTP threads (0 auto)", &threadsHttp);
-		ImGui::InputInt("Cache reuse tokens", &cacheReuse);
+		if (ImGui::InputInt("Batch size", &batchSize)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("UBatch size", &ubatchSize)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Threads (0 auto)", &threads)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Batch threads (0 auto)", &threadsBatch)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("HTTP threads (0 auto)", &threadsHttp)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Cache reuse tokens", &cacheReuse)) {
+			settingsChanged = true;
+		}
 		if (drawStringCombo("KV cache K type", kvCacheKeyType, kvCacheTypes())) {
-			rebuildLines();
+			settingsChanged = true;
 		}
 		if (drawStringCombo("KV cache V type", kvCacheValueType, kvCacheTypes())) {
-			rebuildLines();
+			settingsChanged = true;
 		}
 		if (drawStringCombo("Spec type", specType, specTypes())) {
-			rebuildLines();
+			settingsChanged = true;
 		}
 		if (ImGui::InputInt("Model context window", &modelContextWindow)) {
 			modelContextWindowManuallyEdited = true;
+			settingsChanged = true;
 		}
 		if (ImGui::InputInt("Auto compact tokens", &modelAutoCompactTokenLimit)) {
 			modelAutoCompactManuallyEdited = true;
+			settingsChanged = true;
 		}
-		ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit);
-		ImGui::InputInt("Startup timeout seconds", &startupTimeoutSeconds);
-		ImGui::SliderFloat("Temperature", &temperature, 0.0f, 2.0f, "%.2f");
-		ImGui::SliderFloat("Top P", &topP, 0.05f, 1.0f, "%.2f");
-		ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f");
+		if (ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Startup timeout seconds", &startupTimeoutSeconds)) {
+			settingsChanged = true;
+		}
+		if (ImGui::SliderFloat("Temperature", &temperature, 0.0f, 2.0f, "%.2f")) {
+			settingsChanged = true;
+		}
+		if (ImGui::SliderFloat("Top P", &topP, 0.05f, 1.0f, "%.2f")) {
+			settingsChanged = true;
+		}
+		if (ImGui::SliderFloat("Min P", &minP, 0.0f, 0.2f, "%.3f")) {
+			settingsChanged = true;
+		}
 		ImGui::Separator();
 		ImGui::TextUnformatted("Agent settings");
-		ImGui::InputInt("Agent max threads (0 auto)", &agentMaxConcurrentThreadsPerSession);
-		ImGui::InputInt("Agent max depth (0 auto)", &agentMaxDepth);
-		ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs);
-		ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs);
-		ImGui::InputInt("Agent default wait ms", &agentDefaultWaitTimeoutMs);
+		if (ImGui::InputInt("Agent max threads (0 auto)", &agentMaxConcurrentThreadsPerSession)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Agent max depth (0 auto)", &agentMaxDepth)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Agent min wait ms", &agentMinWaitTimeoutMs)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Agent max wait ms", &agentMaxWaitTimeoutMs)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Agent default wait ms", &agentDefaultWaitTimeoutMs)) {
+			settingsChanged = true;
+		}
 		if (ImGui::Combo(
 				"Reasoning effort",
 				&reasoningEffortIndex,
 				codexReasoningEfforts().data(),
 				static_cast<int>(codexReasoningEfforts().size()))) {
+			settingsChanged = true;
+		}
+		if (ImGui::Checkbox("No CUDA graphs", &noCudaGraphs)) {
+			settingsChanged = true;
+		}
+		if (ImGui::Checkbox("Skip chat parsing", &skipChatParsing)) {
+			settingsChanged = true;
+		}
+		ImGui::BeginDisabled(!localProviderMode);
+		if (ImGui::Checkbox("Auto-write Codex config", &autoConfig)) {
+			settingsChanged = true;
+		}
+		ImGui::EndDisabled();
+		if (settingsChanged) {
 			rebuildLines();
 		}
-		ImGui::Checkbox("No CUDA graphs", &noCudaGraphs);
-		ImGui::Checkbox("Skip chat parsing", &skipChatParsing);
-		ImGui::BeginDisabled(!localProviderMode);
-		ImGui::Checkbox("Auto-write Codex config", &autoConfig);
-		ImGui::EndDisabled();
 
 		ImGui::Separator();
 		const bool blockServerActions = running || !llamaCppProviderMode || !serverPreflightIssues.empty();
@@ -946,137 +994,27 @@ void ofApp::requestLaunchCodex() {
 
 void ofApp::runLaunchCodexWorker() {
 	std::string requestCodexExe;
-	std::string requestProfile;
-	std::string requestBaseUrl;
-	std::string requestModelAlias;
-	std::string requestOpenAiModelAlias;
-	std::string requestSandbox;
-	int requestModelContextWindow = 262144;
-	int requestModelAutoCompactTokenLimit = 220000;
-	int requestToolOutputTokenLimit = 12000;
-	int requestAgentMaxConcurrentThreadsPerSession = 0;
-	int requestAgentMaxDepth = 0;
-	int requestAgentMinWaitTimeoutMs = 2500;
-	int requestAgentMaxWaitTimeoutMs = 180000;
-	int requestAgentDefaultWaitTimeoutMs = 30000;
-	std::string requestReasoningEffort;
 	int requestProviderMode = 0;
 	bool requestAutoConfig = false;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestCodexExe = codexExe;
-		requestProfile = codexProfile.empty() && isLocalCodexProviderMode(codexProviderMode)
-			? "ofxggml_local"
-			: codexProfile;
-		requestBaseUrl = baseUrl;
-		requestModelAlias = modelAlias;
-		requestOpenAiModelAlias = openAiModelAlias;
-		requestSandbox = codexSandbox;
-		requestModelContextWindow = modelContextWindow;
-		requestModelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
-		requestToolOutputTokenLimit = toolOutputTokenLimit;
-		requestAgentMaxConcurrentThreadsPerSession = agentMaxConcurrentThreadsPerSession;
-		requestAgentMaxDepth = agentMaxDepth;
-		requestAgentMinWaitTimeoutMs = agentMinWaitTimeoutMs;
-		requestAgentMaxWaitTimeoutMs = agentMaxWaitTimeoutMs;
-		requestAgentDefaultWaitTimeoutMs = agentDefaultWaitTimeoutMs;
-		requestReasoningEffort = reasoningEffortFromIndex(reasoningEffortIndex);
 		requestProviderMode = codexProviderMode;
 		requestAutoConfig = autoConfig;
 	}
 
 	const bool requestLocalProvider = usesLocalCodexProvider(requestProviderMode);
-	const bool requestOpenAiLaunch = usesOpenAiCodexLaunch(requestProviderMode);
 	if (requestLocalProvider && requestAutoConfig && !syncCodexConfig()) {
-		ofLogWarning(LogModule) << "Codex auto-config failed; attempting launch with existing config";
-	}
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		requestModelAlias = modelAlias;
+		ofLogWarning(LogModule) << "Codex auto-config failed; opening UI with existing config";
 	}
 
-	std::string arguments;
-	if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--no-alt-screen")) {
-		arguments += "--no-alt-screen ";
-	}
-	if (usesLocalCodexProvider(requestProviderMode) &&
-		ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--disable")) {
-		arguments += "--disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search ";
-	}
-	if (!requestSandbox.empty() &&
-		ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--sandbox")) {
-		arguments += "--sandbox " + ofxGgmlLlamaCodexLocal::quoteArgument(requestSandbox) + " ";
-	}
-	if (!requestProfile.empty()) {
-		arguments += "-p " + ofxGgmlLlamaCodexLocal::quoteArgument(requestProfile) + " ";
-	}
-	if (isLocalCodexProviderMode(requestProviderMode)) {
-		const auto providerId = providerIdForMode(requestProviderMode);
-		appendCodexConfigOverride(arguments, "web_search", "\"live\"");
-		appendCodexConfigOverride(arguments, "model_provider", providerId);
-		appendCodexConfigOverride(
-			arguments,
-			"model_providers." + providerId + ".name",
-			"\"" + providerNameForMode(requestProviderMode) + "\"");
-		appendCodexConfigOverride(
-			arguments,
-			"model_providers." + providerId + ".base_url",
-			"\"" + ofxGgmlLlamaCodexLocal::codexApiRootFromBaseUrl(requestBaseUrl) + "\"");
-		appendCodexConfigOverride(
-			arguments,
-			"model_providers." + providerId + ".wire_api",
-			"\"responses\"");
-		appendCodexConfigOverride(
-			arguments,
-			"model_providers." + providerId + ".stream_idle_timeout_ms",
-			"10000000");
-		appendCodexConfigOverride(
-			arguments,
-			"model_context_window",
-			std::to_string(requestModelContextWindow));
-		appendCodexConfigOverride(
-			arguments,
-			"model_auto_compact_token_limit",
-			std::to_string(requestModelAutoCompactTokenLimit));
-		appendCodexConfigOverride(
-			arguments,
-			"tool_output_token_limit",
-			std::to_string(requestToolOutputTokenLimit));
-		appendCodexConfigOverride(arguments, "model_reasoning_effort", requestReasoningEffort);
-		appendCodexConfigOverride(arguments, "model_reasoning_summary", "none");
-		appendCodexConfigOverride(arguments, "hide_agent_reasoning", "true");
-		if (requestAgentMaxConcurrentThreadsPerSession > 0) {
-			appendCodexConfigOverride(
-				arguments,
-				"agents.max_threads",
-				std::to_string(requestAgentMaxConcurrentThreadsPerSession));
-		}
-		if (requestAgentMaxDepth > 0) {
-			appendCodexConfigOverride(arguments, "agents.max_depth", std::to_string(requestAgentMaxDepth));
-		}
-	}
-	const auto launchModelAlias = requestOpenAiLaunch ? requestOpenAiModelAlias : requestModelAlias;
-	if (!launchModelAlias.empty()) {
-		if (ofxGgmlLlamaCodexLocal::executableSupportsArgument(requestCodexExe, "--model")) {
-			arguments += "--model " + ofxGgmlLlamaCodexLocal::quoteArgument(launchModelAlias);
-		} else {
-			arguments += "-m " + ofxGgmlLlamaCodexLocal::quoteArgument(launchModelAlias);
-		}
-	}
-
-	const bool launched = ofxGgmlLlamaCodexLocal::launchDetachedProcess(requestCodexExe, arguments);
+	const bool launched = ofxGgmlLlamaCodexLocal::launchUiProcess(requestCodexExe);
 	std::lock_guard<std::mutex> lock(stateMutex);
 	running = false;
-	status = launched
-		? (requestOpenAiLaunch && requestLocalProvider
-			? "Launched Codex with hybrid OpenAI launch and local agents"
-			: "Launched Codex with " +
-				std::string(requestLocalProvider ? "local provider profile " : "OpenAI profile ") +
-				requestProfile)
-		: "failed to launch Codex";
+	status = launched ? "Opened Codex UI" : "failed to open Codex UI";
 	configWriteStatus = launched
-		? "Codex launch command: " + requestCodexExe + " " + arguments
-		: "Codex launch failed; check CLI path";
+		? "Codex UI opened; provider/profile settings are read from " + configPath
+		: "Codex UI launch failed; check executable path";
 }
 
 void ofApp::refreshRuntimeDiscovery() {
@@ -1479,7 +1417,7 @@ void ofApp::rebuildLines() {
 		appendWrapped(
 			lines,
 			"Ollama endpoint uses " + baseUrl + " with model " + modelAlias +
-				". Start Ollama separately with ollama serve and pull the Hermes model first.",
+				". Start Ollama separately and create the 32k tag from ollama-codex.Modelfile.example first.",
 			96);
 	} else if (openAiLaunchMode) {
 		appendWrapped(

@@ -84,6 +84,9 @@ scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 The generated Codex config should use the `llama_cpp` provider, disable web
 search and non-function Responses tools, and keep local model reasoning
 summaries disabled when the server is launched with `--reasoning off`.
+When using the Ollama route instead, create a dedicated high-context tag first;
+Codex's config window does not raise Ollama's runtime `num_ctx` by itself.
+See `ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example`.
 
 ## OpenCode Direct Route
 
@@ -134,6 +137,13 @@ A useful router needs only a small contract:
 
 Do not infer too much from arbitrary prompts at first. Prefer explicit metadata
 or command names, then add smarter detection after the local path is reliable.
+
+For coding-agent work, keep the final acceptance step deterministic. After a
+local model finishes, run `scripts\check-local-agent-run.bat` with the allowed
+paths and required validation commands for the task. The script reads `git diff`
+directly and reports `status`, `changedFiles`, `scopeOk`, `scopeViolations`,
+and command statuses as JSON, so the model's summary is never the source of
+truth.
 
 ## Validation
 

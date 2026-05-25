@@ -23,6 +23,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
 #endif
 
 namespace {
@@ -317,6 +318,19 @@ bool isPortableExecutableName(const std::string & executable) {
 		executable.find('/') == std::string::npos &&
 		executable.find(':') == std::string::npos;
 }
+
+#if defined(_WIN32)
+bool shellExecuteOpen(const std::wstring & target) {
+	const HINSTANCE result = ShellExecuteW(
+		nullptr,
+		L"open",
+		target.c_str(),
+		nullptr,
+		nullptr,
+		SW_SHOWNORMAL);
+	return reinterpret_cast<INT_PTR>(result) > 32;
+}
+#endif
 
 void addUniqueModelId(std::vector<std::string> & models, const std::string & value) {
 	const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(value);
@@ -851,6 +865,29 @@ bool ofxGgmlLlamaCodexLocal::executableSupportsArgument(
 	return output.empty() || output.find(argument) != std::string::npos;
 }
 
+bool ofxGgmlLlamaCodexLocal::launchUiProcess(const std::string & executable) {
+#if defined(_WIN32)
+	if (shellExecuteOpen(L"shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App")) {
+		return true;
+	}
+	if (executable.empty()) {
+		return false;
+	}
+	auto normalizedExe = executable;
+	if (!isPortableExecutableName(normalizedExe)) {
+		normalizedExe = toString(std::filesystem::path(executable).lexically_normal());
+	}
+	const auto executableWide = std::filesystem::path(normalizedExe).wstring();
+	return shellExecuteOpen(executableWide);
+#else
+	if (executable.empty()) {
+		return false;
+	}
+	auto command = quoteArgument(executable);
+	command += " >/dev/null 2>&1 &";
+	return std::system(command.c_str()) == 0;
+#endif
+}
 bool ofxGgmlLlamaCodexLocal::launchDetachedProcess(
 	const std::string & executable,
 	const std::string & arguments) {

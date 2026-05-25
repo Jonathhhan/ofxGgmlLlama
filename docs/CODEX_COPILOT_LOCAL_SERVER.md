@@ -155,13 +155,16 @@ scripts\start-llama-server.bat `
 ```
 
 The Codex example and `scripts\run-example.bat codex` also expose presets:
-`memory`, `fast`, `balanced`, `quality`, `long`, and `concurrent`. The default
-`quality` preset uses `ctx=65536`, `batch=3072`, `temp=0.7`, larger tool output,
-and one agent slot. `fast` lowers the Codex context to `32768`, raises prompt
-batching to `4096/1024`, and keeps cache reuse enabled for lower-latency local
-coding. `long` raises context to `131072` for high-VRAM systems. `concurrent`
-uses `parallel=2` and two agent slots, so use it only when the model and GPU
-have enough headroom.
+`memory`, `fast`, `balanced`, `quality`, `fullctx`, `fullctx-q5`,
+`fullctx-q4`, `long`, and `concurrent`. The default `quality` preset uses
+`ctx=262144`, `batch=3072`, `temp=0.15`, `top_p=0.85`, `min_p=0.03`, larger
+tool output, and one agent slot. `fast` lowers the Codex context to `32768`,
+raises prompt batching to `4096/1024`, and keeps cache reuse enabled for
+lower-latency local coding. `long` keeps `ctx=262144` with larger batching for
+high-VRAM systems. The full-context presets pass `ctx=0` and apply KV cache
+compression choices for full metadata context runs. `concurrent` uses
+`parallel=2` and two agent slots, so use it only when the model and GPU have
+enough headroom.
 The default GPU setting is `-GpuLayers all`, matching llama.cpp's literal
 `-ngl all`; switch to a numeric layer count only for explicit VRAM limiting.
 CUDA graphs stay enabled by default; use `-NoCudaGraphs` only to work around
@@ -284,6 +287,25 @@ The disable flags are intentional for direct `llama-server` use. Codex can load
 Responses tools whose type is not `function` such as web search, image
 generation, browser, and app namespace tools; llama.cpp rejects those tool
 definitions. Shell and patch tools remain available as function tools.
+
+### Ollama context note
+
+Ollama can be useful as a quick OpenAI-compatible endpoint, but do not treat
+Codex's `model_context_window` as proof that Ollama is actually serving that
+much prompt context. Ollama's own docs describe `num_ctx` as the runtime context
+window parameter, and the stock default is small for autonomous coding loops.
+Create a Codex-facing tag with an explicit context window before using the
+`ollama` or `hybrid-ollama` provider modes:
+
+```powershell
+ollama create hermes3-codex-32k -f ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example
+scripts\run-example.bat codex -CodexProvider ollama -ServerModel hermes3-codex-32k:latest
+```
+
+That example Modelfile sets `PARAMETER num_ctx 32768`, matching the included
+`codex-config.ollama.example.toml` context window. The example's Ollama provider
+defaults use this `hermes3-codex-32k:latest` tag instead of the stock
+`hermes3:latest` model.
 
 ### Claude Code hybrid routing
 

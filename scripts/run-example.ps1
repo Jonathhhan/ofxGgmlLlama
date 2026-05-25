@@ -72,7 +72,7 @@ $canonicalExample = switch ($Example) {
 $isEmbedding = $canonicalExample -eq "embedding"
 $isCodex = $canonicalExample -eq "codex"
 $defaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
-$defaultCodexOllamaModel = "hermes3:latest"
+$defaultCodexOllamaModel = "hermes3-codex-32k:latest"
 $exampleName = switch ($canonicalExample) {
 	"text" { "ofxGgmlTextExample" }
 	"chat" { "ofxGgmlChatExample" }
@@ -153,9 +153,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 90000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
-				Temperature = "0.8"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.2"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"fast" {
@@ -181,9 +181,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 120000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
-				Temperature = "0.6"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.2"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"balanced" {
@@ -209,9 +209,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 120000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
-				Temperature = "1.0"
-				TopP = "0.95"
-				MinP = "0.01"
+				Temperature = "0.25"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"quality" {
@@ -237,9 +237,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 180000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.7"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.15"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"fullctx" {
@@ -265,9 +265,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.7"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.15"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"fullctx-q5" {
@@ -293,9 +293,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.7"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.15"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"fullctx-q4" {
@@ -321,9 +321,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 240000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.7"
-				TopP = "0.9"
-				MinP = "0.02"
+				Temperature = "0.15"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"long" {
@@ -349,9 +349,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 300000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.8"
-				TopP = "0.92"
-				MinP = "0.02"
+				Temperature = "0.2"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		"concurrent" {
@@ -377,9 +377,9 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 180000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 600
-				Temperature = "0.9"
-				TopP = "0.95"
-				MinP = "0.01"
+				Temperature = "0.15"
+				TopP = "0.85"
+				MinP = "0.03"
 			}
 		}
 		default {

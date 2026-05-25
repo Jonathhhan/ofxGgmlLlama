@@ -1,0 +1,17 @@
+﻿name: backend-runtime-check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/run-llama-runtime-smoke.ps1
+      - libs/llama/**
+
+jobs:
+  backend-runtime-check:
+    uses: Jonathhhan/ofxGgmlWorkflows/.github/workflows/backend-runtime-check.yml@main
+    with:
+      require_cuda: false
+      require_metal: false
+      require_vulkan: false

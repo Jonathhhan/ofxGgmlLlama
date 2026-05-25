@@ -32,7 +32,7 @@ function Assert-True {
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$scratchRoot = Join-Path $addonRoot "build\launch-utils-smoke"
+$scratchRoot = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "ofxGgmlLlama-launch-smoke")
 if (Test-Path -LiteralPath $scratchRoot) {
 	Remove-Item -LiteralPath $scratchRoot -Recurse -Force
 }

@@ -1,4 +1,7 @@
-model = "hermes3:latest"
+# For autonomous coding, prefer an Ollama tag created with
+# ollama-codex.Modelfile.example so the runtime num_ctx matches this Codex
+# context window. The stock Ollama context is too small for long tool loops.
+model = "hermes3-codex-32k:latest"
 model_provider = "local_ollama"
 web_search = "live"
 model_context_window = 32768
@@ -15,7 +18,7 @@ wire_api = "responses"
 stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_ollama]
-model = "hermes3:latest"
+model = "hermes3-codex-32k:latest"
 model_provider = "local_ollama"
 web_search = "live"
 model_reasoning_effort = "medium"

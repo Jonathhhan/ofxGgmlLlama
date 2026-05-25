@@ -78,10 +78,10 @@ private:
 	std::vector<std::string> lines;
 
 	int gpuLayers = 999;
-	int contextSize = 262144;
+	int contextSize = 65536;
 	int parallel = 1;
-	int batchSize = 3072;
-	int ubatchSize = 768;
+	int batchSize = 1024;
+	int ubatchSize = 256;
 	int threads = 0;
 	int threadsBatch = 0;
 	int threadsHttp = 0;
@@ -89,8 +89,8 @@ private:
 	std::string kvCacheKeyType;
 	std::string kvCacheValueType;
 	std::string specType;
-	int modelContextWindow = 262144;
-	int modelAutoCompactTokenLimit = 220000;
+	int modelContextWindow = 65536;
+	int modelAutoCompactTokenLimit = 56000;
 	int toolOutputTokenLimit = 12000;
 	int agentMaxConcurrentThreadsPerSession = 0;
 	int agentMaxDepth = 0;
@@ -102,9 +102,9 @@ private:
 	int presetIndex = 2;
 	uint64_t modelLayerCount = 0;
 	uint64_t modelContextLength = 0;
-	float temperature = 0.7f;
-	float topP = 0.9f;
-	float minP = 0.02f;
+	float temperature = 0.2f;
+	float topP = 0.85f;
+	float minP = 0.03f;
 	bool gpuLayersAll = true;
 	bool noCudaGraphs = false;
 	bool skipChatParsing = false;

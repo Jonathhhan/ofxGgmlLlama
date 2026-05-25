@@ -74,7 +74,7 @@ Generate the project with openFrameworks projectGenerator using addons
 
 ```powershell
 scripts\run-example.bat codex -Build `
-    -CodexPreset quality `
+    -CodexPreset qwen27b-3090 `
     -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
     -ServerModel local/GLM-4.7-Flash-UD-Q4_K_XL `
     -GpuLayers all `
@@ -93,16 +93,18 @@ Preset choices:
 | Preset | Use it for | Main settings |
 | --- | --- | --- |
 | `memory` | Smaller GPUs and first smoke tests. | `ctx=16384`, `batch=1024`, one agent slot. |
+| `qwen27b-3090` | `Qwen3.6-27B-Q4_0` on RTX 3090 24 GB. | `ctx=65536`, `parallel=1`, `batch=1024`, `ubatch=256`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
+| `rtx4090` | Qwen3.6-27B on RTX 4090 24 GB with higher batch. | `ctx=65536`, `parallel=1`, `batch=2048`, `ubatch=512`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
 | `fast` | Lower-latency coding on large local models. | `ctx=32768`, `batch=4096`, `ubatch=1024`, cache reuse on. |
-| `balanced` | Previous default local coding setup. | `ctx=40960`, `batch=2048`, one agent slot. |
-| `quality` | Quality coding default for Qwen3.6. | `ctx=262144`, `batch=3072`, `temp=0.7`, larger tool output. |
+| `balanced` | Previous default local coding setup (replaced by qwen27b-3090). | `ctx=40960`, `batch=2048`, one agent slot. |
+| `quality` | Full-context coding for high-VRAM systems (not default for 24 GB GPUs). | `ctx=262144`, `batch=3072`, `temp=0.15`, larger tool output. |
 | `fullctx` | Full model-metadata context with moderate KV compression. | `ctx=0`, `parallel=1`, `ctk=q8_0`, `ctv=q8_0`, `auto_compact=220000`, `tool_output=12000`. |
 | `fullctx-q5` | Full model-metadata context with smaller KV cache. | `ctx=0`, `parallel=1`, `ctk=q5_0`, `ctv=q5_0`, `batch=2048`, `ubatch=512`. |
 | `fullctx-q4` | Full model-metadata context with the smallest preset KV cache. | `ctx=0`, `parallel=1`, `ctk=q4_0`, `ctv=q4_0`, `batch=1536`, `ubatch=384`. |
 | `long` | Large-context coding on high-VRAM systems. | `ctx=262144`, `batch=4096`, one agent slot. |
 | `concurrent` | Two local Codex sessions or subagent work. | `ctx=65536`, `parallel=2`, max agents `2`. |
 
-Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. Any explicit script
+Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. The default preset is now `qwen27b-3090` for 24 GB GPUs. Any explicit script
 argument or `OFXGGML_CODEX_*` setting still overrides the preset value.
 
 If an older local `llama-server` process is stuck on the Codex port and the
@@ -366,7 +368,7 @@ Optional environment overrides:
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 $env:OFXGGML_CODEX_MODEL = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
-$env:OFXGGML_CODEX_PRESET = "quality"
+$env:OFXGGML_CODEX_PRESET = "qwen27b-3090"
 $env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
 $env:OFXGGML_CODEX_EXE = "C:\Users\you\AppData\Local\OpenAI\Codex\bin\codex.exe"
 $env:OFXGGML_CODEX_GPU_LAYERS = "all"

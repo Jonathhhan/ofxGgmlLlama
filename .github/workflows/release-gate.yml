@@ -1,0 +1,13 @@
+﻿name: release-gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - CHANGELOG.md
+      - docs/RELEASE_CHECKLIST.md
+      - docs/RELEASE_NOTES_TEMPLATE.md
+
+jobs:
+  release-gate:
+    uses: Jonathhhan/ofxGgmlWorkflows/.github/workflows/release-gate.yml@main

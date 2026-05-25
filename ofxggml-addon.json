@@ -1,36 +1,39 @@
-{
-  "name": "ofxGgmlLlama",
-  "lane": "text-chat-embeddings",
-  "coreBaseline": "v1.0.1",
-  "requires": [
-    "ofxGgmlCore"
-  ],
-  "owns": [
-    "llama.cpp",
-    "text generation",
-    "chat",
-    "embeddings",
-    "server integration"
-  ],
-  "features": [
-    "local chat and text generation",
-    "embedding extraction",
-    "llama.cpp CLI and server integration",
-    "Codex local model handoff workflow",
-    "model-backed runtime smoke evidence"
-  ],
-  "platforms": [
-    "windows",
-    "macos",
-    "linux"
-  ],
-  "backends": [
-    "cpu",
-    "cuda",
-    "metal",
-    "vulkan"
-  ],
-  "inferenceSmokeReport": ".llama-runtime-smoke.json",
-  "codexLocalPlan": "scripts/plan-local-codex.bat",
-  "codexLocalSmoke": "scripts/test-local-codex.bat"
+﻿{
+    "name":  "ofxGgmlLlama",
+    "lane":  "text-chat-embeddings",
+    "coreBaseline":  "v1.0.1",
+    "requires":  [
+                     "ofxGgmlCore"
+                 ],
+    "owns":  [
+                 "llama.cpp",
+                 "text generation",
+                 "chat",
+                 "embeddings",
+                 "server integration"
+             ],
+    "features":  [
+                     "local chat and text generation",
+                     "embedding extraction",
+                     "llama.cpp CLI and server integration",
+                     "Codex local model handoff workflow",
+                     "model-backed runtime smoke evidence",
+                     "release readiness scoring",
+                     "backend runtime verification"
+                 ],
+    "platforms":  [
+                      "windows",
+                      "macos",
+                      "linux"
+                  ],
+    "backends":  [
+                     "cpu",
+                     "cuda",
+                     "metal",
+                     "vulkan"
+                 ],
+    "inferenceSmokeReport":  ".llama-runtime-smoke.json",
+    "codexLocalPlan":  "scripts/plan-local-codex.bat",
+    "codexLocalSmoke":  "scripts/test-local-codex.bat",
+    "releaseReadinessScore":  "docs/release-readiness-score.md"
 }
