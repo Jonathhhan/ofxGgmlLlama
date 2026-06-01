@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.0.2 - 2026-06-02
+
+- Pinned the default llama.cpp runtime build revision to upstream release
+  `b9453`.
 - Restored conventional openFrameworks example folder names:
   `ofxGgmlTextExample`, `ofxGgmlChatExample`, and
   `ofxGgmlEmbeddingExample`.

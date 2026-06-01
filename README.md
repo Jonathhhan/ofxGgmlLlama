@@ -7,7 +7,7 @@ lifecycle scripts, concrete llama adapters, and focused openFrameworks examples.
 `ofxGgmlCore` stays the dependency. This addon owns llama.cpp-specific adapters,
 tooling, and examples so core can stay small and boring.
 
-Current addon API version: `1.0.1`.
+Current addon API version: `1.0.2`.
 
 Family map: https://jonathhhan.github.io/ofxGgmlCore/
 
@@ -167,7 +167,7 @@ Release smoke checks are listed in
 Tagging and compatibility policy is in
 [`docs/RELEASE_POLICY.md`](docs/RELEASE_POLICY.md).
 Release history is tracked in [`CHANGELOG.md`](CHANGELOG.md).
-Prepared release notes are in [`docs/releases/v1.0.1.md`](docs/releases/v1.0.1.md).
+Prepared release notes are in [`docs/releases/v1.0.2.md`](docs/releases/v1.0.2.md).
 
 ## Scripts
 

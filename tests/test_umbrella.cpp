@@ -6,9 +6,9 @@
 OFXGGML_TEST(llama_umbrella_exposes_version_metadata) {
 	OFXGGML_REQUIRE(OFXGGML_LLAMA_VERSION_MAJOR == 1);
 	OFXGGML_REQUIRE(OFXGGML_LLAMA_VERSION_MINOR == 0);
-	OFXGGML_REQUIRE(OFXGGML_LLAMA_VERSION_PATCH == 1);
-	OFXGGML_REQUIRE(std::string(OFXGGML_LLAMA_VERSION_STRING) == "1.0.1");
-	OFXGGML_REQUIRE(std::string(ofxGgmlLlamaGetVersionString()) == "1.0.1");
+	OFXGGML_REQUIRE(OFXGGML_LLAMA_VERSION_PATCH == 2);
+	OFXGGML_REQUIRE(std::string(OFXGGML_LLAMA_VERSION_STRING) == "1.0.2");
+	OFXGGML_REQUIRE(std::string(ofxGgmlLlamaGetVersionString()) == "1.0.2");
 }
 
 OFXGGML_TEST(llama_umbrella_exposes_core_request_types) {
