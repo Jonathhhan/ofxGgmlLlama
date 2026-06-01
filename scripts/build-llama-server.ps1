@@ -1,5 +1,5 @@
 param(
-	[string]$Revision = "master",
+	[string]$Revision = "b9453",
 	[string]$Repo = "https://github.com/ggml-org/llama.cpp.git",
 	[string]$SourceDir = "",
 	[string]$BuildDir = "",

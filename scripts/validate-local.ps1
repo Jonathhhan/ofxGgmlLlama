@@ -71,6 +71,7 @@ Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaSer
 Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerEmbeddingBackend.h" "public header"
 Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "ADDON_DEPENDENCIES\s*\+=\s*ofxGgmlCore" "addon config"
 Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "\.\./ofxGgmlCore/src" "addon config"
+Assert-FileContains (Join-Path $addonRoot "scripts\build-llama-server.ps1") '\$Revision = "b9453"' "llama.cpp build revision"
 Assert-Path (Join-Path $addonRoot "tests\CMakeLists.txt") "test CMakeLists"
 Assert-Path (Join-Path $addonRoot "tests\test_main.cpp") "test source"
 
