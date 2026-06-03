@@ -398,8 +398,6 @@ function Get-OfxGgmlCodexDefaultSandbox {
 }
 
 if ($isCodex) {
-	$hasExplicitCodexModelPath = ![string]::IsNullOrWhiteSpace($Model) -or
-		![string]::IsNullOrWhiteSpace($env:OFXGGML_TEXT_MODEL)
 	$resolvedCodexProvider = if (![string]::IsNullOrWhiteSpace($CodexProvider)) {
 		$CodexProvider
 	} elseif ($env:OFXGGML_CODEX_PROVIDER) {
@@ -549,7 +547,7 @@ if ($isCodex) {
 			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
 	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
-		if ($useLlamaCppCodexProvider -and $hasExplicitCodexModelPath) {
+		if ($useLlamaCppCodexProvider -and ![string]::IsNullOrWhiteSpace($Model)) {
 			$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
 		}
 		if ([string]::IsNullOrWhiteSpace($ServerModel) -and

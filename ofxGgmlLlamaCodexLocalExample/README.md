@@ -205,13 +205,14 @@ model_reasoning_summary = "none"
 `profiles.ofxggml_local.model` must match the llama-server alias used by the
 example's `ServerModel` field. The alias is not proof of which GGUF is loaded:
 `llama-server` can serve one GGUF while advertising a different alias if you pass
-the wrong `--alias`. If you do not pass `-ServerModel` and do not set
-`OFXGGML_CODEX_MODEL`, the launcher uses
-`local/Qwen3.6-35B-A3B-UD-Q4_K_M` as the example default. If you explicitly
-pass a GGUF path with `-Model` or `OFXGGML_TEXT_MODEL`, it derives a truthful
-alias from that filename, such as `local/GLM-4.7-Flash-UD-Q4_K_XL` or
-`local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If you launch a smaller local Qwen
-model with `-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
+the wrong `--alias`. If you do not pass `-ServerModel`, the launcher prefers the
+resolved local GGUF path from `-Model`, `OFXGGML_TEXT_MODEL`, or local model
+discovery and derives a truthful alias from that filename, such as
+`local/GLM-4.7-Flash-UD-Q4_K_XL` or
+`local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If no local GGUF is resolved, it
+falls back to `OFXGGML_CODEX_MODEL` or the example default
+`local/Qwen3.6-35B-A3B-UD-Q4_K_M`. If you launch a smaller local Qwen model with
+`-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
 
 ```toml
 [profiles.ofxggml_local]

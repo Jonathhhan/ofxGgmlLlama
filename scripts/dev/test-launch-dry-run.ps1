@@ -204,6 +204,16 @@ function Assert-NotContains {
 	}
 }
 
+function Get-LocalAliasFromOutput {
+	param([string[]]$Output)
+	$text = $Output -join "`n"
+	$match = [regex]::Match($text, 'Using text model: (?<path>.+?\.gguf)')
+	if (!$match.Success) {
+		return ""
+	}
+	return "local/" + [System.IO.Path]::GetFileNameWithoutExtension($match.Groups["path"].Value)
+}
+
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $scratchDir = Join-Path $addonRoot "build\launch-dry-run-smoke"
@@ -387,7 +397,8 @@ $codexHybridOutput = Invoke-DryRun `
 Assert-Contains $codexHybridOutput "Using Codex provider: hybrid" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex sandbox: default config" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex local endpoint: http://127.0.0.1:8001/v1" "Codex hybrid dry-run"
-Assert-Contains $codexHybridOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex hybrid dry-run"
+$expectedHybridAlias = Get-LocalAliasFromOutput $codexHybridOutput
+Assert-Contains $codexHybridOutput "Using Codex model alias: $expectedHybridAlias" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Auto server: off" "Codex hybrid dry-run"
 Assert-NotContains $codexHybridOutput "Starting bundled server" "Codex hybrid dry-run"
@@ -440,7 +451,33 @@ $codexDefaultAliasOutput = Invoke-DryRun `
 		Platform = $Platform
 	}
 Assert-Contains $codexDefaultAliasOutput "Using Codex provider: local" "Codex local default alias dry-run"
-Assert-Contains $codexDefaultAliasOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex local default alias dry-run"
+$expectedDefaultAlias = Get-LocalAliasFromOutput $codexDefaultAliasOutput
+Assert-Contains $codexDefaultAliasOutput "Using Codex model alias: $expectedDefaultAlias" "Codex local default alias dry-run"
+
+$previousAutoModel = $env:OFXGGML_TEXT_MODEL
+$env:OFXGGML_TEXT_MODEL = $modelPath
+try {
+	$codexAutoLocalAliasOutput = Invoke-DryRun `
+		-Label "Codex local auto model alias dry-run" `
+		-Script (Join-Path $scriptRoot "run-example.ps1") `
+		-Parameters @{
+			Example = "codex"
+			DryRun = $true
+			ServerUrl = "http://127.0.0.1:9001/v1"
+			Configuration = $Configuration
+			Platform = $Platform
+		}
+} finally {
+	if ($null -eq $previousAutoModel) {
+		Remove-Item Env:\OFXGGML_TEXT_MODEL -ErrorAction SilentlyContinue
+	} else {
+		$env:OFXGGML_TEXT_MODEL = $previousAutoModel
+	}
+}
+$expectedAutoAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
+Assert-Contains $codexAutoLocalAliasOutput "Using text model: $modelPath" "Codex local auto model alias dry-run"
+Assert-Contains $codexAutoLocalAliasOutput "Using Codex model alias: $expectedAutoAlias" "Codex local auto model alias dry-run"
+Assert-NotContains $codexAutoLocalAliasOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex local auto model alias dry-run"
 
 $codexDerivedAliasOutput = Invoke-DryRun `
 	-Label "Codex local derived alias dry-run" `
