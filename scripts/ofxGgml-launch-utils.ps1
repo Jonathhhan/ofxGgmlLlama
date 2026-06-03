@@ -80,6 +80,23 @@ function Find-OfxGgmlFirstModel {
 	return ""
 }
 
+function Get-OfxGgmlLocalModelAlias {
+	param([string]$ModelPath)
+
+	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
+		return ""
+	}
+	$name = [System.IO.Path]::GetFileNameWithoutExtension($ModelPath)
+	if ([string]::IsNullOrWhiteSpace($name)) {
+		return ""
+	}
+	$slug = ($name -replace '[^A-Za-z0-9._-]+', '-').Trim("-")
+	if ([string]::IsNullOrWhiteSpace($slug)) {
+		return ""
+	}
+	return "local/$slug"
+}
+
 function Get-OfxGgmlModelSearchDirectories {
 	param(
 		[string]$AddonRoot,

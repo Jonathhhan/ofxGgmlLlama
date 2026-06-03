@@ -42,6 +42,11 @@ Write-Step "Checking path normalization"
 Assert-Equal (Normalize-OfxGgmlPathText '  "C:\models\local.gguf"  ') "C:\models\local.gguf" "quoted path normalization"
 Assert-Equal (Normalize-OfxGgmlPathText "   ") "" "blank path normalization"
 
+Write-Step "Checking local model aliases"
+Assert-Equal (Get-OfxGgmlLocalModelAlias "C:\models\local model Q4.gguf") "local/local-model-Q4" "local model alias slug"
+Assert-Equal (Get-OfxGgmlLocalModelAlias "C:\models\dry-run-model.gguf") "local/dry-run-model" "local model alias filename"
+Assert-Equal (Get-OfxGgmlLocalModelAlias "") "" "empty local model alias"
+
 Write-Step "Checking first-file resolution"
 $fileA = Join-Path $scratchRoot "a.txt"
 New-Item -ItemType File -Path $fileA | Out-Null

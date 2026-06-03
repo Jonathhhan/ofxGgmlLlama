@@ -256,6 +256,22 @@ Assert-Contains $textOutput "Executable:" "Text dry-run"
 Assert-Contains $textOutput "Auto server: off" "Text dry-run"
 Assert-NotContains $textOutput "Starting ofxGgmlTextExample" "Text dry-run"
 
+$expectedTextAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
+$textLocalAliasOutput = Invoke-DryRun `
+	-Label "Text example local alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "text"
+		DryRun = $true
+		NoAutoServer = $true
+		ServerUrl = "http://127.0.0.1:9080"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $textLocalAliasOutput "Using server model: $expectedTextAlias" "Text local alias dry-run"
+Assert-Contains $textLocalAliasOutput "Using text model: $modelPath" "Text local alias dry-run"
+
 $textCliOutput = Invoke-DryRun `
 	-Label "Text example CLI dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `
@@ -295,6 +311,21 @@ Assert-Contains $chatOutput "Executable:" "Chat dry-run"
 Assert-Contains $chatOutput "Auto server: off" "Chat dry-run"
 Assert-NotContains $chatOutput "Starting ofxGgmlChatExample" "Chat dry-run"
 
+$chatLocalAliasOutput = Invoke-DryRun `
+	-Label "Chat example local alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "chat"
+		DryRun = $true
+		NoAutoServer = $true
+		ServerUrl = "http://127.0.0.1:9080"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $chatLocalAliasOutput "Using server model: $expectedTextAlias" "Chat local alias dry-run"
+Assert-Contains $chatLocalAliasOutput "Using text model: $modelPath" "Chat local alias dry-run"
+
 $chatCliOutput = Invoke-DryRun `
 	-Label "Chat example CLI dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `
@@ -333,6 +364,22 @@ Assert-Contains $embeddingOutput "Using embedding model: $modelPath" "Embedding 
 Assert-Contains $embeddingOutput "Executable:" "Embedding dry-run"
 Assert-Contains $embeddingOutput "Auto server: off" "Embedding dry-run"
 Assert-NotContains $embeddingOutput "Starting ofxGgmlEmbeddingExample" "Embedding dry-run"
+
+$expectedEmbeddingAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
+$embeddingLocalAliasOutput = Invoke-DryRun `
+	-Label "Embedding example local alias dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "embedding"
+		DryRun = $true
+		NoAutoServer = $true
+		ServerUrl = "http://127.0.0.1:9081"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $embeddingLocalAliasOutput "Using server model: $expectedEmbeddingAlias" "Embedding local alias dry-run"
+Assert-Contains $embeddingLocalAliasOutput "Using embedding model: $modelPath" "Embedding local alias dry-run"
 
 $codexOutput = Invoke-DryRun `
 	-Label "Codex local example dry-run" `
@@ -646,6 +693,20 @@ Assert-Contains $serverOutput "--kv-unified" "Server dry-run"
 Assert-Contains $serverOutput "--spec-type ngram-cache" "Server dry-run"
 Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
+
+$serverLocalAliasOutput = Invoke-DryRun `
+	-Label "llama-server local alias dry-run" `
+	-Script (Join-Path $scriptRoot "start-llama-server.ps1") `
+	-Parameters @{
+		DryRun = $true
+		ServerExe = $serverExe
+		ModelPath = $modelPath
+		HostName = "127.0.0.1"
+		Port = 9082
+	}
+$expectedServerAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
+Assert-Contains $serverLocalAliasOutput "alias:     $expectedServerAlias" "Server local alias dry-run"
+Assert-Contains $serverLocalAliasOutput "--alias $expectedServerAlias" "Server local alias dry-run"
 
 $stopServerOutput = Invoke-DryRun `
 	-Label "stop llama-server dry-run" `

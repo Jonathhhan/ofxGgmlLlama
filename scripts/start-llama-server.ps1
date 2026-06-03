@@ -199,6 +199,9 @@ if (!(Test-Path -LiteralPath $ModelPath -PathType Leaf)) {
 }
 $ModelPath = (Resolve-Path -LiteralPath $ModelPath).Path
 $ServerExe = (Resolve-Path -LiteralPath $ServerExe).Path
+if ([string]::IsNullOrWhiteSpace($Alias)) {
+	$Alias = Get-OfxGgmlLocalModelAlias -ModelPath $ModelPath
+}
 
 if ($ForceNew -and !$DryRun) {
 	$stopped = Stop-MatchingLlamaServer -ServerExePath $ServerExe

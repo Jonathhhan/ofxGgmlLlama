@@ -108,23 +108,6 @@ $Temperature = Normalize-OfxGgmlPathText $Temperature
 $TopP = Normalize-OfxGgmlPathText $TopP
 $MinP = Normalize-OfxGgmlPathText $MinP
 
-function Get-OfxGgmlLocalModelAlias {
-	param([string]$ModelPath)
-
-	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-		return ""
-	}
-	$name = [System.IO.Path]::GetFileNameWithoutExtension($ModelPath)
-	if ([string]::IsNullOrWhiteSpace($name)) {
-		return ""
-	}
-	$slug = ($name -replace '[^A-Za-z0-9._-]+', '-').Trim("-")
-	if ([string]::IsNullOrWhiteSpace($slug)) {
-		return ""
-	}
-	return "local/$slug"
-}
-
 function Get-OfxGgmlCodexPresetDefaults {
 	param([string]$Name)
 
@@ -681,6 +664,9 @@ if ($isCodex) {
 			-ExampleRoot $exampleRoot `
 			-ExtraExampleNames @("ofxGgmlTextExample", "ofxGgmlChatExample"))
 	}
+	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
+		$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
+	}
 
 	$env:OFXGGML_EMBEDDING_SERVER_URL = $ServerUrl
 	if (![string]::IsNullOrWhiteSpace($ServerModel)) {
@@ -712,6 +698,7 @@ if ($isCodex) {
 		-MissingModelWarning "No GGUF model found. Put an embedding GGUF under addons\models or pass -Model C:\path\to\embedding-model.gguf." `
 		-StartMessage "embedding llama-server is not responding; starting bundled server" `
 		-StartupTimeoutSeconds 180 `
+		-Alias $ServerModel `
 		-NoAutoServer:$NoAutoServer `
 		-Embeddings
 } else {
@@ -737,6 +724,9 @@ if ($isCodex) {
 			-AddonRoot $addonRoot `
 			-ExampleRoot $exampleRoot)
 	}
+	if ([string]::IsNullOrWhiteSpace($ServerModel)) {
+		$ServerModel = Get-OfxGgmlLocalModelAlias -ModelPath $Model
+	}
 
 	if ($Backend -ieq "server") {
 		$env:OFXGGML_TEXT_BACKEND = "server"
@@ -758,6 +748,7 @@ if ($isCodex) {
 				-MissingModelWarning "No GGUF model found. Put one under addons\models or pass -Model C:\path\to\model.gguf." `
 				-StartMessage "llama-server is not responding; starting bundled server" `
 				-StartupTimeoutSeconds 120 `
+				-Alias $ServerModel `
 				-NoAutoServer:$NoAutoServer
 		}
 	} elseif (![string]::IsNullOrWhiteSpace($LlamaCli)) {
