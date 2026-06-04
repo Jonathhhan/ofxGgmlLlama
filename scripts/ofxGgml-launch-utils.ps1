@@ -64,18 +64,38 @@ function Resolve-OfxGgmlFirstFile {
 	return ""
 }
 
-function Find-OfxGgmlFirstModel {
+function Get-OfxGgmlUniqueDirectories {
 	param([string[]]$Directories)
+	$seen = @{}
 	foreach ($directory in $Directories) {
+		if ([string]::IsNullOrWhiteSpace($directory)) {
+			continue
+		}
+		$fullPath = [System.IO.Path]::GetFullPath($directory)
+		$key = $fullPath.ToLowerInvariant()
+		if (!$seen.ContainsKey($key)) {
+			$seen[$key] = $true
+			$fullPath
+		}
+	}
+}
+
+function Get-OfxGgmlModelFiles {
+	param([string[]]$Directories)
+	foreach ($directory in (Get-OfxGgmlUniqueDirectories $Directories)) {
 		if (!(Test-Path -LiteralPath $directory -PathType Container)) {
 			continue
 		}
-		$model = Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
-			Sort-Object Name |
-			Select-Object -First 1
-		if ($model) {
-			return $model.FullName
-		}
+		Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
+			Sort-Object Name
+	}
+}
+
+function Find-OfxGgmlFirstModel {
+	param([string[]]$Directories)
+	$model = Get-OfxGgmlModelFiles $Directories | Select-Object -First 1
+	if ($model) {
+		return $model.FullName
 	}
 	return ""
 }

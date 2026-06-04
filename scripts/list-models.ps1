@@ -90,47 +90,31 @@ function Get-LlamaCompatHint {
 	return "non-standard quant"
 }
 
-function Get-UniqueDirectories {
-	param([string[]]$Directories)
-	$seen = @{}
-	foreach ($directory in $directories) {
-		if ([string]::IsNullOrWhiteSpace($directory)) { continue }
-		$fullPath = [System.IO.Path]::GetFullPath($directory)
-		$key = $fullPath.ToLowerInvariant()
-		if (!$seen.ContainsKey($key)) { $seen[$key] = $true; $fullPath }
-	}
-}
-
-$directories = Get-UniqueDirectories (Get-OfxGgmlModelSearchDirectories `
+$directories = Get-OfxGgmlUniqueDirectories (Get-OfxGgmlModelSearchDirectories `
 	-AddonRoot $addonRoot `
 	-ExampleRoot (Join-Path $addonRoot "ofxGgmlTextExample") `
 	-ExtraExampleNames @("ofxGgmlChatExample", "ofxGgmlEmbeddingExample"))
 
 $models = New-Object System.Collections.Generic.List[object]
-foreach ($directory in $directories) {
-	if (!(Test-Path -LiteralPath $directory -PathType Container)) { continue }
-	Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
-		Sort-Object Name |
-		ForEach-Object {
-			$name = $_.Name
-			$family = Get-ModelFamily $name
-			$quant = Get-QuantizationHint $name
-			$params = Get-ParameterHint $name
-			$compat = Get-LlamaCompatHint $family $quant
-			$models.Add([pscustomobject]@{
-				Name = $name
-				Path = $_.FullName
-				Directory = $directory
-				Bytes = [long]$_.Length
-				Size = Format-Size $_.Length
-				RoleHint = Get-ModelRoleHint $name
-				TinyCandidate = Get-TinyModelHint -Name $name -Bytes ([long]$_.Length)
-				Family = $family
-				Quantization = $quant
-				Parameters = $params
-				LlamaCompat = $compat
-			})
-		}
+foreach ($modelFile in (Get-OfxGgmlModelFiles $directories)) {
+	$name = $modelFile.Name
+	$family = Get-ModelFamily $name
+	$quant = Get-QuantizationHint $name
+	$params = Get-ParameterHint $name
+	$compat = Get-LlamaCompatHint $family $quant
+	$models.Add([pscustomobject]@{
+		Name = $name
+		Path = $modelFile.FullName
+		Directory = $modelFile.DirectoryName
+		Bytes = [long]$modelFile.Length
+		Size = Format-Size $modelFile.Length
+		RoleHint = Get-ModelRoleHint $name
+		TinyCandidate = Get-TinyModelHint -Name $name -Bytes ([long]$modelFile.Length)
+		Family = $family
+		Quantization = $quant
+		Parameters = $params
+		LlamaCompat = $compat
+	})
 }
 
 if ($Json) {

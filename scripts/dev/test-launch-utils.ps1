@@ -67,6 +67,12 @@ Assert-Equal `
 	(Find-OfxGgmlFirstModel @($modelDirA, $modelDirB)) `
 	(Resolve-Path -LiteralPath $modelA).Path `
 	"first model sorted by name in first populated directory"
+$uniqueModelDirs = @(Get-OfxGgmlUniqueDirectories @($modelDirB, $modelDirB, ""))
+Assert-Equal $uniqueModelDirs.Count 1 "unique model directory count"
+$modelFiles = @(Get-OfxGgmlModelFiles @($modelDirA, $modelDirB, $modelDirB))
+Assert-Equal $modelFiles.Count 2 "deduplicated model file enumeration count"
+Assert-Equal $modelFiles[0].FullName (Resolve-Path -LiteralPath $modelA).Path "model file enumeration sorted first"
+Assert-Equal $modelFiles[1].FullName (Resolve-Path -LiteralPath $modelB).Path "model file enumeration sorted second"
 
 Write-Step "Checking model search directory layout"
 $exampleRoot = Join-Path $scratchRoot "Example"

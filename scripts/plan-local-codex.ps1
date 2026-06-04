@@ -376,22 +376,15 @@ function Get-LocalTextModelCandidate {
 		-ExampleRoot (Join-Path $addonRoot "ofxGgmlTextExample") `
 		-ExtraExampleNames @("ofxGgmlChatExample", "ofxGgmlEmbeddingExample")
 	$candidates = New-Object System.Collections.Generic.List[object]
-	foreach ($directory in @($directories)) {
-		if (!(Test-Path -LiteralPath $directory -PathType Container)) {
-			continue
+	foreach ($modelFile in (Get-OfxGgmlModelFiles $directories)) {
+		if ((Get-ModelRoleHint $modelFile.Name) -eq "text") {
+			$candidates.Add([pscustomobject]@{
+				Path = $modelFile.FullName
+				Name = $modelFile.Name
+				Alias = Get-OfxGgmlLocalModelAlias -ModelPath $modelFile.FullName
+				TinyCandidate = Test-TinyModelHint -Name $modelFile.Name -Bytes ([long]$modelFile.Length)
+			})
 		}
-		Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
-			Sort-Object Name |
-			ForEach-Object {
-				if ((Get-ModelRoleHint $_.Name) -eq "text") {
-					$candidates.Add([pscustomobject]@{
-						Path = $_.FullName
-						Name = $_.Name
-						Alias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-						TinyCandidate = Test-TinyModelHint -Name $_.Name -Bytes ([long]$_.Length)
-					})
-				}
-			}
 	}
 	$tiny = @($candidates | Where-Object { $_.TinyCandidate } | Select-Object -First 1)
 	if ($tiny.Count -gt 0) {

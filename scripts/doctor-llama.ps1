@@ -10,6 +10,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $addonsRoot = Split-Path -Parent $addonRoot
+. (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 $script:Warnings = 0
 
 function Test-CommandAvailable {
@@ -44,7 +45,7 @@ function Test-AnyPath {
 }
 
 function Get-GgufModels {
-	$directories = @(
+	$directories = Get-OfxGgmlUniqueDirectories @(
 		(Join-Path $addonRoot "ofxGgmlTextExample\bin\data\models"),
 		(Join-Path $addonRoot "ofxGgmlTextExample\models"),
 		(Join-Path $addonRoot "ofxGgmlChatExample\bin\data\models"),
@@ -54,17 +55,7 @@ function Get-GgufModels {
 		(Join-Path $addonRoot "models"),
 		(Join-Path $addonsRoot "models")
 	)
-	$models = @()
-	foreach ($directory in $directories) {
-		if (Test-Path -LiteralPath $directory -PathType Container) {
-			$models += @(
-				Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
-					Sort-Object FullName |
-					Select-Object -ExpandProperty FullName
-			)
-		}
-	}
-	return @($models)
+	return @(Get-OfxGgmlModelFiles $directories | Select-Object -ExpandProperty FullName)
 }
 
 function Get-ServerStatus {
