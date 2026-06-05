@@ -187,6 +187,8 @@ Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "J
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") "ofxGgml-launch-utils.ps1" "OpenCode local planner shared launcher helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") "Get-OfxGgmlServerRootUrl" "OpenCode local planner shared endpoint helper"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Manual server command" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"

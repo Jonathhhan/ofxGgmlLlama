@@ -24,31 +24,11 @@ $ErrorActionPreference = "Stop"
 
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
-
-function Normalize-Text {
-	param([string]$Value)
-	if ($null -eq $Value) {
-		return ""
-	}
-	$trimmed = $Value.Trim()
-	if ($trimmed.Length -ge 2 -and $trimmed.StartsWith('"') -and $trimmed.EndsWith('"')) {
-		return $trimmed.Substring(1, $trimmed.Length - 2)
-	}
-	return $trimmed
-}
-
-function Get-ServerRoot {
-	param([string]$Value)
-	$normalized = (Normalize-Text $Value).TrimEnd("/")
-	if ($normalized.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) {
-		return $normalized.Substring(0, $normalized.Length - 3)
-	}
-	return $normalized
-}
+. (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 function Resolve-OpenCodeConfigPath {
 	param([string]$ExplicitPath)
-	$explicit = Normalize-Text $ExplicitPath
+	$explicit = Normalize-OfxGgmlPathText $ExplicitPath
 	if (![string]::IsNullOrWhiteSpace($explicit)) {
 		return [System.IO.Path]::GetFullPath($explicit)
 	}
@@ -63,7 +43,7 @@ function Resolve-OpenCodeConfigPath {
 
 function Resolve-OpenCodeExe {
 	param([string]$ExplicitPath)
-	$explicit = Normalize-Text $ExplicitPath
+	$explicit = Normalize-OfxGgmlPathText $ExplicitPath
 	if (![string]::IsNullOrWhiteSpace($explicit)) {
 		if (Test-Path -LiteralPath $explicit -PathType Leaf) {
 			return (Resolve-Path -LiteralPath $explicit).Path
@@ -77,7 +57,7 @@ function Resolve-OpenCodeExe {
 		$where = ""
 	}
 	if (![string]::IsNullOrWhiteSpace($where)) {
-		return (Normalize-Text $where)
+		return (Normalize-OfxGgmlPathText $where)
 	}
 	return ""
 }
@@ -296,14 +276,14 @@ function New-OpenCodeConfigSnippet {
 	return ($config | ConvertTo-Json -Depth 12)
 }
 
-$resolvedEndpoint = Normalize-Text $Endpoint
-$serverRoot = Get-ServerRoot $resolvedEndpoint
+$resolvedEndpoint = Normalize-OfxGgmlPathText $Endpoint
+$serverRoot = Get-OfxGgmlServerRootUrl $resolvedEndpoint
 $apiRoot = if ($resolvedEndpoint.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) { $resolvedEndpoint.TrimEnd("/") } else { ($resolvedEndpoint.TrimEnd("/") + "/v1") }
-$resolvedProvider = Normalize-Text $ProviderId
-$resolvedProviderName = Normalize-Text $ProviderName
-$resolvedDefaultAgent = Normalize-Text $DefaultAgent
+$resolvedProvider = Normalize-OfxGgmlPathText $ProviderId
+$resolvedProviderName = Normalize-OfxGgmlPathText $ProviderName
+$resolvedDefaultAgent = Normalize-OfxGgmlPathText $DefaultAgent
 $disableBuiltInProviders = !$KeepBuiltInProviders
-$requestedModel = Normalize-Text $Model
+$requestedModel = Normalize-OfxGgmlPathText $Model
 $modelParts = Get-OpenCodeModelParts -Provider $resolvedProvider -ModelValue $requestedModel
 $servedModels = Get-ServedModelEvidence -ApiRoot $apiRoot -ExpectedModel $modelParts.ProviderModelId
 if ($UseServedModel -and $servedModels.Reachable -and @($servedModels.Models).Count -eq 1) {
