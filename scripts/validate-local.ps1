@@ -177,6 +177,9 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "syncCodexConfig" "Codex local launch config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy config" "Codex local clipboard config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy server command" "Codex local clipboard server command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy launch command" "Codex local clipboard launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildCodexLaunchCommand" "Codex local launch command preview"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "quotePowerShellArgument" "Codex local launch command preview"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Manual server command" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"
@@ -188,6 +191,7 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "ShellExecuteW" "Codex UI launch"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "--oss" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Copy server command' "Codex local example README"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Copy launch command' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Do not add `--oss`' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "docs\LOCAL_AGENT_ROUTING.md") 'check-local-agent-run' "Local agent routing docs"
 
