@@ -230,6 +230,10 @@ those files with `config_file`; Codex loads `agents/explorer.toml` and
 `agents/worker.toml` as overrides for its built-in agent names.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
+Use **Copy config** when you want the generated TOML snippet on the clipboard
+without writing it, and **Copy server command** when you want to launch or tweak
+the matching `llama-server` command manually in a terminal.
+
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `

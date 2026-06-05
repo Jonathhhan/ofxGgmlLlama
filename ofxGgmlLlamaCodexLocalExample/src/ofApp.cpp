@@ -494,6 +494,8 @@ void ofApp::draw() {
 	bool launchRequested = false;
 	bool refreshRequested = false;
 	bool adoptServedAliasRequested = false;
+	bool copyConfigRequested = false;
+	bool copyServerCommandRequested = false;
 
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
@@ -755,6 +757,20 @@ void ofApp::draw() {
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		refreshRequested = ImGui::Button("Refresh");
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!localProviderMode || modelAlias.empty());
+		copyConfigRequested = ImGui::Button("Copy config");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!llamaCppProviderMode || modelPath.empty());
+		copyServerCommandRequested = ImGui::Button("Copy server command");
+		ImGui::EndDisabled();
+		if (copyConfigRequested) {
+			copyTextToClipboard("Codex config snippet", buildCodexConfigSnippetText());
+		}
+		if (copyServerCommandRequested) {
+			copyTextToClipboard("manual server command", buildManualServerCommand());
+		}
 
 		ImGui::Separator();
 		ImGui::Text("server: %s", serverReady ? "ready" : "not ready");
@@ -1285,6 +1301,13 @@ std::string ofApp::formatPreflightSummary(const std::vector<std::string> & issue
 	return "preflight: " + joinIssues(issues);
 }
 
+std::string ofApp::buildCodexConfigSnippetText() const {
+	if (!usesLocalCodexProvider(codexProviderMode)) {
+		return "";
+	}
+	return ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(makeCodexConfig());
+}
+
 std::string ofApp::buildManualServerCommand() const {
 	const auto effectiveModelAlias = modelAlias.empty()
 		? ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath)
@@ -1354,14 +1377,22 @@ std::string ofApp::buildManualServerCommand() const {
 	return command.str();
 }
 
+void ofApp::copyTextToClipboard(const std::string & label, const std::string & text) {
+	if (text.empty()) {
+		configWriteStatus = label + " is empty";
+		return;
+	}
+	ImGui::SetClipboardText(text.c_str());
+	configWriteStatus = "copied " + label + " to clipboard";
+}
+
 void ofApp::rebuildLines() {
 	lines.clear();
 	const bool localProviderMode = usesLocalCodexProvider(codexProviderMode);
 	const bool llamaCppProviderMode = usesLlamaCppCodexProvider(codexProviderMode);
 	const bool openAiLaunchMode = usesOpenAiCodexLaunch(codexProviderMode);
 	if (localProviderMode) {
-		const auto config = makeCodexConfig();
-		std::istringstream snippet(ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config));
+		std::istringstream snippet(buildCodexConfigSnippetText());
 		std::string line;
 		while (std::getline(snippet, line)) {
 			lines.push_back(line);

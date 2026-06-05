@@ -43,7 +43,9 @@ private:
 		bool requireLocalServer,
 		bool requireCodexExecutable) const;
 	std::string formatPreflightSummary(const std::vector<std::string> & issues) const;
+	std::string buildCodexConfigSnippetText() const;
 	std::string buildManualServerCommand() const;
+	void copyTextToClipboard(const std::string & label, const std::string & text);
 	void rebuildLines();
 	void joinWorker();
 
