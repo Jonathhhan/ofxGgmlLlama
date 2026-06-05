@@ -179,7 +179,9 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy server command" "Codex local clipboard server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy launch command" "Codex local clipboard launch command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildCodexLaunchCommand" "Codex local launch command preview"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "quotePowerShellArgument" "Codex local launch command preview"
+Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.h") "ofxGgmlLlamaCodexLaunchCommandSettings" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "buildLaunchCommand" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "quotePowerShellArgument" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Manual server command" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"
@@ -374,7 +376,9 @@ $agentRunContractCheck = & (Join-Path $scriptRoot "check-local-agent-run.ps1") -
 if ($LASTEXITCODE -ne 0) {
 	throw "Local agent contract run gate failed with exit code $LASTEXITCODE"
 }
-if ($agentRunContractCheck.status -ne "verified" -or $agentRunContractCheck.allowedPaths -notcontains "src/codex") {
+if ($agentRunContractCheck.status -ne "verified" -or
+	$agentRunContractCheck.allowedPaths -notcontains "src/codex" -or
+	$agentRunContractCheck.allowedPaths -notcontains "tests") {
 	throw "Local agent contract run gate did not load expected allowed paths"
 }
 

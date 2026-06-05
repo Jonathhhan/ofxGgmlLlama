@@ -4,6 +4,7 @@
                          "src/codex",
                          "ofxGgmlLlamaCodexLocalExample",
                          "scripts",
+                         "tests",
                          "docs",
                          "ofxggml-addon.json"
                      ],

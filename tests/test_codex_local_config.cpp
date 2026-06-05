@@ -131,3 +131,69 @@ OFXGGML_TEST(codex_config_snippet_includes_self_contained_provider) {
 	OFXGGML_REQUIRE(snippet.find("[profiles.ofxggml_local]") != std::string::npos);
 	OFXGGML_REQUIRE(snippet.find("model = \"local/new-selected-model\"") != std::string::npos);
 }
+
+OFXGGML_TEST(codex_launch_command_includes_local_provider_overrides) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.providerId = "llama_cpp";
+	config.providerName = "llama.cpp local";
+	config.baseUrl = "http://127.0.0.1:9001/v1";
+	config.modelContextWindow = 40960;
+	config.modelAutoCompactTokenLimit = 30000;
+	config.toolOutputTokenLimit = 5000;
+	config.agentMaxConcurrentThreadsPerSession = 2;
+	config.agentMaxDepth = 3;
+
+	ofxGgmlLlamaCodexLaunchCommandSettings settings;
+	settings.executable = "C:\\Program Files\\Codex\\codex.exe";
+	settings.profile = "ofxggml_local";
+	settings.model = "local/new-selected-model";
+	settings.sandbox = "workspace-write";
+	settings.provider = config;
+	settings.includeLocalProviderToolGuards = true;
+	settings.includeLocalProviderOverrides = true;
+
+	const auto command = ofxGgmlLlamaCodexLocal::buildLaunchCommand(settings);
+
+	OFXGGML_REQUIRE(command.find("'C:\\Program Files\\Codex\\codex.exe'") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("--disable apps") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("'web_search=\"live\"'") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("-c model_provider=llama_cpp") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("'model_providers.llama_cpp.name=\"llama.cpp local\"'") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("'model_providers.llama_cpp.base_url=\"http://127.0.0.1:9001/v1\"'") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("-c agents.max_threads=2") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("-c agents.max_depth=3") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("--sandbox workspace-write") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("--model local/new-selected-model") != std::string::npos);
+}
+
+OFXGGML_TEST(codex_launch_command_keeps_hybrid_main_model_remote) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.providerId = "llama_cpp";
+	config.providerName = "llama.cpp local";
+	config.modelAlias = "local/local-agent-model";
+	config.agentMaxConcurrentThreadsPerSession = 1;
+
+	ofxGgmlLlamaCodexLaunchCommandSettings settings;
+	settings.profile = "ofxggml_local";
+	settings.model = "gpt-5";
+	settings.provider = config;
+	settings.includeLocalProviderToolGuards = true;
+	settings.includeLocalProviderOverrides = false;
+
+	const auto command = ofxGgmlLlamaCodexLocal::buildLaunchCommand(settings);
+
+	OFXGGML_REQUIRE(command.find("codex --no-alt-screen -p ofxggml_local") == 0);
+	OFXGGML_REQUIRE(command.find("--disable apps") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("-c model_provider=llama_cpp") == std::string::npos);
+	OFXGGML_REQUIRE(command.find("model_providers.llama_cpp.base_url") == std::string::npos);
+	OFXGGML_REQUIRE(command.find("-c agents.max_threads=1") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("--model gpt-5") != std::string::npos);
+	OFXGGML_REQUIRE(command.find("--model local/local-agent-model") == std::string::npos);
+}
+
+OFXGGML_TEST(codex_launch_command_quotes_powershell_single_quotes) {
+	const auto quoted = ofxGgmlLlamaCodexLocal::quotePowerShellArgument(
+		"model_providers.llama_cpp.name=\"Jon's llama\"");
+
+	OFXGGML_REQUIRE(quoted == "'model_providers.llama_cpp.name=\"Jon''s llama\"'");
+}

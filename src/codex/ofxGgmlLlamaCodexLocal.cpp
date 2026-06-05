@@ -855,6 +855,101 @@ std::string ofxGgmlLlamaCodexLocal::quoteArgument(const std::string & value) {
 	return "\"" + escaped + "\"";
 }
 
+std::string ofxGgmlLlamaCodexLocal::quotePowerShellArgument(const std::string & value) {
+	if (value.empty()) {
+		return "''";
+	}
+	if (value.find_first_of(" \t\r\n\"'&()[]{};|<>`$") == std::string::npos) {
+		return value;
+	}
+	std::string quoted = "'";
+	for (const auto c : value) {
+		if (c == '\'') {
+			quoted += "''";
+		} else {
+			quoted += c;
+		}
+	}
+	quoted += "'";
+	return quoted;
+}
+
+std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
+	const ofxGgmlLlamaCodexLaunchCommandSettings & settings) {
+	std::vector<std::string> arguments {
+		settings.executable.empty() ? std::string("codex") : settings.executable,
+		"--no-alt-screen"
+	};
+	if (!settings.profile.empty()) {
+		arguments.push_back("-p");
+		arguments.push_back(settings.profile);
+	}
+	if (settings.includeLocalProviderToolGuards) {
+		arguments.push_back("--disable");
+		arguments.push_back("apps");
+		arguments.push_back("--disable");
+		arguments.push_back("image_generation");
+		arguments.push_back("--disable");
+		arguments.push_back("browser_use");
+		arguments.push_back("--disable");
+		arguments.push_back("computer_use");
+		arguments.push_back("--disable");
+		arguments.push_back("tool_search");
+		arguments.push_back("-c");
+		arguments.push_back("web_search=\"live\"");
+	}
+	if (settings.includeLocalProviderOverrides) {
+		const auto & config = settings.provider;
+		arguments.push_back("-c");
+		arguments.push_back("model_provider=" + config.providerId);
+		arguments.push_back("-c");
+		arguments.push_back("model_providers." + config.providerId + ".name=\"" + config.providerName + "\"");
+		arguments.push_back("-c");
+		arguments.push_back("model_providers." + config.providerId + ".base_url=\"" + config.baseUrl + "\"");
+		arguments.push_back("-c");
+		arguments.push_back("model_providers." + config.providerId + ".wire_api=\"" + config.wireApi + "\"");
+		arguments.push_back("-c");
+		arguments.push_back("model_providers." + config.providerId + ".stream_idle_timeout_ms=" + std::to_string(config.streamIdleTimeoutMs));
+		arguments.push_back("-c");
+		arguments.push_back("model_context_window=" + std::to_string(config.modelContextWindow));
+		arguments.push_back("-c");
+		arguments.push_back("model_auto_compact_token_limit=" + std::to_string(config.modelAutoCompactTokenLimit));
+		arguments.push_back("-c");
+		arguments.push_back("tool_output_token_limit=" + std::to_string(config.toolOutputTokenLimit));
+		arguments.push_back("-c");
+		arguments.push_back("model_reasoning_effort=" + config.modelReasoningEffort);
+		arguments.push_back("-c");
+		arguments.push_back("model_reasoning_summary=" + config.modelReasoningSummary);
+		arguments.push_back("-c");
+		arguments.push_back(std::string("hide_agent_reasoning=") + (config.hideAgentReasoning ? "true" : "false"));
+	}
+	if (settings.includeAgentOverrides && settings.provider.agentMaxConcurrentThreadsPerSession > 0) {
+		arguments.push_back("-c");
+		arguments.push_back("agents.max_threads=" + std::to_string(settings.provider.agentMaxConcurrentThreadsPerSession));
+	}
+	if (settings.includeAgentOverrides && settings.provider.agentMaxDepth > 0) {
+		arguments.push_back("-c");
+		arguments.push_back("agents.max_depth=" + std::to_string(settings.provider.agentMaxDepth));
+	}
+	if (!settings.sandbox.empty()) {
+		arguments.push_back("--sandbox");
+		arguments.push_back(settings.sandbox);
+	}
+	if (!settings.model.empty()) {
+		arguments.push_back("--model");
+		arguments.push_back(settings.model);
+	}
+
+	std::ostringstream command;
+	for (std::size_t i = 0; i < arguments.size(); ++i) {
+		if (i > 0) {
+			command << " ";
+		}
+		command << quotePowerShellArgument(arguments[i]);
+	}
+	return command.str();
+}
+
 bool ofxGgmlLlamaCodexLocal::executableSupportsArgument(
 	const std::string & executable,
 	const std::string & argument) {

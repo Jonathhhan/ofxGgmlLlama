@@ -84,6 +84,17 @@ struct ofxGgmlLlamaServerStartSettings {
 	std::vector<std::string> extraArgs;
 };
 
+struct ofxGgmlLlamaCodexLaunchCommandSettings {
+	std::string executable = "codex";
+	std::string profile;
+	std::string model;
+	std::string sandbox;
+	ofxGgmlLlamaCodexProviderConfig provider;
+	bool includeLocalProviderToolGuards = false;
+	bool includeLocalProviderOverrides = false;
+	bool includeAgentOverrides = true;
+};
+
 class ofxGgmlLlamaCodexLocal {
 public:
 	static std::string trimCopy(const std::string & value);
@@ -127,6 +138,9 @@ public:
 		const ofxGgmlLlamaCodexProviderConfig & config);
 
 	static std::string quoteArgument(const std::string & value);
+	static std::string quotePowerShellArgument(const std::string & value);
+	static std::string buildLaunchCommand(
+		const ofxGgmlLlamaCodexLaunchCommandSettings & settings);
 	static bool executableSupportsArgument(
 		const std::string & executable,
 		const std::string & argument);

@@ -278,25 +278,6 @@ std::string quoteCommandArgument(const std::string & value) {
 	return quoted;
 }
 
-std::string quotePowerShellArgument(const std::string & value) {
-	if (value.empty()) {
-		return "''";
-	}
-	if (value.find_first_of(" \t\"'&()[]{};|<>`$") == std::string::npos) {
-		return value;
-	}
-	std::string quoted = "'";
-	for (const auto c : value) {
-		if (c == '\'') {
-			quoted += "''";
-		} else {
-			quoted += c;
-		}
-	}
-	quoted += "'";
-	return quoted;
-}
-
 void appendCommandArgument(
 	std::vector<std::string> & arguments,
 	const std::string & name,
@@ -1411,77 +1392,15 @@ std::string ofApp::buildCodexLaunchCommand() const {
 		: modelAlias;
 	const auto launchModel = openAiLaunchMode ? openAiModelAlias : effectiveModelAlias;
 
-	std::vector<std::string> arguments {
-		codexExe.empty() ? std::string("codex") : codexExe,
-		"--no-alt-screen"
-	};
-	if (!codexProfile.empty()) {
-		arguments.push_back("-p");
-		arguments.push_back(codexProfile);
-	}
-	if (localProviderMode) {
-		arguments.push_back("--disable");
-		arguments.push_back("apps");
-		arguments.push_back("--disable");
-		arguments.push_back("image_generation");
-		arguments.push_back("--disable");
-		arguments.push_back("browser_use");
-		arguments.push_back("--disable");
-		arguments.push_back("computer_use");
-		arguments.push_back("--disable");
-		arguments.push_back("tool_search");
-		arguments.push_back("-c");
-		arguments.push_back("web_search=\"live\"");
-	}
-	if (localLaunchMode) {
-		arguments.push_back("-c");
-		arguments.push_back("model_provider=" + config.providerId);
-		arguments.push_back("-c");
-		arguments.push_back("model_providers." + config.providerId + ".name=\"" + config.providerName + "\"");
-		arguments.push_back("-c");
-		arguments.push_back("model_providers." + config.providerId + ".base_url=\"" + config.baseUrl + "\"");
-		arguments.push_back("-c");
-		arguments.push_back("model_providers." + config.providerId + ".wire_api=\"" + config.wireApi + "\"");
-		arguments.push_back("-c");
-		arguments.push_back("model_providers." + config.providerId + ".stream_idle_timeout_ms=" + std::to_string(config.streamIdleTimeoutMs));
-		arguments.push_back("-c");
-		arguments.push_back("model_context_window=" + std::to_string(config.modelContextWindow));
-		arguments.push_back("-c");
-		arguments.push_back("model_auto_compact_token_limit=" + std::to_string(config.modelAutoCompactTokenLimit));
-		arguments.push_back("-c");
-		arguments.push_back("tool_output_token_limit=" + std::to_string(config.toolOutputTokenLimit));
-		arguments.push_back("-c");
-		arguments.push_back("model_reasoning_effort=" + config.modelReasoningEffort);
-		arguments.push_back("-c");
-		arguments.push_back("model_reasoning_summary=" + config.modelReasoningSummary);
-		arguments.push_back("-c");
-		arguments.push_back("hide_agent_reasoning=true");
-	}
-	if (agentMaxConcurrentThreadsPerSession > 0) {
-		arguments.push_back("-c");
-		arguments.push_back("agents.max_threads=" + std::to_string(agentMaxConcurrentThreadsPerSession));
-	}
-	if (agentMaxDepth > 0) {
-		arguments.push_back("-c");
-		arguments.push_back("agents.max_depth=" + std::to_string(agentMaxDepth));
-	}
-	if (!codexSandbox.empty()) {
-		arguments.push_back("--sandbox");
-		arguments.push_back(codexSandbox);
-	}
-	if (!launchModel.empty()) {
-		arguments.push_back("--model");
-		arguments.push_back(launchModel);
-	}
-
-	std::ostringstream command;
-	for (std::size_t i = 0; i < arguments.size(); ++i) {
-		if (i > 0) {
-			command << " ";
-		}
-		command << quotePowerShellArgument(arguments[i]);
-	}
-	return command.str();
+	ofxGgmlLlamaCodexLaunchCommandSettings settings;
+	settings.executable = codexExe;
+	settings.profile = codexProfile;
+	settings.model = launchModel;
+	settings.sandbox = codexSandbox;
+	settings.provider = config;
+	settings.includeLocalProviderToolGuards = localProviderMode;
+	settings.includeLocalProviderOverrides = localLaunchMode;
+	return ofxGgmlLlamaCodexLocal::buildLaunchCommand(settings);
 }
 
 void ofApp::copyTextToClipboard(const std::string & label, const std::string & text) {
