@@ -86,86 +86,6 @@ function Resolve-CodexExe {
 	return ""
 }
 
-function Test-Url {
-	param([string]$Url)
-	$result = [ordered]@{
-		Url = $Url
-		Reachable = $false
-		Ready = $false
-		StatusCode = 0
-		Message = ""
-	}
-	if ([string]::IsNullOrWhiteSpace($Url)) {
-		$result.Message = "URL is empty"
-		return [pscustomobject]$result
-	}
-	try {
-		$response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
-		$result.Reachable = $true
-		$result.Ready = ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300)
-		$result.StatusCode = [int]$response.StatusCode
-		$result.Message = ($response.Content | Out-String).Trim()
-	} catch {
-		if ($_.Exception.Response) {
-			$result.Reachable = $true
-			$result.StatusCode = [int]$_.Exception.Response.StatusCode
-			$result.Message = $_.Exception.Message
-		} else {
-			$result.Message = $_.Exception.Message
-		}
-	}
-	return [pscustomobject]$result
-}
-
-function Get-ServedModelEvidence {
-	param(
-		[string]$ApiRoot,
-		[string]$ExpectedModel
-	)
-
-	$result = [ordered]@{
-		Url = ($ApiRoot.TrimEnd("/") + "/models")
-		Reachable = $false
-		Models = @()
-		ExpectedModelServed = $false
-		Message = ""
-	}
-	try {
-		$response = Invoke-RestMethod -Uri $result.Url -Method Get -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
-		$modelIds = New-Object System.Collections.Generic.List[string]
-		if ($response.PSObject.Properties["data"]) {
-			foreach ($item in @($response.data)) {
-				if ($item.PSObject.Properties["id"] -and ![string]::IsNullOrWhiteSpace([string]$item.id)) {
-					$modelIds.Add([string]$item.id)
-				}
-				if ($item.PSObject.Properties["aliases"]) {
-					foreach ($alias in @($item.aliases)) {
-						if (![string]::IsNullOrWhiteSpace([string]$alias)) {
-							$modelIds.Add([string]$alias)
-						}
-					}
-				}
-			}
-		}
-		if ($response.PSObject.Properties["models"]) {
-			foreach ($item in @($response.models)) {
-				foreach ($property in @("model", "name", "id")) {
-					if ($item.PSObject.Properties[$property] -and ![string]::IsNullOrWhiteSpace([string]$item.$property)) {
-						$modelIds.Add([string]$item.$property)
-					}
-				}
-			}
-		}
-		$models = @($modelIds.ToArray() | Sort-Object -Unique)
-		$result.Reachable = $true
-		$result.Models = @($models)
-		$result.ExpectedModelServed = @($models) -contains $ExpectedModel
-	} catch {
-		$result.Message = $_.Exception.Message
-	}
-	return [pscustomobject]$result
-}
-
 function Get-CommandLineValue {
 	param(
 		[string]$CommandLine,
@@ -417,10 +337,10 @@ $resolvedProfile = Normalize-OfxGgmlPathText $Profile
 $resolvedConfig = Resolve-ConfigPath $ConfigPath
 $resolvedCodex = Resolve-CodexExe $CodexExe
 $codexHelp = Test-CodexHelp $resolvedCodex
-$health = Test-Url ($serverRoot.TrimEnd("/") + "/health")
-$responsesProbe = Test-Url ($apiRoot.TrimEnd("/") + "/responses")
-$chatProbe = Test-Url ($apiRoot.TrimEnd("/") + "/chat/completions")
-$servedModels = Get-ServedModelEvidence -ApiRoot $apiRoot -ExpectedModel $resolvedModel
+$health = Test-OfxGgmlUrl -Url ($serverRoot.TrimEnd("/") + "/health") -TimeoutSeconds $TimeoutSeconds
+$responsesProbe = Test-OfxGgmlUrl -Url ($apiRoot.TrimEnd("/") + "/responses") -TimeoutSeconds $TimeoutSeconds
+$chatProbe = Test-OfxGgmlUrl -Url ($apiRoot.TrimEnd("/") + "/chat/completions") -TimeoutSeconds $TimeoutSeconds
+$servedModels = Get-OfxGgmlServedModelEvidence -ApiRoot $apiRoot -ExpectedModel $resolvedModel -TimeoutSeconds $TimeoutSeconds
 if (($UseServedModel -or [string]::IsNullOrWhiteSpace($resolvedModel) -or ($servedModels.Reachable -and !$servedModels.ExpectedModelServed)) -and $servedModels.Reachable -and @($servedModels.Models).Count -eq 1) {
 	$resolvedModel = [string]@($servedModels.Models)[0]
 	$servedModels.ExpectedModelServed = $true

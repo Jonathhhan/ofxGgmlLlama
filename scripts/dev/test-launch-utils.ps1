@@ -109,6 +109,18 @@ Assert-Equal $endpoint.Port 9090 "endpoint port"
 
 Assert-True (Test-OfxGgmlLocalServerUrl "https://example.com") "remote server URL should not be probed as local"
 
+Write-Step "Checking planner preflight helpers"
+$emptyProbe = Test-OfxGgmlUrl -Url "" -TimeoutSeconds 1
+Assert-Equal $emptyProbe.Url "" "empty URL probe target"
+Assert-Equal $emptyProbe.Reachable $false "empty URL probe reachability"
+Assert-Equal $emptyProbe.Message "URL is empty" "empty URL probe message"
+$modelProbe = Get-OfxGgmlServedModelEvidence `
+	-ApiRoot "http://127.0.0.1:1/v1" `
+	-ExpectedModel "missing-model" `
+	-TimeoutSeconds 1
+Assert-Equal $modelProbe.Url "http://127.0.0.1:1/v1/models" "served model probe URL"
+Assert-Equal $modelProbe.ExpectedModelServed $false "served model probe expected model"
+
 Write-Step "Checking command argument formatting"
 Assert-Equal `
 	(Format-OfxGgmlPowerShellArgument 'model_providers.llama_cpp.name="Jon''s llama"') `
