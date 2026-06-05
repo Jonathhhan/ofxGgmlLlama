@@ -27,6 +27,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $planScript = Join-Path $scriptRoot "plan-local-codex.ps1"
+. (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
 function ConvertTo-CodexSmokeJson {
 	param([hashtable]$Value)
@@ -238,34 +239,20 @@ $arguments = @(
 	"exec",
 	"--json",
 	"--ephemeral",
-	"--skip-git-repo-check",
-	"--disable", "apps",
-	"--disable", "image_generation",
-	"--disable", "browser_use",
-	"--disable", "computer_use",
-	"--disable", "tool_search",
-	"-c", "web_search=`"live`"",
-	"-c", "model_provider=llama_cpp",
-	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
-	"-c", "model_providers.llama_cpp.base_url=`"$resolvedApiRoot`"",
-	"-c", "model_providers.llama_cpp.wire_api=`"responses`"",
-	"-c", "model_providers.llama_cpp.stream_idle_timeout_ms=10000000",
-	"-c", "model_context_window=$ModelContextWindow",
-	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
-	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
-	"-c", "model_reasoning_effort=medium",
-	"-c", "model_reasoning_summary=none",
-	"-c", "hide_agent_reasoning=true"
+	"--skip-git-repo-check"
 )
 if ($plan.Config.HasProfile) {
-	$arguments = @("-a", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "-p", $CodexProfile) + @($arguments | Select-Object -Skip 6)
+	$arguments += @("-p", $CodexProfile)
 }
-if ($AgentMaxConcurrentThreads -gt 0) {
-	$arguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
-}
-if ($AgentMaxDepth -gt 0) {
-	$arguments += @("-c", "agents.max_depth=$AgentMaxDepth")
-}
+$arguments += @(
+	Get-OfxGgmlCodexLocalProviderArguments `
+		-ApiRoot $resolvedApiRoot `
+		-ModelContextWindow $ModelContextWindow `
+		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
+		-ToolOutputTokenLimit $ToolOutputTokenLimit `
+		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
+		-AgentMaxDepth $AgentMaxDepth
+)
 
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$arguments += @("--model", $resolvedModel)

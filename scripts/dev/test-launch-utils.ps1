@@ -109,4 +109,31 @@ Assert-Equal $endpoint.Port 9090 "endpoint port"
 
 Assert-True (Test-OfxGgmlLocalServerUrl "https://example.com") "remote server URL should not be probed as local"
 
+Write-Step "Checking Codex launch arguments"
+$codexArgs = @(
+	Get-OfxGgmlCodexLocalProviderArguments `
+		-ApiRoot "http://127.0.0.1:9001/v1" `
+		-ModelContextWindow 40960 `
+		-ModelAutoCompactTokenLimit 30000 `
+		-ToolOutputTokenLimit 5000 `
+		-AgentMaxConcurrentThreads 2 `
+		-AgentMaxDepth 3
+)
+Assert-True ($codexArgs -contains "--disable") "Codex launch args include tool guard switches"
+Assert-True ($codexArgs -contains "web_search=`"live`"") "Codex launch args include web search override"
+Assert-True ($codexArgs -contains "model_provider=llama_cpp") "Codex launch args include provider override"
+Assert-True ($codexArgs -contains "model_providers.llama_cpp.base_url=`"http://127.0.0.1:9001/v1`"") "Codex launch args include endpoint override"
+Assert-True ($codexArgs -contains "model_context_window=40960") "Codex launch args include context window"
+Assert-True ($codexArgs -contains "agents.max_threads=2") "Codex launch args include agent thread cap"
+Assert-True ($codexArgs -contains "agents.max_depth=3") "Codex launch args include agent depth cap"
+
+$codexGuardOnlyArgs = @(
+	Get-OfxGgmlCodexLocalProviderArguments `
+		-SkipProviderOverrides `
+		-AgentMaxConcurrentThreads 1
+)
+Assert-True ($codexGuardOnlyArgs -contains "web_search=`"live`"") "Codex guard-only args keep tool compatibility overrides"
+Assert-True ($codexGuardOnlyArgs -notcontains "model_provider=llama_cpp") "Codex guard-only args omit provider override"
+Assert-True ($codexGuardOnlyArgs -contains "agents.max_threads=1") "Codex guard-only args keep agent cap"
+
 Write-Step "Launch utility coverage passed"

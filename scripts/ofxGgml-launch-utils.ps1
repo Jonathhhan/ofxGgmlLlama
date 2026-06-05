@@ -219,6 +219,60 @@ function Get-OfxGgmlServerEndpoint {
 	}
 }
 
+function Get-OfxGgmlCodexLocalProviderArguments {
+	param(
+		[string]$ApiRoot = "http://127.0.0.1:8001/v1",
+		[string]$ProviderId = "llama_cpp",
+		[string]$ProviderName = "llama.cpp local",
+		[string]$WireApi = "responses",
+		[int]$StreamIdleTimeoutMs = 10000000,
+		[int]$ModelContextWindow = 262144,
+		[int]$ModelAutoCompactTokenLimit = 220000,
+		[int]$ToolOutputTokenLimit = 12000,
+		[string]$ReasoningEffort = "medium",
+		[string]$ReasoningSummary = "none",
+		[bool]$HideAgentReasoning = $true,
+		[int]$AgentMaxConcurrentThreads = 0,
+		[int]$AgentMaxDepth = 0,
+		[switch]$SkipToolGuards,
+		[switch]$SkipProviderOverrides
+	)
+
+	$arguments = @()
+	if (!$SkipToolGuards) {
+		$arguments += @(
+			"--disable", "apps",
+			"--disable", "image_generation",
+			"--disable", "browser_use",
+			"--disable", "computer_use",
+			"--disable", "tool_search",
+			"-c", "web_search=`"live`""
+		)
+	}
+	if (!$SkipProviderOverrides) {
+		$arguments += @(
+			"-c", "model_provider=$ProviderId",
+			"-c", "model_providers.$ProviderId.name=`"$ProviderName`"",
+			"-c", "model_providers.$ProviderId.base_url=`"$ApiRoot`"",
+			"-c", "model_providers.$ProviderId.wire_api=`"$WireApi`"",
+			"-c", "model_providers.$ProviderId.stream_idle_timeout_ms=$StreamIdleTimeoutMs",
+			"-c", "model_context_window=$ModelContextWindow",
+			"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
+			"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
+			"-c", "model_reasoning_effort=$ReasoningEffort",
+			"-c", "model_reasoning_summary=$ReasoningSummary",
+			"-c", "hide_agent_reasoning=$($HideAgentReasoning.ToString().ToLowerInvariant())"
+		)
+	}
+	if ($AgentMaxConcurrentThreads -gt 0) {
+		$arguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
+	}
+	if ($AgentMaxDepth -gt 0) {
+		$arguments += @("-c", "agents.max_depth=$AgentMaxDepth")
+	}
+	return @($arguments)
+}
+
 function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	param(
 		[string]$ScriptRoot,

@@ -481,34 +481,17 @@ $configState = [ordered]@{
 	HasModelProviderSelection = ($configText -match "model_provider\s*=\s*`"llama_cpp`"")
 	ProviderOverrideProvided = $true
 }
-$launchArguments = @(
-	"--no-alt-screen",
-	"--disable", "apps",
-	"--disable", "image_generation",
-	"--disable", "browser_use",
-	"--disable", "computer_use",
-	"--disable", "tool_search",
-	"-c", "web_search=`"live`"",
-	"-c", "model_provider=llama_cpp",
-	"-c", "model_providers.llama_cpp.name=`"llama.cpp local`"",
-	"-c", "model_providers.llama_cpp.base_url=`"$apiRoot`"",
-	"-c", "model_providers.llama_cpp.wire_api=`"responses`"",
-	"-c", "model_providers.llama_cpp.stream_idle_timeout_ms=10000000",
-	"-c", "model_context_window=$ModelContextWindow",
-	"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
-	"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
-	"-c", "model_reasoning_effort=medium",
-	"-c", "model_reasoning_summary=none",
-	"-c", "hide_agent_reasoning=true"
+$launchArguments = @("--no-alt-screen") + @(
+	Get-OfxGgmlCodexLocalProviderArguments `
+		-ApiRoot $apiRoot `
+		-ModelContextWindow $ModelContextWindow `
+		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
+		-ToolOutputTokenLimit $ToolOutputTokenLimit `
+		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
+		-AgentMaxDepth $AgentMaxDepth
 )
 if ($configState.HasProfile) {
 	$launchArguments = @("--no-alt-screen", "-p", $resolvedProfile) + @($launchArguments | Select-Object -Skip 1)
-}
-if ($AgentMaxConcurrentThreads -gt 0) {
-	$launchArguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
-}
-if ($AgentMaxDepth -gt 0) {
-	$launchArguments += @("-c", "agents.max_depth=$AgentMaxDepth")
 }
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$launchArguments += @("--model", $resolvedModel)
