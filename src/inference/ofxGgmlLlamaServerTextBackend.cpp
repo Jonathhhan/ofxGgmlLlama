@@ -63,27 +63,30 @@ std::string roleLabel(ofxGgmlTextRole role) {
 }
 
 std::string escapeJson(const std::string & value) {
-	std::ostringstream escaped;
+	std::string escaped;
+	escaped.reserve(value.size());
 	for (const unsigned char c : value) {
 		switch (c) {
-		case '\\': escaped << "\\\\"; break;
-		case '"': escaped << "\\\""; break;
-		case '\b': escaped << "\\b"; break;
-		case '\f': escaped << "\\f"; break;
-		case '\n': escaped << "\\n"; break;
-		case '\r': escaped << "\\r"; break;
-		case '\t': escaped << "\\t"; break;
+		case '\\': escaped += "\\\\"; break;
+		case '"': escaped += "\\\""; break;
+		case '\b': escaped += "\\b"; break;
+		case '\f': escaped += "\\f"; break;
+		case '\n': escaped += "\\n"; break;
+		case '\r': escaped += "\\r"; break;
+		case '\t': escaped += "\\t"; break;
 		default:
 			if (c < 0x20) {
 				const char * hex = "0123456789abcdef";
-				escaped << "\\u00" << hex[(c >> 4) & 0x0f] << hex[c & 0x0f];
+				escaped += "\\u00";
+				escaped.push_back(hex[(c >> 4) & 0x0f]);
+				escaped.push_back(hex[c & 0x0f]);
 			} else {
-				escaped << static_cast<char>(c);
+				escaped.push_back(static_cast<char>(c));
 			}
 			break;
 		}
 	}
-	return escaped.str();
+	return escaped;
 }
 
 std::string eraseDelimitedBlock(

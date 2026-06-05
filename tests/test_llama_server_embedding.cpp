@@ -30,6 +30,13 @@ OFXGGML_TEST(llama_server_embedding_builds_openai_payload) {
 	const std::string batchBody =
 		ofxGgmlLlamaServerEmbeddingBackend::buildRequestBody(request, "local-model");
 	OFXGGML_REQUIRE(batchBody.find("\"input\":[\"alpha\",\"beta\"]") != std::string::npos);
+
+	request.inputs = { "hello \"quoted\"\nline" };
+	const std::string escapedBody =
+		ofxGgmlLlamaServerEmbeddingBackend::buildRequestBody(request, "local-model");
+	OFXGGML_REQUIRE(
+		escapedBody.find("\"input\":[\"hello \\\"quoted\\\"\\nline\"]") !=
+		std::string::npos);
 }
 
 OFXGGML_TEST(llama_server_embedding_extracts_vectors) {

@@ -56,6 +56,17 @@ OFXGGML_TEST(llama_server_builds_openai_payload) {
 		std::string::npos);
 	OFXGGML_REQUIRE(body.find("\"stop\":[\"</s>\"]") != std::string::npos);
 
+	request.prompt = "hello \"quoted\"\nline";
+	request.systemPrompt.clear();
+	request.messages.clear();
+	const std::string escapedBody = ofxGgmlLlamaServerTextBackend::buildRequestBody(
+		request,
+		request.prompt,
+		"local-model");
+	OFXGGML_REQUIRE(
+		escapedBody.find("\"content\":\"hello \\\"quoted\\\"\\nline\"") !=
+		std::string::npos);
+
 	request.settings.stream = true;
 	const std::string streamingBody = ofxGgmlLlamaServerTextBackend::buildRequestBody(
 		request,
