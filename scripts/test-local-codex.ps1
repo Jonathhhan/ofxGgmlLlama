@@ -34,20 +34,6 @@ function ConvertTo-CodexSmokeJson {
 	return ($Value | ConvertTo-Json -Depth 8)
 }
 
-function Join-CodexArguments {
-	param([string[]]$Arguments)
-	$quoted = foreach ($argument in $Arguments) {
-		if ($null -eq $argument) {
-			'""'
-		} elseif ($argument -match '[\s"]') {
-			'"' + ($argument.Replace('"', '\"')) + '"'
-		} else {
-			$argument
-		}
-	}
-	return ($quoted -join " ")
-}
-
 function Invoke-CodexProcess {
 	param(
 		[string]$Exe,
@@ -62,7 +48,7 @@ function Invoke-CodexProcess {
 	try {
 		$processInfo = [System.Diagnostics.ProcessStartInfo]::new()
 		$processInfo.FileName = $Exe
-		$processInfo.Arguments = Join-CodexArguments $Arguments
+		$processInfo.Arguments = Join-OfxGgmlCommandArguments $Arguments
 		$processInfo.UseShellExecute = $false
 		$processInfo.RedirectStandardOutput = $true
 		$processInfo.RedirectStandardError = $true
@@ -261,7 +247,7 @@ if (![string]::IsNullOrWhiteSpace($CodexSandbox)) {
 	$arguments += @("--sandbox", $CodexSandbox)
 }
 $arguments += @($Prompt)
-$command = "`"$resolvedCodex`" $(Join-CodexArguments $arguments)"
+$command = "$(Format-OfxGgmlCommandArgument $resolvedCodex) $(Join-OfxGgmlCommandArguments $arguments)"
 $agentRoleFiles = [pscustomobject]@{
 	ConfigPath = $plan.Config.Path
 	Checked = $false

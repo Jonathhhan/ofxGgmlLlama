@@ -109,6 +109,20 @@ Assert-Equal $endpoint.Port 9090 "endpoint port"
 
 Assert-True (Test-OfxGgmlLocalServerUrl "https://example.com") "remote server URL should not be probed as local"
 
+Write-Step "Checking command argument formatting"
+Assert-Equal `
+	(Format-OfxGgmlPowerShellArgument 'model_providers.llama_cpp.name="Jon''s llama"') `
+	'''model_providers.llama_cpp.name="Jon''''s llama"''' `
+	"PowerShell single-quote escaping"
+Assert-Equal `
+	(Format-OfxGgmlCommandArgument 'model_providers.llama_cpp.name="llama.cpp local"') `
+	'"model_providers.llama_cpp.name=\"llama.cpp local\""' `
+	"process argument double-quote escaping"
+Assert-Equal `
+	(Join-OfxGgmlCommandArguments @("codex", "--model", "local/model with spaces")) `
+	'codex --model "local/model with spaces"' `
+	"process argument join"
+
 Write-Step "Checking Codex launch arguments"
 $codexArgs = @(
 	Get-OfxGgmlCodexLocalProviderArguments `

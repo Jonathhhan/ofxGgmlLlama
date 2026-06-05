@@ -219,6 +219,33 @@ function Get-OfxGgmlServerEndpoint {
 	}
 }
 
+function Format-OfxGgmlPowerShellArgument {
+	param([AllowNull()][string]$Value)
+	if ($null -eq $Value) {
+		return "''"
+	}
+	if ($Value -match "[\s`"']") {
+		return "'" + ($Value -replace "'", "''") + "'"
+	}
+	return $Value
+}
+
+function Format-OfxGgmlCommandArgument {
+	param([AllowNull()][string]$Value)
+	if ($null -eq $Value) {
+		return '""'
+	}
+	if ($Value -match '[\s"]') {
+		return '"' + ($Value.Replace('"', '\"')) + '"'
+	}
+	return $Value
+}
+
+function Join-OfxGgmlCommandArguments {
+	param([string[]]$Arguments)
+	return (($Arguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
+}
+
 function Get-OfxGgmlCodexLocalProviderArguments {
 	param(
 		[string]$ApiRoot = "http://127.0.0.1:8001/v1",

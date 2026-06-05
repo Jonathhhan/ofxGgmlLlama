@@ -333,22 +333,6 @@ function Test-CodexHelp {
 	return [pscustomobject]$result
 }
 
-function Format-LaunchArgument {
-	param([string]$Value)
-	if ($Value -match "[\s`"']") {
-		return "'" + ($Value -replace "'", "''") + "'"
-	}
-	return $Value
-}
-
-function Format-StartCommandArgument {
-	param([string]$Value)
-	if ($Value -match "[\s`"']") {
-		return '"' + ($Value.Replace('"', '\"')) + '"'
-	}
-	return $Value
-}
-
 function Get-ModelRoleHint {
 	param([string]$Name)
 	$lower = $Name.ToLowerInvariant()
@@ -443,7 +427,7 @@ function Get-CodexServerCommand {
 		}
 		$arguments += @("-Alias", $alias)
 	}
-	return (($arguments | ForEach-Object { Format-StartCommandArgument $_ }) -join " ")
+	return (($arguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 }
 
 $resolvedEndpoint = Normalize-Text $Endpoint
@@ -496,7 +480,7 @@ if ($configState.HasProfile) {
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$launchArguments += @("--model", $resolvedModel)
 }
-$launchCommand = "codex " + (($launchArguments | ForEach-Object { Format-LaunchArgument $_ }) -join " ")
+$launchCommand = "codex " + (($launchArguments | ForEach-Object { Format-OfxGgmlPowerShellArgument $_ }) -join " ")
 $blockers = New-Object System.Collections.Generic.List[string]
 if (!$codexHelp.Found) {
 	$blockers.Add("codex executable not found")
@@ -544,9 +528,9 @@ $detachedNoHealthCheckCommand = Get-CodexServerCommand `
 	-Detached `
 	-NoHealthCheck
 $statusCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
-	(Format-StartCommandArgument $serverRoot) + " -Json -SummaryOnly"
+	(Format-OfxGgmlCommandArgument $serverRoot) + " -Json -SummaryOnly"
 $waitCommand = ".\scripts\status-llama-server.ps1 -CodexServerUrl " +
-	(Format-StartCommandArgument $serverRoot) +
+	(Format-OfxGgmlCommandArgument $serverRoot) +
 	" -WaitReady -WaitLabel codex -WaitTimeoutSeconds 600 -PollSeconds 2 -Json -SummaryOnly"
 $smokeCommandArguments = @(
 	".\scripts\test-local-codex.ps1",
@@ -556,7 +540,7 @@ if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$smokeCommandArguments += @("-Model", $resolvedModel)
 }
 $smokeCommandArguments += @("-Json", "-SummaryOnly")
-$smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-StartCommandArgument $_ }) -join " ")
+$smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 $recommendedActions = New-Object System.Collections.Generic.List[string]
 if (!$health.Ready) {
 	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")

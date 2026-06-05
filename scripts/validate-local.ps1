@@ -182,6 +182,8 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.h") "ofxGgmlLlamaCodexLaunchCommandSettings" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "buildLaunchCommand" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "quotePowerShellArgument" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Format-OfxGgmlPowerShellArgument" "Launch utility command formatter"
+Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Join-OfxGgmlCommandArguments" "Launch utility command formatter"
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
