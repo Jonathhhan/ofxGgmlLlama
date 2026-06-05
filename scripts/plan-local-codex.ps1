@@ -23,21 +23,9 @@ $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 . (Join-Path $scriptRoot "ofxGgml-launch-utils.ps1")
 
-function Normalize-Text {
-	param([string]$Value)
-	if ($null -eq $Value) {
-		return ""
-	}
-	$trimmed = $Value.Trim()
-	if ($trimmed.Length -ge 2 -and $trimmed.StartsWith('"') -and $trimmed.EndsWith('"')) {
-		return $trimmed.Substring(1, $trimmed.Length - 2)
-	}
-	return $trimmed
-}
-
 function Resolve-ConfigPath {
 	param([string]$ExplicitPath)
-	$explicit = Normalize-Text $ExplicitPath
+	$explicit = Normalize-OfxGgmlPathText $ExplicitPath
 	if (![string]::IsNullOrWhiteSpace($explicit)) {
 		return [System.IO.Path]::GetFullPath($explicit)
 	}
@@ -67,7 +55,7 @@ function Resolve-ConfigPath {
 
 function Resolve-CodexExe {
 	param([string]$ExplicitPath)
-	$explicit = Normalize-Text $ExplicitPath
+	$explicit = Normalize-OfxGgmlPathText $ExplicitPath
 	if (![string]::IsNullOrWhiteSpace($explicit)) {
 		if (Test-Path -LiteralPath $explicit -PathType Leaf) {
 			return (Resolve-Path -LiteralPath $explicit).Path
@@ -93,18 +81,9 @@ function Resolve-CodexExe {
 		$where = ""
 	}
 	if (![string]::IsNullOrWhiteSpace($where)) {
-		return (Normalize-Text $where)
+		return (Normalize-OfxGgmlPathText $where)
 	}
 	return ""
-}
-
-function Get-ServerRoot {
-	param([string]$Value)
-	$normalized = (Normalize-Text $Value).TrimEnd("/")
-	if ($normalized.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) {
-		return $normalized.Substring(0, $normalized.Length - 3)
-	}
-	return $normalized
 }
 
 function Test-Url {
@@ -430,11 +409,11 @@ function Get-CodexServerCommand {
 	return (($arguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 }
 
-$resolvedEndpoint = Normalize-Text $Endpoint
-$serverRoot = Get-ServerRoot $resolvedEndpoint
+$resolvedEndpoint = Normalize-OfxGgmlPathText $Endpoint
+$serverRoot = Get-OfxGgmlServerRootUrl $resolvedEndpoint
 $apiRoot = if ($resolvedEndpoint.EndsWith("/v1", [System.StringComparison]::OrdinalIgnoreCase)) { $resolvedEndpoint.TrimEnd("/") } else { ($resolvedEndpoint.TrimEnd("/") + "/v1") }
-$resolvedModel = Normalize-Text $Model
-$resolvedProfile = Normalize-Text $Profile
+$resolvedModel = Normalize-OfxGgmlPathText $Model
+$resolvedProfile = Normalize-OfxGgmlPathText $Profile
 $resolvedConfig = Resolve-ConfigPath $ConfigPath
 $resolvedCodex = Resolve-CodexExe $CodexExe
 $codexHelp = Test-CodexHelp $resolvedCodex
