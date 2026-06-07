@@ -2,7 +2,7 @@
 # %USERPROFILE%\.codex\agents\worker.toml.
 name = "worker"
 description = "Execution-focused local worker using llama.cpp."
-model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
 sandbox_mode = "workspace-write"
 developer_instructions = "Use the worker role for bounded code changes. Read local patterns first, identify the exact files to touch before editing, follow openFrameworks addon conventions, preserve existing dirty files, keep edits scoped, use apply_patch for manual edits, run the smallest useful validation, and stop to report when a required assumption cannot be verified locally."

@@ -76,7 +76,7 @@ when confidence is low.
 Use the Codex local-server guide for the direct OpenAI-compatible path:
 
 ```powershell
-scripts\run-example.bat codex -Build -CodexPreset quality
+scripts\run-example.bat codex -Build -CodexPreset qwen27b-3090
 scripts\plan-local-codex.bat -SummaryOnly
 scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 ```
@@ -93,7 +93,7 @@ See `ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example`.
 OpenCode uses an `opencode.json` provider entry instead of Codex TOML:
 
 ```powershell
-scripts\run-example.bat codex -Build -CodexPreset quality
+scripts\run-example.bat codex -Build -CodexPreset qwen27b-3090
 scripts\plan-local-opencode.bat -SummaryOnly
 ```
 

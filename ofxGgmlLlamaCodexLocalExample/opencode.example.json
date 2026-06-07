@@ -1,7 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
-  "small_model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
+  "small_model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
   "default_agent": "build",
   "provider": {
     "llama_cpp": {
@@ -14,8 +14,8 @@
         "chunkTimeout": 60000
       },
       "models": {
-        "local/GLM-4.7-Flash-UD-Q4_K_XL": {
-          "name": "GLM-4.7 Flash local",
+        "local/Qwen3.6-27B-Q4_0": {
+          "name": "Qwen3.6 27B Q4_0 local",
           "limit": {
             "context": 65536,
             "output": 8000
@@ -31,7 +31,7 @@
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "temperature": 0.2,
       "topP": 0.85,
       "permission": {
@@ -49,7 +49,7 @@
     },
     "plan": {
       "mode": "primary",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "temperature": 0.1,
       "topP": 0.85,
       "permission": {
@@ -67,7 +67,7 @@
     },
     "explore": {
       "mode": "subagent",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "temperature": 0.1,
       "topP": 0.85,
       "permission": {

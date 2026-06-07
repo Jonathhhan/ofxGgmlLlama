@@ -1,15 +1,16 @@
 param(
 	[string]$Endpoint = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }),
-	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "" }),
+	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/Qwen3.6-27B-Q4_0" }),
 	[Alias("Profile")]
 	[string]$CodexProfile = $(if ($env:OFXGGML_CODEX_PROFILE) { $env:OFXGGML_CODEX_PROFILE } else { "ofxggml_local" }),
 	[string]$ConfigPath = $(if ($env:OFXGGML_CODEX_CONFIG_PATH) { $env:OFXGGML_CODEX_CONFIG_PATH } else { "" }),
 	[string]$CodexExe = $(if ($env:OFXGGML_CODEX_EXE) { $env:OFXGGML_CODEX_EXE } else { "" }),
-	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 262144 }),
-	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 220000 }),
+	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 65536 }),
+	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 56000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 12000 }),
+	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
-	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 0 }),
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
 	[string]$ExpectedMarker = "LOCAL_CODEX_OK",
 	[string]$Prompt = "",
@@ -19,7 +20,8 @@ param(
 	[switch]$SkipAgentRoleFiles,
 	[switch]$DryRun,
 	[switch]$Json,
-	[switch]$SummaryOnly
+	[switch]$SummaryOnly,
+	[string]$ResultPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +36,21 @@ function ConvertTo-CodexSmokeJson {
 	return ($Value | ConvertTo-Json -Depth 8)
 }
 
+function Write-CodexSmokeJson {
+	param([object]$Value)
+	$jsonText = ($Value | ConvertTo-Json -Depth 8)
+	if (![string]::IsNullOrWhiteSpace($ResultPath)) {
+		$parent = Split-Path -Parent $ResultPath
+		if (![string]::IsNullOrWhiteSpace($parent) -and !(Test-Path -LiteralPath $parent -PathType Container)) {
+			New-Item -ItemType Directory -Path $parent -Force | Out-Null
+		}
+		Set-Content -LiteralPath $ResultPath -Value $jsonText -Encoding UTF8
+	}
+	if ($Json) {
+		$jsonText
+	}
+}
+
 function Invoke-CodexProcess {
 	param(
 		[string]$Exe,
@@ -41,10 +58,6 @@ function Invoke-CodexProcess {
 		[int]$Timeout
 	)
 
-	$tempRoot = [System.IO.Path]::GetTempPath()
-	$stamp = [System.Guid]::NewGuid().ToString("N")
-	$stdoutPath = Join-Path $tempRoot "ofxggml-codex-smoke-$stamp.out"
-	$stderrPath = Join-Path $tempRoot "ofxggml-codex-smoke-$stamp.err"
 	try {
 		$processInfo = [System.Diagnostics.ProcessStartInfo]::new()
 		$processInfo.FileName = $Exe
@@ -57,18 +70,31 @@ function Invoke-CodexProcess {
 		$process = [System.Diagnostics.Process]::new()
 		$process.StartInfo = $processInfo
 		[void]$process.Start()
+		$stdoutTask = $process.StandardOutput.ReadToEndAsync()
+		$stderrTask = $process.StandardError.ReadToEndAsync()
 		if (-not $process.WaitForExit([Math]::Max(1, $Timeout) * 1000)) {
-			$process.Kill()
-			$process.WaitForExit()
+			try {
+				$process.Kill()
+			} catch {
+			}
+			try {
+				$process.WaitForExit()
+			} catch {
+			}
+			[void]$stdoutTask.Wait(5000)
+			[void]$stderrTask.Wait(5000)
 			return [pscustomobject]@{
 				ExitCode = 124
 				TimedOut = $true
-				Stdout = $process.StandardOutput.ReadToEnd()
-				Stderr = $process.StandardError.ReadToEnd()
+				Stdout = if ($stdoutTask.IsCompleted) { [string]$stdoutTask.Result } else { "" }
+				Stderr = if ($stderrTask.IsCompleted) { [string]$stderrTask.Result } else { "" }
 			}
 		}
-		$stdout = $process.StandardOutput.ReadToEnd()
-		$stderr = $process.StandardError.ReadToEnd()
+		$process.WaitForExit()
+		[void]$stdoutTask.Wait(5000)
+		[void]$stderrTask.Wait(5000)
+		$stdout = if ($stdoutTask.IsCompleted) { [string]$stdoutTask.Result } else { "" }
+		$stderr = if ($stderrTask.IsCompleted) { [string]$stderrTask.Result } else { "" }
 		return [pscustomobject]@{
 			ExitCode = [int]$process.ExitCode
 			TimedOut = $false
@@ -76,8 +102,9 @@ function Invoke-CodexProcess {
 			Stderr = $stderr
 		}
 	} finally {
-		Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
-		Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+		if ($process) {
+			$process.Dispose()
+		}
 	}
 }
 
@@ -206,6 +233,7 @@ if (![string]::IsNullOrWhiteSpace($CodexExe)) {
 $planArgs.ModelContextWindow = $ModelContextWindow
 $planArgs.ModelAutoCompactTokenLimit = $ModelAutoCompactTokenLimit
 $planArgs.ToolOutputTokenLimit = $ToolOutputTokenLimit
+$planArgs.WebSearch = $WebSearch
 $planArgs.AgentMaxConcurrentThreads = $AgentMaxConcurrentThreads
 $planArgs.AgentMaxDepth = $AgentMaxDepth
 if ($UseServedModel) {
@@ -236,6 +264,7 @@ $arguments += @(
 		-ModelContextWindow $ModelContextWindow `
 		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
 		-ToolOutputTokenLimit $ToolOutputTokenLimit `
+		-WebSearch $WebSearch `
 		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
 		-AgentMaxDepth $AgentMaxDepth
 )
@@ -279,7 +308,7 @@ $baseSummary = @{
 
 if ($DryRun) {
 	if ($Json) {
-		ConvertTo-CodexSmokeJson -Value $baseSummary
+		Write-CodexSmokeJson -Value $baseSummary
 	} else {
 		Write-Host "ofxGgmlLlama local Codex smoke plan"
 		Write-Host "Ready:   $($baseSummary.PlanReady)"
@@ -321,7 +350,7 @@ $summary.AgentText = if ($SummaryOnly) { "" } else { $agentText }
 $summary.Stderr = if ($SummaryOnly) { "" } else { $result.Stderr.Trim() }
 
 if ($Json) {
-	ConvertTo-CodexSmokeJson -Value $summary
+	Write-CodexSmokeJson -Value $summary
 } else {
 	Write-Host "Passed:  $passed"
 	Write-Host "Elapsed: $([Math]::Round($elapsedMs, 3)) ms"

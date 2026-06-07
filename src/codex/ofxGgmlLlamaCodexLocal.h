@@ -31,6 +31,7 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	std::string baseUrl = "http://127.0.0.1:8001/v1";
 	std::string modelAlias;
 	std::string wireApi = "responses";
+	std::string webSearch = "disabled";
 	int modelContextWindow = 65536;
 	int modelAutoCompactTokenLimit = 50000;
 	int toolOutputTokenLimit = 8000;
@@ -46,6 +47,9 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	bool writeTopLevelSelection = true;
 	bool writeAgentSettings = true;
 	bool writeAgentRoleFiles = true;
+	bool writeThreadMcpServer = true;
+	std::string threadMcpServerId = "ofxggml_codex_threads";
+	std::string threadMcpServerCwd;
 };
 
 struct ofxGgmlLlamaCodexConfigResult {

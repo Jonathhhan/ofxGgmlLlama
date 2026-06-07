@@ -32,12 +32,16 @@ OFXGGML_TEST(codex_config_replaces_stale_model_aliases) {
 			<< "[profiles.ofxggml_local]\n"
 			<< "model = \"local/old-model\"\n"
 			<< "model_provider = \"llama_cpp\"\n\n"
+			<< "[mcp_servers.ofxggml_codex_threads]\n"
+			<< "command = \"old-node\"\n"
+			<< "args = [\"old.js\"]\n\n"
 			<< "[profiles.keep_me]\n"
 			<< "model = \"remote/model\"\n";
 	}
 
 	ofxGgmlLlamaCodexProviderConfig config;
 	config.modelAlias = "local/new-model";
+	config.threadMcpServerCwd = "C:/of/addons/ofxGgmlLlama";
 	config.writeAgentSettings = false;
 	config.writeAgentRoleFiles = false;
 	const auto result = ofxGgmlLlamaCodexLocal::writeCodexConfig(configPath.string(), config);
@@ -46,6 +50,8 @@ OFXGGML_TEST(codex_config_replaces_stale_model_aliases) {
 	OFXGGML_REQUIRE(result.ok);
 	OFXGGML_REQUIRE(updated.find("model = \"local/new-model\"") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("[profiles.ofxggml_local]") != std::string::npos);
+	OFXGGML_REQUIRE(updated.find("[mcp_servers.ofxggml_codex_threads]") != std::string::npos);
+	OFXGGML_REQUIRE(updated.find("old-node") == std::string::npos);
 	OFXGGML_REQUIRE(updated.find("[profiles.keep_me]") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("model = \"remote/model\"") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("local/old-model") == std::string::npos);
@@ -115,6 +121,27 @@ OFXGGML_TEST(codex_config_writes_positive_agent_overrides) {
 	OFXGGML_REQUIRE(snippet.find("max_depth = 3") != std::string::npos);
 }
 
+OFXGGML_TEST(codex_config_writes_thread_mcp_server_when_root_is_set) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.modelAlias = "local/new-selected-model";
+	config.webSearch = "live";
+	config.threadMcpServerCwd = "C:/of/addons/ofxGgmlLlama";
+
+	const auto snippet = ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config);
+
+	OFXGGML_REQUIRE(snippet.find("web_search = \"live\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("[mcp_servers.ofxggml_codex_threads]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("command = \"node\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("args = [\"scripts/mcp/codex-thread-server.js\"]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("cwd = \"C:/of/addons/ofxGgmlLlama\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("enabled_tools = [\"spawn_codex_thread\"]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("default_tools_approval_mode = \"prompt\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("[mcp_servers.ofxggml_codex_threads.env]") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("OFXGGML_CODEX_MODEL = \"local/new-selected-model\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("OFXGGML_CODEX_MODEL_PROVIDER = \"llama_cpp\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find("OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = \"300000\"") != std::string::npos);
+}
+
 OFXGGML_TEST(codex_config_snippet_includes_self_contained_provider) {
 	ofxGgmlLlamaCodexProviderConfig config;
 	config.modelAlias = "local/new-selected-model";
@@ -140,6 +167,7 @@ OFXGGML_TEST(codex_launch_command_includes_local_provider_overrides) {
 	config.modelContextWindow = 40960;
 	config.modelAutoCompactTokenLimit = 30000;
 	config.toolOutputTokenLimit = 5000;
+	config.webSearch = "live";
 	config.agentMaxConcurrentThreadsPerSession = 2;
 	config.agentMaxDepth = 3;
 

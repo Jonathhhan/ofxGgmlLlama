@@ -139,6 +139,18 @@ std::string findFirstExistingFile(const std::vector<std::filesystem::path> & can
 	return {};
 }
 
+std::string discoverCodexThreadMcpRoot() {
+	const std::filesystem::path relativeScript = "scripts/mcp/codex-thread-server.js";
+	for (const auto & root : searchRoots()) {
+		std::error_code error;
+		const auto scriptPath = (root / relativeScript).lexically_normal();
+		if (std::filesystem::is_regular_file(scriptPath, error)) {
+			return toString(root);
+		}
+	}
+	return {};
+}
+
 std::string readAllText(const std::string & filePath) {
 	std::ifstream input(filePath, std::ios::binary);
 	if (!input.is_open()) {
@@ -723,11 +735,15 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
 	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
 	const auto wireApi = config.wireApi.empty() ? "responses" : config.wireApi;
+	const auto webSearch = config.webSearch.empty() ? "disabled" : config.webSearch;
+	const auto threadMcpServerId = config.threadMcpServerId.empty()
+		? std::string("ofxggml_codex_threads")
+		: config.threadMcpServerId;
 	std::ostringstream output;
 	if (config.writeTopLevelSelection) {
 		output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 		output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
-		output << "web_search = \"live\"\n\n";
+		output << "web_search = \"" << escapeTomlString(webSearch) << "\"\n\n";
 		output << "model_context_window = " << std::max(1024, config.modelContextWindow) << "\n";
 		output << "model_auto_compact_token_limit = " << std::max(1024, config.modelAutoCompactTokenLimit) << "\n";
 		output << "tool_output_token_limit = " << std::max(512, config.toolOutputTokenLimit) << "\n\n";
@@ -745,7 +761,7 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	output << "[profiles." << profile << "]\n";
 	output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 	output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
-	output << "web_search = \"live\"\n";
+	output << "web_search = \"" << escapeTomlString(webSearch) << "\"\n";
 	output << "model_reasoning_effort = \"" <<
 		escapeTomlString(config.modelReasoningEffort) << "\"\n";
 	output << "model_reasoning_summary = \"" <<
@@ -758,6 +774,26 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 		}
 		if (config.agentMaxDepth > 0) {
 			output << "max_depth = " << config.agentMaxDepth << "\n";
+		}
+	}
+	if (config.writeThreadMcpServer) {
+		const auto threadMcpCwd = config.threadMcpServerCwd.empty()
+			? discoverCodexThreadMcpRoot()
+			: config.threadMcpServerCwd;
+		if (!threadMcpCwd.empty()) {
+			output << "\n[mcp_servers." << threadMcpServerId << "]\n";
+			output << "command = \"node\"\n";
+			output << "args = [\"scripts/mcp/codex-thread-server.js\"]\n";
+			output << "cwd = \"" << escapeTomlString(threadMcpCwd) << "\"\n";
+			output << "enabled_tools = [\"spawn_codex_thread\"]\n";
+			output << "default_tools_approval_mode = \"prompt\"\n";
+			output << "startup_timeout_sec = 10\n";
+			output << "tool_timeout_sec = 120\n";
+			output << "enabled = true\n";
+			output << "\n[mcp_servers." << threadMcpServerId << ".env]\n";
+			output << "OFXGGML_CODEX_MODEL = \"" << escapeTomlString(config.modelAlias) << "\"\n";
+			output << "OFXGGML_CODEX_MODEL_PROVIDER = \"" << escapeTomlString(providerId) << "\"\n";
+			output << "OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = \"300000\"\n";
 		}
 	}
 	return output.str();
@@ -784,10 +820,15 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
 	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
+	const auto threadMcpServerId = config.threadMcpServerId.empty()
+		? std::string("ofxggml_codex_threads")
+		: config.threadMcpServerId;
 	const auto existing = readAllText(result.path);
 	auto updated = existing;
 	const bool removedProvider = replaceSection(updated, "model_providers." + providerId);
 	const bool removedProfile = replaceSection(updated, "profiles." + profile);
+	const bool removedThreadMcpServer = config.writeThreadMcpServer &&
+		replaceSection(updated, "mcp_servers." + threadMcpServerId);
 	const bool removedAgents = config.writeAgentSettings &&
 		replaceSection(updated, "agents");
 	const bool removedExplorerAgent = config.writeAgentSettings &&
@@ -822,6 +863,7 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 	result.created = existing.empty();
 	const bool replaced = removedProvider ||
 		removedProfile ||
+		removedThreadMcpServer ||
 		removedAgents ||
 		removedExplorerAgent ||
 		removedWorkerAgent ||
@@ -885,6 +927,9 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 		arguments.push_back(settings.profile);
 	}
 	if (settings.includeLocalProviderToolGuards) {
+		const auto webSearch = settings.provider.webSearch.empty()
+			? std::string("disabled")
+			: settings.provider.webSearch;
 		arguments.push_back("--disable");
 		arguments.push_back("apps");
 		arguments.push_back("--disable");
@@ -896,7 +941,7 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 		arguments.push_back("--disable");
 		arguments.push_back("tool_search");
 		arguments.push_back("-c");
-		arguments.push_back("web_search=\"live\"");
+		arguments.push_back("web_search=\"" + webSearch + "\"");
 	}
 	if (settings.includeLocalProviderOverrides) {
 		const auto & config = settings.provider;

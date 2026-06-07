@@ -1,6 +1,6 @@
 param(
 	[string]$Endpoint = $(if ($env:OFXGGML_OPENCODE_BASE_URL) { $env:OFXGGML_OPENCODE_BASE_URL } elseif ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }),
-	[string]$Model = $(if ($env:OFXGGML_OPENCODE_MODEL) { $env:OFXGGML_OPENCODE_MODEL } elseif ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/GLM-4.7-Flash-UD-Q4_K_XL" }),
+	[string]$Model = $(if ($env:OFXGGML_OPENCODE_MODEL) { $env:OFXGGML_OPENCODE_MODEL } elseif ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/Qwen3.6-27B-Q4_0" }),
 	[string]$ProviderId = $(if ($env:OFXGGML_OPENCODE_PROVIDER_ID) { $env:OFXGGML_OPENCODE_PROVIDER_ID } else { "llama_cpp" }),
 	[string]$ProviderName = $(if ($env:OFXGGML_OPENCODE_PROVIDER_NAME) { $env:OFXGGML_OPENCODE_PROVIDER_NAME } else { "llama.cpp local" }),
 	[string]$ConfigPath = $(if ($env:OPENCODE_CONFIG) { $env:OPENCODE_CONFIG } elseif ($env:OFXGGML_OPENCODE_CONFIG_PATH) { $env:OFXGGML_OPENCODE_CONFIG_PATH } else { "" }),
@@ -9,8 +9,8 @@ param(
 	[int]$OutputTokens = $(if ($env:OFXGGML_OPENCODE_OUTPUT_TOKENS) { [int]$env:OFXGGML_OPENCODE_OUTPUT_TOKENS } elseif ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 8000 }),
 	[int]$TimeoutMs = $(if ($env:OFXGGML_OPENCODE_TIMEOUT_MS) { [int]$env:OFXGGML_OPENCODE_TIMEOUT_MS } else { 600000 }),
 	[int]$ChunkTimeoutMs = $(if ($env:OFXGGML_OPENCODE_CHUNK_TIMEOUT_MS) { [int]$env:OFXGGML_OPENCODE_CHUNK_TIMEOUT_MS } else { 60000 }),
-	[double]$Temperature = $(if ($env:OFXGGML_OPENCODE_TEMP) { [double]$env:OFXGGML_OPENCODE_TEMP } elseif ($env:OFXGGML_CODEX_TEMP) { [double]$env:OFXGGML_CODEX_TEMP } else { 0.7 }),
-	[double]$TopP = $(if ($env:OFXGGML_OPENCODE_TOP_P) { [double]$env:OFXGGML_OPENCODE_TOP_P } elseif ($env:OFXGGML_CODEX_TOP_P) { [double]$env:OFXGGML_CODEX_TOP_P } else { 0.9 }),
+	[double]$Temperature = $(if ($env:OFXGGML_OPENCODE_TEMP) { [double]$env:OFXGGML_OPENCODE_TEMP } elseif ($env:OFXGGML_CODEX_TEMP) { [double]$env:OFXGGML_CODEX_TEMP } else { 0.2 }),
+	[double]$TopP = $(if ($env:OFXGGML_OPENCODE_TOP_P) { [double]$env:OFXGGML_OPENCODE_TOP_P } elseif ($env:OFXGGML_CODEX_TOP_P) { [double]$env:OFXGGML_CODEX_TOP_P } else { 0.85 }),
 	[string]$DefaultAgent = $(if ($env:OFXGGML_OPENCODE_DEFAULT_AGENT) { $env:OFXGGML_OPENCODE_DEFAULT_AGENT } else { "build" }),
 	[switch]$KeepBuiltInProviders,
 	[switch]$UseServedModel,

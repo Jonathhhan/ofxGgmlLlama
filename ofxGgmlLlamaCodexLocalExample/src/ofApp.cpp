@@ -11,7 +11,7 @@
 
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
-constexpr const char * DefaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M";
+constexpr const char * DefaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0";
 constexpr const char * DefaultCodexOllamaModelAlias = "hermes3-codex-32k:latest";
 constexpr const char * WorkspaceWriteSandbox = "workspace-write";
 
@@ -46,6 +46,7 @@ const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
 		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 0, 0, 2500, 90000, 30000, 300, 0.2f, 0.85f, 0.03f},
 		{"qwen27b-3090", "Qwen 27B RTX 3090", 65536, 1, 1024, 256, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
+		{"hermes-codex-shared", "Hermes + Codex shared", 65536, 2, 1024, 256, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 52000, 8000, 2, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
 		{"rtx4090", "Qwen 27B RTX 4090", 65536, 1, 2048, 512, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
 		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.2f, 0.85f, 0.03f},
 		{"balanced", "Balanced local", 40960, 1, 2048, 512, 0, 0, 0, 256, "", "", 40960, 30000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.25f, 0.85f, 0.03f},
@@ -67,6 +68,14 @@ const std::vector<const char *> & codexReasoningEfforts() {
 		"high"
 	};
 	return efforts;
+}
+
+const std::vector<const char *> & codexWebSearchModes() {
+	static const std::vector<const char *> modes {
+		"disabled",
+		"live"
+	};
+	return modes;
 }
 
 const std::vector<const char *> & codexProviderModes() {
@@ -229,7 +238,7 @@ int presetIndexFromId(const std::string & value) {
 			return static_cast<int>(i);
 		}
 	}
-	return 3;
+	return 1;
 }
 
 void appendWrapped(
@@ -430,6 +439,9 @@ void ofApp::setup() {
 	specType = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 		"OFXGGML_CODEX_SPEC_TYPE",
 		specType);
+	webSearch = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_WEB_SEARCH",
+		webSearch);
 	modelContextWindowManuallyEdited = hasEnvValue("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW");
 	modelContextWindow = envInt("OFXGGML_CODEX_MODEL_CONTEXT_WINDOW", modelContextWindow);
 	modelAutoCompactManuallyEdited = hasEnvValue("OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT");
@@ -495,6 +507,7 @@ void ofApp::draw() {
 	bool refreshRequested = false;
 	bool adoptServedAliasRequested = false;
 	bool copyConfigRequested = false;
+	bool copyHermesConfigRequested = false;
 	bool copyServerCommandRequested = false;
 	bool copyLaunchCommandRequested = false;
 
@@ -683,6 +696,9 @@ void ofApp::draw() {
 		if (ImGui::InputInt("Tool output tokens", &toolOutputTokenLimit)) {
 			settingsChanged = true;
 		}
+		if (drawStringCombo("Web search", webSearch, codexWebSearchModes())) {
+			settingsChanged = true;
+		}
 		if (ImGui::InputInt("Startup timeout seconds", &startupTimeoutSeconds)) {
 			settingsChanged = true;
 		}
@@ -762,6 +778,10 @@ void ofApp::draw() {
 		copyConfigRequested = ImGui::Button("Copy config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
+		ImGui::BeginDisabled(!localProviderMode || modelAlias.empty() || baseUrl.empty());
+		copyHermesConfigRequested = ImGui::Button("Copy Hermes config");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
 		ImGui::BeginDisabled(!llamaCppProviderMode || modelPath.empty());
 		copyServerCommandRequested = ImGui::Button("Copy server command");
 		ImGui::EndDisabled();
@@ -769,6 +789,9 @@ void ofApp::draw() {
 		copyLaunchCommandRequested = ImGui::Button("Copy launch command");
 		if (copyConfigRequested) {
 			copyTextToClipboard("Codex config snippet", buildCodexConfigSnippetText());
+		}
+		if (copyHermesConfigRequested) {
+			copyTextToClipboard("Hermes custom endpoint snippet", buildHermesConfigSnippetText());
 		}
 		if (copyServerCommandRequested) {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
@@ -1313,6 +1336,26 @@ std::string ofApp::buildCodexConfigSnippetText() const {
 	return ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(makeCodexConfig());
 }
 
+std::string ofApp::buildHermesConfigSnippetText() const {
+	if (!usesLocalCodexProvider(codexProviderMode)) {
+		return "";
+	}
+	const auto effectiveModelAlias = modelAlias.empty()
+		? defaultModelForProviderMode(codexProviderMode)
+		: modelAlias;
+	std::ostringstream snippet;
+	snippet
+		<< "# Hermes Agent custom endpoint; point it at the same loaded llama-server used by Codex.\n"
+		<< "# Use `hermes model` and choose Custom Endpoint, or mirror these values in ~/.hermes/config.yaml.\n"
+		<< "model: " << effectiveModelAlias << "\n"
+		<< "base_url: " << baseUrl << "\n"
+		<< "api_key: local-dummy-key\n"
+		<< "context_length: " << modelContextWindow << "\n"
+		<< "terminal:\n"
+		<< "  backend: local\n";
+	return snippet.str();
+}
+
 std::string ofApp::buildManualServerCommand() const {
 	const auto effectiveModelAlias = modelAlias.empty()
 		? ofxGgmlLlamaCodexLocal::modelAliasFromPath(modelPath)
@@ -1458,6 +1501,14 @@ void ofApp::rebuildLines() {
 	if (localProviderMode && !servedModelAliases.empty()) {
 		lines.push_back("Server advertises: " + joinAliases(servedModelAliases));
 	}
+	if (localProviderMode) {
+		appendWrapped(
+			lines,
+			"Hermes shared endpoint: use Custom Endpoint with base_url " + baseUrl +
+				" and model " + (modelAlias.empty() ? defaultModelForProviderMode(codexProviderMode) : modelAlias) +
+				". This reuses the same loaded model as Codex; conversation memory remains client-local.",
+			96);
+	}
 	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));
 	appendWrapped(
 		lines,
@@ -1504,6 +1555,7 @@ ofxGgmlLlamaCodexProviderConfig ofApp::makeCodexConfig() const {
 	config.baseUrl = baseUrl;
 	config.modelAlias = modelAlias;
 	config.wireApi = wireApi.empty() ? "responses" : wireApi;
+	config.webSearch = webSearch.empty() ? "disabled" : webSearch;
 	config.modelContextWindow = modelContextWindow;
 	config.modelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
 	config.toolOutputTokenLimit = toolOutputTokenLimit;

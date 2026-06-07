@@ -404,10 +404,10 @@ Assert-Contains $codexOutput "Using Codex provider: local" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex sandbox: workspace-write" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex preset: Quality coding" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=3072 ubatch=768 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=default ctv=default spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex agent settings: max_threads=auto max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex preset: Qwen 27B RTX 3090" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=1024 ubatch=256 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=q4_0 ctv=q4_0 spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=56000 tool_output=12000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
@@ -524,7 +524,7 @@ try {
 $expectedAutoAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
 Assert-Contains $codexAutoLocalAliasOutput "Using text model: $modelPath" "Codex local auto model alias dry-run"
 Assert-Contains $codexAutoLocalAliasOutput "Using Codex model alias: $expectedAutoAlias" "Codex local auto model alias dry-run"
-Assert-NotContains $codexAutoLocalAliasOutput "Using Codex model alias: local/Qwen3.6-35B-A3B-UD-Q4_K_M" "Codex local auto model alias dry-run"
+Assert-NotContains $codexAutoLocalAliasOutput "Using Codex model alias: local/Qwen3.6-27B-Q4_0" "Codex local auto model alias dry-run"
 
 $codexDerivedAliasOutput = Invoke-DryRun `
 	-Label "Codex local derived alias dry-run" `
@@ -573,6 +573,24 @@ Assert-Contains $codexFastPresetOutput "Using Codex preset: Fast coding" "Codex 
 Assert-Contains $codexFastPresetOutput "ctx=32768 parallel=1 batch=4096 ubatch=1024" "Codex local fast preset dry-run"
 Assert-Contains $codexFastPresetOutput "cacheReuse=256" "Codex local fast preset dry-run"
 Assert-Contains $codexFastPresetOutput "model_context_window=32768 auto_compact=24000 tool_output=5000" "Codex local fast preset dry-run"
+
+$codexHermesSharedPresetOutput = Invoke-DryRun `
+	-Label "Codex local Hermes shared preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "hermes-codex-shared"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexHermesSharedPresetOutput "Using Codex preset: Hermes + Codex shared" "Codex local Hermes shared preset dry-run"
+Assert-Contains $codexHermesSharedPresetOutput "ctx=65536 parallel=2 batch=1024 ubatch=256" "Codex local Hermes shared preset dry-run"
+Assert-Contains $codexHermesSharedPresetOutput "cacheReuse=256 ctk=q4_0 ctv=q4_0" "Codex local Hermes shared preset dry-run"
+Assert-Contains $codexHermesSharedPresetOutput "model_context_window=65536 auto_compact=52000 tool_output=8000" "Codex local Hermes shared preset dry-run"
+Assert-Contains $codexHermesSharedPresetOutput "Using Codex agent settings: max_threads=2" "Codex local Hermes shared preset dry-run"
 
 $codexFullContextPresetOutput = Invoke-DryRun `
 	-Label "Codex local full-context preset dry-run" `

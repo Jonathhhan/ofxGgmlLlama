@@ -1,8 +1,8 @@
-# ofxGgmlLlamaCodexLocalExample
+﻿# ofxGgmlLlamaCodexLocalExample
 
 Root-level openFrameworks example for running local LLMs with OpenAI Codex,
-OpenCode, and other OpenAI-compatible coding clients through `llama.cpp` and
-`llama-server`.
+Hermes Agent, OpenCode, and other OpenAI-compatible coding clients through
+`llama.cpp` and `llama-server`.
 
 This example belongs in `ofxGgmlLlama` because this addon owns llama.cpp builds,
 GGUF model discovery, and local server lifecycle. `ofxGgmlAgents` can consume
@@ -11,8 +11,8 @@ the resulting endpoint after it is running.
 The setup follows the same contract as the Unsloth Codex guide:
 https://unsloth.ai/docs/de/grundlagen/codex
 
-OpenCode can reuse the same endpoint through a custom provider in
-`opencode.json`; see `opencode.example.json` and
+Hermes Agent and OpenCode can reuse the same endpoint through custom providers;
+see `hermes-config.example.yaml`, `opencode.example.json`, and
 `..\docs\OPENCODE_LOCAL_SERVER.md`.
 
 The Codex/OpenCode agent settings in this example are client resource and
@@ -49,19 +49,10 @@ Install Hugging Face helpers:
 pip install huggingface_hub hf_transfer
 ```
 
-Download a coding model into the shared addon model folder:
+Download or place the Qwen3.6 27B Q4_0 GGUF in the shared addon model folder:
 
-```python
-import os
-from huggingface_hub import snapshot_download
-
-os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
-
-snapshot_download(
-    repo_id="unsloth/GLM-4.7-Flash-GGUF",
-    local_dir="../models/unsloth/GLM-4.7-Flash-GGUF",
-    allow_patterns=["*UD-Q4_K_XL*"],
-)
+```text
+..\models\Qwen3.6-27B-Q4_0.gguf
 ```
 
 You can use another compatible GGUF model by changing the model path and server
@@ -75,17 +66,19 @@ Generate the project with openFrameworks projectGenerator using addons
 ```powershell
 scripts\run-example.bat codex -Build `
     -CodexPreset qwen27b-3090 `
-    -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
-    -ServerModel local/GLM-4.7-Flash-UD-Q4_K_XL `
+    -Model ..\models\Qwen3.6-27B-Q4_0.gguf `
+    -ServerModel local/Qwen3.6-27B-Q4_0 `
     -GpuLayers all `
-    -ContextSize 262144 `
+    -ContextSize 65536 `
     -Parallel 1 `
-    -BatchSize 3072 `
-    -UBatchSize 768 `
+    -BatchSize 1024 `
+    -UBatchSize 256 `
     -CacheReuse 256 `
-    -Temperature 0.7 `
-    -TopP 0.9 `
-    -MinP 0.02
+    -KvCacheKeyType q4_0 `
+    -KvCacheValueType q4_0 `
+    -Temperature 0.2 `
+    -TopP 0.85 `
+    -MinP 0.03
 ```
 
 Preset choices:
@@ -94,6 +87,7 @@ Preset choices:
 | --- | --- | --- |
 | `memory` | Smaller GPUs and first smoke tests. | `ctx=16384`, `batch=1024`, one agent slot. |
 | `qwen27b-3090` | `Qwen3.6-27B-Q4_0` on RTX 3090 24 GB. | `ctx=65536`, `parallel=1`, `batch=1024`, `ubatch=256`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
+| `hermes-codex-shared` | Share one loaded local model between Hermes Agent and Codex on RTX 3090 24 GB. | `ctx=65536`, `parallel=2`, `batch=1024`, `ubatch=256`, `ctk=q4_0`, `ctv=q4_0`, max agents `2`, `tool_output_token_limit=8000`. |
 | `rtx4090` | Qwen3.6-27B on RTX 4090 24 GB with higher batch. | `ctx=65536`, `parallel=1`, `batch=2048`, `ubatch=512`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
 | `fast` | Lower-latency coding on large local models. | `ctx=32768`, `batch=4096`, `ubatch=1024`, cache reuse on. |
 | `balanced` | Previous default local coding setup (replaced by qwen27b-3090). | `ctx=40960`, `batch=2048`, one agent slot. |
@@ -104,7 +98,10 @@ Preset choices:
 | `long` | Large-context coding on high-VRAM systems. | `ctx=262144`, `batch=4096`, one agent slot. |
 | `concurrent` | Two local Codex sessions or subagent work. | `ctx=65536`, `parallel=2`, max agents `2`. |
 
-Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. The default preset is now `qwen27b-3090` for 24 GB GPUs. Any explicit script
+Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. Use
+`hermes-codex-shared` when Hermes Agent and Codex should reuse one loaded
+`llama-server` model with two server slots. The default preset is now
+`qwen27b-3090` for 24 GB GPUs. Any explicit script
 argument or `OFXGGML_CODEX_*` setting still overrides the preset value.
 
 If an older local `llama-server` process is stuck on the Codex port and the
@@ -133,12 +130,12 @@ OpenAI-compatible endpoint:
 http://127.0.0.1:8001/v1
 ```
 
-The Codex example defaults keep CUDA graphs enabled, keep GLM thinking disabled,
-and match the local Codex runtime shape by launching `llama-server` with `--jinja`,
+The Codex example defaults keep CUDA graphs enabled, keep Qwen thinking disabled,
+and match the Qwen3.6 27B local Codex runtime shape by launching `llama-server` with `--jinja`,
 `--chat-template-kwargs '{"enable_thinking": false}'`, `--reasoning off`,
-`--reasoning-budget 0`, `-ngl all`, `--ctx-size 262144`, `--parallel 1`,
-`--flash-attn on`, `--batch-size 3072`,
-and `--ubatch-size 768`. `--skip-chat-parsing` is off by default so the model
+`--reasoning-budget 0`, `-ngl all`, `--ctx-size 65536`, `--parallel 1`,
+`--flash-attn on`, `--batch-size 1024`, `--ubatch-size 256`, `-ctk q4_0`,
+and `-ctv q4_0`. `--skip-chat-parsing` is off by default so the model
 chat template remains active.
 Set the GUI's **Spec type** dropdown to `ngram-cache` when llama.cpp asks for a
 speculative decoding implementation but you are not using a separate draft
@@ -154,7 +151,7 @@ to fit in VRAM. The Codex config window still has to be numeric; when the
 example can read GGUF metadata, it copies the model's `context_length` into
 `model_context_window` and sets auto-compact to about 85% of that window.
 If metadata is unavailable, these presets fall back to `model_context_window=262144`,
-matching the Qwen3.6-35B-A3B model card's native context length.
+matching the high-context Qwen local-coding fallback used by the example.
 The GUI exposes **KV cache K type** and **KV cache V type** dropdowns for the
 same cache type values supported by the bundled `llama-server`.
 
@@ -178,9 +175,9 @@ standard config locations and writes:
 Use this provider/profile shape:
 
 ```toml
-model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
-web_search = "live"
+web_search = "disabled"
 model_context_window = 262144
 model_auto_compact_token_limit = 220000
 tool_output_token_limit = 12000
@@ -195,12 +192,17 @@ wire_api = "responses"
 stream_idle_timeout_ms = 10000000
 
 [profiles.ofxggml_local]
-model = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
-web_search = "live"
+web_search = "disabled"
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 ```
+
+`web_search = "disabled"` is the llama.cpp-safe default. Local server-backed
+Codex runs cannot use the hosted web-search tool directly; set
+`OFXGGML_CODEX_WEB_SEARCH=live` or pass `-WebSearch live` only when your Codex
+provider/profile can actually service web search.
 
 `profiles.ofxggml_local.model` must match the llama-server alias used by the
 example's `ServerModel` field. The alias is not proof of which GGUF is loaded:
@@ -208,10 +210,10 @@ example's `ServerModel` field. The alias is not proof of which GGUF is loaded:
 the wrong `--alias`. If you do not pass `-ServerModel`, the launcher prefers the
 resolved local GGUF path from `-Model`, `OFXGGML_TEXT_MODEL`, or local model
 discovery and derives a truthful alias from that filename, such as
-`local/GLM-4.7-Flash-UD-Q4_K_XL` or
+`local/Qwen3.6-27B-Q4_0` or
 `local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If no local GGUF is resolved, it
 falls back to `OFXGGML_CODEX_MODEL` or the example default
-`local/Qwen3.6-35B-A3B-UD-Q4_K_M`. If you launch a smaller local Qwen model with
+`local/Qwen3.6-27B-Q4_0`. If you launch a smaller local Qwen model with
 `-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
 
 ```toml
@@ -231,14 +233,37 @@ those files with `config_file`; Codex loads `agents/explorer.toml` and
 The example's **Launch Codex** button uses the same custom-provider contract:
 
 Use **Copy config** when you want the generated TOML snippet on the clipboard
-without writing it, **Copy server command** when you want to launch or tweak the
-matching `llama-server` command manually in a terminal, and **Copy launch command**
-when you want the pasteable Codex command for the current provider mode.
+without writing it, **Copy Hermes config** when you want a Hermes custom
+endpoint snippet that points to the same loaded model, **Copy server command**
+when you want to launch or tweak the matching `llama-server` command manually
+in a terminal, and **Copy launch command** when you want the pasteable Codex
+command for the current provider mode.
+
+## Configure Hermes Agent
+
+Start the local server once, then configure Hermes Agent as a custom
+OpenAI-compatible endpoint:
+
+```yaml
+model: local/Qwen3.6-27B-Q4_0
+base_url: http://127.0.0.1:8001/v1
+api_key: local-dummy-key
+context_length: 65536
+terminal:
+  backend: local
+```
+
+The checked-in `hermes-config.example.yaml` carries the same shape. The model
+id must match the alias advertised by `/v1/models`; use **Adopt served alias**
+or `scripts\plan-local-codex.bat -UseServedModel -SummaryOnly` when you attach
+Hermes to an already-running server. This shares the loaded model weights with
+Codex and OpenCode, but each client keeps its own conversation state, tool
+permissions, and memory.
 
 ```powershell
 codex --no-alt-screen -p ofxggml_local `
     --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"live"' `
+    -c web_search='"disabled"' `
     -c model_provider=llama_cpp `
     -c model_providers.llama_cpp.base_url='"http://127.0.0.1:8001/v1"' `
     -c model_providers.llama_cpp.wire_api='"responses"' `
@@ -248,10 +273,22 @@ codex --no-alt-screen -p ofxggml_local `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c hide_agent_reasoning=true `
-    --model local/GLM-4.7-Flash-UD-Q4_K_XL
+    --model local/Qwen3.6-27B-Q4_0
 ```
 
-The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap.
+The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap. They keep `-WebSearch disabled` by default for local llama.cpp and accept `-WebSearch live` as an explicit opt-in.
+
+### MCP thread spawning
+
+The example also includes a local MCP server at
+`scripts/mcp/codex-thread-server.js`. Add the
+`[mcp_servers.ofxggml_codex_threads]` block from
+`codex-config.example.toml` to your Codex config, replacing `cwd` with the
+absolute path to the `ofxGgmlLlama` addon. When Codex loads that server, the
+`spawn_codex_thread` tool starts `codex app-server`, creates a separate Codex
+thread, and submits the requested prompt to it. Use this only for explicit
+sidecar work; regular Codex subagents still use the built-in `/agent` workflow
+and the `agents.max_threads` / `agents.max_depth` settings above.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -315,8 +352,8 @@ OpenCode uses JSON config instead of Codex TOML. The local provider shape is:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
-  "small_model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
+  "small_model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
   "default_agent": "build",
   "provider": {
     "llama_cpp": {
@@ -327,8 +364,8 @@ OpenCode uses JSON config instead of Codex TOML. The local provider shape is:
         "apiKey": "local"
       },
       "models": {
-        "local/GLM-4.7-Flash-UD-Q4_K_XL": {
-          "name": "GLM-4.7 Flash local"
+        "local/Qwen3.6-27B-Q4_0": {
+          "name": "Qwen3.6 27B Q4_0 local"
         }
       }
     }
@@ -342,13 +379,13 @@ conservative OpenCode `build`, `plan`, and `explore` agent settings. It makes
 `build` the default primary agent, allows read/search tools, asks before edits,
 shell commands, or primary-agent task delegation, and keeps web access allowed
 for local coding sessions. The full model id is
-`llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL`: provider key first, then the
+`llama_cpp/local/Qwen3.6-27B-Q4_0`: provider key first, then the
 llama-server model alias.
 
 Plan the config from the addon root without mutating OpenCode files:
 
 ```powershell
-scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -SummaryOnly
+scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/Qwen3.6-27B-Q4_0 -SummaryOnly
 ```
 
 ## Claude Code Hybrid Option
@@ -373,7 +410,7 @@ Optional environment overrides:
 
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
-$env:OFXGGML_CODEX_MODEL = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+$env:OFXGGML_CODEX_MODEL = "local/Qwen3.6-27B-Q4_0"
 $env:OFXGGML_CODEX_PRESET = "qwen27b-3090"
 $env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
 $env:OFXGGML_CODEX_EXE = "C:\Users\you\AppData\Local\OpenAI\Codex\bin\codex.exe"
@@ -430,7 +467,7 @@ Before giving the endpoint to Codex:
 scripts\doctor-llama.bat
 scripts\list-models.bat
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
-scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/Qwen3.6-35B-A3B-UD-Q4_K_M -Json -SummaryOnly
+scripts\test-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/Qwen3.6-27B-Q4_0 -Json -SummaryOnly
 ```
 
 Use `-Backend cpu` for CPU-only validation.

@@ -341,6 +341,7 @@ function Get-OfxGgmlCodexLocalProviderArguments {
 		[int]$ModelContextWindow = 262144,
 		[int]$ModelAutoCompactTokenLimit = 220000,
 		[int]$ToolOutputTokenLimit = 12000,
+		[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
 		[string]$ReasoningEffort = "medium",
 		[string]$ReasoningSummary = "none",
 		[bool]$HideAgentReasoning = $true,
@@ -358,7 +359,7 @@ function Get-OfxGgmlCodexLocalProviderArguments {
 			"--disable", "browser_use",
 			"--disable", "computer_use",
 			"--disable", "tool_search",
-			"-c", "web_search=`"live`""
+			"-c", "web_search=`"$WebSearch`""
 		)
 	}
 	if (!$SkipProviderOverrides) {

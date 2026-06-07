@@ -142,11 +142,12 @@ $codexArgs = @(
 		-ModelContextWindow 40960 `
 		-ModelAutoCompactTokenLimit 30000 `
 		-ToolOutputTokenLimit 5000 `
+		-WebSearch live `
 		-AgentMaxConcurrentThreads 2 `
 		-AgentMaxDepth 3
 )
 Assert-True ($codexArgs -contains "--disable") "Codex launch args include tool guard switches"
-Assert-True ($codexArgs -contains "web_search=`"live`"") "Codex launch args include web search override"
+Assert-True ($codexArgs -contains "web_search=`"live`"") "Codex launch args allow web search override"
 Assert-True ($codexArgs -contains "model_provider=llama_cpp") "Codex launch args include provider override"
 Assert-True ($codexArgs -contains "model_providers.llama_cpp.base_url=`"http://127.0.0.1:9001/v1`"") "Codex launch args include endpoint override"
 Assert-True ($codexArgs -contains "model_context_window=40960") "Codex launch args include context window"
@@ -158,7 +159,7 @@ $codexGuardOnlyArgs = @(
 		-SkipProviderOverrides `
 		-AgentMaxConcurrentThreads 1
 )
-Assert-True ($codexGuardOnlyArgs -contains "web_search=`"live`"") "Codex guard-only args keep tool compatibility overrides"
+Assert-True ($codexGuardOnlyArgs -contains "web_search=`"disabled`"") "Codex guard-only args keep tool compatibility overrides"
 Assert-True ($codexGuardOnlyArgs -notcontains "model_provider=llama_cpp") "Codex guard-only args omit provider override"
 Assert-True ($codexGuardOnlyArgs -contains "agents.max_threads=1") "Codex guard-only args keep agent cap"
 

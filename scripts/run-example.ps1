@@ -71,7 +71,7 @@ $canonicalExample = switch ($Example) {
 }
 $isEmbedding = $canonicalExample -eq "embedding"
 $isCodex = $canonicalExample -eq "codex"
-$defaultCodexModelAlias = "local/Qwen3.6-35B-A3B-UD-Q4_K_M"
+$defaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0"
 $defaultCodexOllamaModel = "hermes3-codex-32k:latest"
 $exampleName = switch ($canonicalExample) {
 	"text" { "ofxGgmlTextExample" }
@@ -111,7 +111,7 @@ $MinP = Normalize-OfxGgmlPathText $MinP
 function Get-OfxGgmlCodexPresetDefaults {
 	param([string]$Name)
 
-	$preset = if ([string]::IsNullOrWhiteSpace($Name)) { "quality" } else { $Name.Trim().ToLowerInvariant() }
+	$preset = if ([string]::IsNullOrWhiteSpace($Name)) { "qwen27b-3090" } else { $Name.Trim().ToLowerInvariant() }
 	switch ($preset) {
 		"memory" {
 			return @{
@@ -136,6 +136,62 @@ function Get-OfxGgmlCodexPresetDefaults {
 				AgentMaxWaitMs = 90000
 				AgentDefaultWaitMs = 30000
 				StartupTimeoutSeconds = 300
+				Temperature = "0.2"
+				TopP = "0.85"
+				MinP = "0.03"
+			}
+		}
+		"qwen27b-3090" {
+			return @{
+				Name = "qwen27b-3090"
+				Label = "Qwen 27B RTX 3090"
+				ContextSize = 65536
+				Parallel = 1
+				BatchSize = 1024
+				UBatchSize = 256
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
+				KvCacheKeyType = "q4_0"
+				KvCacheValueType = "q4_0"
+				ModelContextWindow = 65536
+				ModelAutoCompactTokenLimit = 56000
+				ToolOutputTokenLimit = 12000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 0
+				AgentMinWaitMs = 2500
+				AgentMaxWaitMs = 180000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "0.2"
+				TopP = "0.85"
+				MinP = "0.03"
+			}
+		}
+		"hermes-codex-shared" {
+			return @{
+				Name = "hermes-codex-shared"
+				Label = "Hermes + Codex shared"
+				ContextSize = 65536
+				Parallel = 2
+				BatchSize = 1024
+				UBatchSize = 256
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 256
+				KvCacheKeyType = "q4_0"
+				KvCacheValueType = "q4_0"
+				ModelContextWindow = 65536
+				ModelAutoCompactTokenLimit = 52000
+				ToolOutputTokenLimit = 8000
+				AgentMaxConcurrentThreads = 2
+				AgentMaxDepth = 0
+				AgentMinWaitMs = 2500
+				AgentMaxWaitMs = 180000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
 				Temperature = "0.2"
 				TopP = "0.85"
 				MinP = "0.03"
@@ -366,7 +422,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 			}
 		}
 		default {
-			throw "Unknown Codex preset '$Name'. Use memory, fast, balanced, quality, fullctx, fullctx-q5, fullctx-q4, long, or concurrent."
+			throw "Unknown Codex preset '$Name'. Use memory, qwen27b-3090, hermes-codex-shared, fast, balanced, quality, fullctx, fullctx-q5, fullctx-q4, long, or concurrent."
 		}
 	}
 }
@@ -413,7 +469,7 @@ if ($isCodex) {
 	} elseif ($env:OFXGGML_CODEX_PRESET) {
 		$env:OFXGGML_CODEX_PRESET
 	} else {
-		"quality"
+		"qwen27b-3090"
 	}
 	$codexPresetDefaults = Get-OfxGgmlCodexPresetDefaults $presetName
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {

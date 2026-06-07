@@ -1,4 +1,4 @@
-# OpenCode Local Llama Server
+﻿# OpenCode Local Llama Server
 
 This guide connects OpenCode to the same local `llama-server` endpoint used by
 `ofxGgmlLlamaCodexLocalExample`.
@@ -16,18 +16,25 @@ The `agent` entries shown below are OpenCode client settings, not
 Use the Codex local example or the addon server script:
 
 ```powershell
-scripts\run-example.bat codex -Build -CodexPreset quality
+scripts\run-example.bat codex -Build -CodexPreset qwen27b-3090
 ```
 
 or:
 
 ```powershell
 scripts\start-llama-server.bat `
-    -ModelPath ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
+    -ModelPath ..\models\Qwen3.6-27B-Q4_0.gguf `
     -Port 8001 `
-    -Alias local/GLM-4.7-Flash-UD-Q4_K_XL `
+    -Alias local/Qwen3.6-27B-Q4_0 `
     -GpuLayers all `
     -ContextSize 65536 `
+    -BatchSize 1024 `
+    -UBatchSize 256 `
+    -KvCacheKeyType q4_0 `
+    -KvCacheValueType q4_0 `
+    -Temperature 0.2 `
+    -TopP 0.85 `
+    -MinP 0.03 `
     -ChatTemplateKwargs '{"enable_thinking": false}' `
     -Reasoning off `
     -ReasoningBudget 0 `
@@ -40,8 +47,8 @@ The important OpenCode values are:
 ```text
 baseURL: http://127.0.0.1:8001/v1
 provider id: llama_cpp
-model id: local/GLM-4.7-Flash-UD-Q4_K_XL
-full OpenCode model: llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL
+model id: local/Qwen3.6-27B-Q4_0
+full OpenCode model: llama_cpp/local/Qwen3.6-27B-Q4_0
 ```
 
 If `/v1/models` advertises exactly one model and it differs from your requested
@@ -56,7 +63,7 @@ use:
 
 ```powershell
 scripts\plan-local-opencode.bat -SummaryOnly
-scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/GLM-4.7-Flash-UD-Q4_K_XL -Json -SummaryOnly
+scripts\plan-local-opencode.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/Qwen3.6-27B-Q4_0 -Json -SummaryOnly
 scripts\plan-local-opencode.bat -UseServedModel -Json -SummaryOnly
 ```
 
@@ -89,8 +96,8 @@ Minimal provider shape:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
-  "small_model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+  "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
+  "small_model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
   "default_agent": "build",
   "provider": {
     "llama_cpp": {
@@ -103,8 +110,8 @@ Minimal provider shape:
         "chunkTimeout": 60000
       },
       "models": {
-        "local/GLM-4.7-Flash-UD-Q4_K_XL": {
-          "name": "GLM-4.7 Flash local",
+        "local/Qwen3.6-27B-Q4_0": {
+          "name": "Qwen3.6 27B Q4_0 local",
           "limit": {
             "context": 65536,
             "output": 8000
@@ -118,7 +125,7 @@ Minimal provider shape:
 ```
 
 The full model string is `provider_id/model_id`. For this addon default, that
-means `llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL`.
+means `llama_cpp/local/Qwen3.6-27B-Q4_0`.
 
 ## Agent settings
 
@@ -133,7 +140,7 @@ for a predictable local loop:
   "agent": {
     "build": {
       "mode": "primary",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "permission": {
         "read": "allow",
         "glob": "allow",
@@ -149,7 +156,7 @@ for a predictable local loop:
     },
     "plan": {
       "mode": "primary",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "permission": {
         "read": "allow",
         "glob": "allow",
@@ -165,7 +172,7 @@ for a predictable local loop:
     },
     "explore": {
       "mode": "subagent",
-      "model": "llama_cpp/local/GLM-4.7-Flash-UD-Q4_K_XL",
+      "model": "llama_cpp/local/Qwen3.6-27B-Q4_0",
       "permission": {
         "read": "allow",
         "glob": "allow",

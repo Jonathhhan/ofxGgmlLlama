@@ -44,6 +44,7 @@ private:
 		bool requireCodexExecutable) const;
 	std::string formatPreflightSummary(const std::vector<std::string> & issues) const;
 	std::string buildCodexConfigSnippetText() const;
+	std::string buildHermesConfigSnippetText() const;
 	std::string buildManualServerCommand() const;
 	std::string buildCodexLaunchCommand() const;
 	void copyTextToClipboard(const std::string & label, const std::string & text);
@@ -69,6 +70,7 @@ private:
 	std::string codexSandbox = "";
 	std::string configPath;
 	std::string wireApi = "responses";
+	std::string webSearch = "disabled";
 
 	std::string status;
 	std::string endpointStatus;
@@ -102,7 +104,7 @@ private:
 	int agentDefaultWaitTimeoutMs = 30000;
 	int reasoningEffortIndex = 2;
 	int startupTimeoutSeconds = 300;
-	int presetIndex = 2;
+	int presetIndex = 1;
 	uint64_t modelLayerCount = 0;
 	uint64_t modelContextLength = 0;
 	float temperature = 0.2f;

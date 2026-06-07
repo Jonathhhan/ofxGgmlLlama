@@ -1,14 +1,15 @@
 param(
 	[string]$Endpoint = $(if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }),
-	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "" }),
+	[string]$Model = $(if ($env:OFXGGML_CODEX_MODEL) { $env:OFXGGML_CODEX_MODEL } else { "local/Qwen3.6-27B-Q4_0" }),
 	[string]$Profile = $(if ($env:OFXGGML_CODEX_PROFILE) { $env:OFXGGML_CODEX_PROFILE } else { "ofxggml_local" }),
 	[string]$ConfigPath = $(if ($env:OFXGGML_CODEX_CONFIG_PATH) { $env:OFXGGML_CODEX_CONFIG_PATH } else { "" }),
 	[string]$CodexExe = $(if ($env:OFXGGML_CODEX_EXE) { $env:OFXGGML_CODEX_EXE } else { "" }),
-	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 262144 }),
-	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 220000 }),
+	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 65536 }),
+	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 56000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 12000 }),
+	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
-	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 0 }),
+	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
 	[switch]$UseServedModel,
 	[int]$TimeoutSeconds = 2,
@@ -254,6 +255,8 @@ function Test-TinyModelHint {
 }
 
 function Get-LocalTextModelCandidate {
+	param([string]$PreferredAlias = "")
+
 	$directories = Get-OfxGgmlModelSearchDirectories `
 		-AddonRoot $addonRoot `
 		-ExampleRoot (Join-Path $addonRoot "ofxGgmlTextExample") `
@@ -267,6 +270,14 @@ function Get-LocalTextModelCandidate {
 				Alias = Get-OfxGgmlLocalModelAlias -ModelPath $modelFile.FullName
 				TinyCandidate = Test-TinyModelHint -Name $modelFile.Name -Bytes ([long]$modelFile.Length)
 			})
+		}
+	}
+	if (![string]::IsNullOrWhiteSpace($PreferredAlias)) {
+		$preferred = @($candidates | Where-Object {
+			$_.Alias.Equals($PreferredAlias, [System.StringComparison]::OrdinalIgnoreCase)
+		} | Select-Object -First 1)
+		if ($preferred.Count -gt 0) {
+			return $preferred[0]
 		}
 	}
 	$tiny = @($candidates | Where-Object { $_.TinyCandidate } | Select-Object -First 1)
@@ -296,12 +307,16 @@ function Get-CodexServerCommand {
 		"-Port", $endpoint.Port.ToString(),
 		"-ContextSize", $ModelContextWindow.ToString(),
 		"-GpuLayers", "all",
-		"-BatchSize", "3072",
-		"-UBatchSize", "768",
+		"-Parallel", "1",
+		"-BatchSize", "1024",
+		"-UBatchSize", "256",
 		"-CacheReuse", "256",
-		"-Temperature", "0.7",
-		"-TopP", "0.9",
-		"-MinP", "0.02",
+		"-KvCacheKeyType", "q4_0",
+		"-KvCacheValueType", "q4_0",
+		"-Temperature", "0.2",
+		"-TopP", "0.85",
+		"-MinP", "0.03",
+		"-ChatTemplateKwargs", '{"enable_thinking": false}',
 		"-Reasoning", "off",
 		"-ReasoningBudget", "0",
 		"-Jinja",
@@ -347,7 +362,7 @@ if (($UseServedModel -or [string]::IsNullOrWhiteSpace($resolvedModel) -or ($serv
 }
 $endpointUri = [System.Uri]$serverRoot
 $localProcessEvidence = Get-LocalLlamaServerEvidence -Port $endpointUri.Port -ExpectedModel $resolvedModel
-$modelCandidate = Get-LocalTextModelCandidate
+$modelCandidate = Get-LocalTextModelCandidate -PreferredAlias $resolvedModel
 if ([string]::IsNullOrWhiteSpace($resolvedModel) -and $null -ne $modelCandidate) {
 	$resolvedModel = [string]$modelCandidate.Alias
 }
@@ -370,6 +385,7 @@ $launchArguments = @("--no-alt-screen") + @(
 		-ModelContextWindow $ModelContextWindow `
 		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
 		-ToolOutputTokenLimit $ToolOutputTokenLimit `
+		-WebSearch $WebSearch `
 		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
 		-AgentMaxDepth $AgentMaxDepth
 )
@@ -438,6 +454,7 @@ $smokeCommandArguments = @(
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$smokeCommandArguments += @("-Model", $resolvedModel)
 }
+$smokeCommandArguments += @("-WebSearch", $WebSearch)
 $smokeCommandArguments += @("-Json", "-SummaryOnly")
 $smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 $recommendedActions = New-Object System.Collections.Generic.List[string]
@@ -484,6 +501,7 @@ $result = [ordered]@{
 		ModelContextWindow = [int]$ModelContextWindow
 		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit
 		ToolOutputTokenLimit = [int]$ToolOutputTokenLimit
+		WebSearch = $WebSearch
 		ModelReasoningEffort = "medium"
 		ModelReasoningSummary = "none"
 		HideAgentReasoning = $true
