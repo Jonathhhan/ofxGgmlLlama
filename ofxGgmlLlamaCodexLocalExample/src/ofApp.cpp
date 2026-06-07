@@ -510,6 +510,7 @@ void ofApp::draw() {
 	bool copyHermesConfigRequested = false;
 	bool copyServerCommandRequested = false;
 	bool copyLaunchCommandRequested = false;
+	bool copyLaunchCommandAfterConfigRequested = false;
 
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
@@ -797,7 +798,11 @@ void ofApp::draw() {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
 		}
 		if (copyLaunchCommandRequested) {
-			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+			if (localProviderMode && autoConfig) {
+				copyLaunchCommandAfterConfigRequested = true;
+			} else {
+				copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+			}
 		}
 
 		ImGui::Separator();
@@ -820,6 +825,11 @@ void ofApp::draw() {
 	ImGui::End();
 	gui.end();
 
+	if (copyLaunchCommandAfterConfigRequested) {
+		if (syncCodexConfig()) {
+			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+		}
+	}
 	if (refreshRequested) {
 		refreshRuntimeDiscovery();
 		refreshServerStatus();
@@ -1049,7 +1059,12 @@ void ofApp::runLaunchCodexWorker() {
 
 	const bool requestLocalProvider = usesLocalCodexProvider(requestProviderMode);
 	if (requestLocalProvider && requestAutoConfig && !syncCodexConfig()) {
-		ofLogWarning(LogModule) << "Codex auto-config failed; opening UI with existing config";
+		ofLogWarning(LogModule) << "Codex auto-config failed; launch blocked";
+		std::lock_guard<std::mutex> lock(stateMutex);
+		running = false;
+		status = "Codex launch blocked: failed to write local provider/profile config";
+		configWriteStatus = "local agents need the llama_cpp provider in " + configPath;
+		return;
 	}
 
 	const bool launched = ofxGgmlLlamaCodexLocal::launchUiProcess(requestCodexExe);
@@ -1437,12 +1452,12 @@ std::string ofApp::buildCodexLaunchCommand() const {
 
 	ofxGgmlLlamaCodexLaunchCommandSettings settings;
 	settings.executable = codexExe;
-	settings.profile = codexProfile;
+	settings.profile = localProviderMode ? config.profile : codexProfile;
 	settings.model = launchModel;
 	settings.sandbox = codexSandbox;
 	settings.provider = config;
 	settings.includeLocalProviderToolGuards = localProviderMode;
-	settings.includeLocalProviderOverrides = localLaunchMode;
+	settings.includeLocalProviderOverrides = localLaunchMode && !autoConfig;
 	return ofxGgmlLlamaCodexLocal::buildLaunchCommand(settings);
 }
 
@@ -1508,6 +1523,12 @@ void ofApp::rebuildLines() {
 				" and model " + (modelAlias.empty() ? defaultModelForProviderMode(codexProviderMode) : modelAlias) +
 				". This reuses the same loaded model as Codex; conversation memory remains client-local.",
 			96);
+		if (!autoConfig) {
+			appendWrapped(
+				lines,
+				"Local agents require the llama_cpp provider/profile and role files in the Codex config directory. Write config before launching when auto-write is off.",
+				96);
+		}
 	}
 	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));
 	appendWrapped(

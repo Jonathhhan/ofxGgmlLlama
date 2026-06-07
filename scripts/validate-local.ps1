@@ -186,6 +186,7 @@ Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") 
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "ImGui::Begin" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "syncCodexConfig" "Codex local launch config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "launch blocked" "Codex local launch config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy config" "Codex local clipboard config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy Hermes config" "Codex local Hermes endpoint config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildHermesConfigSnippetText" "Codex local Hermes endpoint config"
@@ -200,13 +201,16 @@ Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "J
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Test-OfxGgmlUrl" "Launch utility planner preflight helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Get-OfxGgmlServedModelEvidence" "Launch utility planner preflight helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
-Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "ConfigWriteCommand" "Codex local launch command helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "Get-OfxGgmlServerRootUrl" "Codex local planner shared endpoint helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "Get-OfxGgmlServedModelEvidence" "Codex local planner shared model preflight helper"
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Test-Url" "Codex local planner shared preflight helper"
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Get-ServedModelEvidence" "Codex local planner shared model preflight helper"
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Normalize-Text" "Codex local planner shared path helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Ensure-CodexProviderProfile" "Codex local smoke config writer"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "ReadyForLocalAgents" "Codex local smoke config writer"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "WriteConfigOnly" "Codex local smoke config writer"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "spawn_codex_thread" "Codex thread MCP server"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "codex app-server" "Codex thread MCP server"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "Content-Length" "Codex thread MCP server"
@@ -220,7 +224,9 @@ Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") 
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Manual server command" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"
+Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "writeAgentRoleFiles" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "llama_cpp" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "localLaunchMode && !autoConfig" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "writeCodexConfig" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "providerIdForMode" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "web_search" "Codex local config writer"
@@ -318,11 +324,11 @@ $codexPlan = & (Join-Path $scriptRoot "plan-local-codex.ps1") -Endpoint "http://
 if ($LASTEXITCODE -ne 0) {
 	throw "Local Codex plan failed with exit code $LASTEXITCODE"
 }
-if ($codexPlan.LaunchCommand -notlike "*model_provider=llama_cpp*") {
-	throw "Local Codex plan did not use llama_cpp provider override"
+if (!$codexPlan.PSObject.Properties["Config"] -or !$codexPlan.Config.PSObject.Properties["ReadyForLocalAgents"]) {
+	throw "Local Codex plan did not expose local-agent config readiness"
 }
-if ($codexPlan.LaunchCommand -notlike "*model_providers.llama_cpp.base_url=*http://127.0.0.1:9001/v1*" -or $codexPlan.LaunchCommand -notlike "*model_providers.llama_cpp.wire_api=*responses*") {
-	throw "Local Codex plan did not include self-contained llama_cpp provider endpoint overrides"
+if (!$codexPlan.Blockers -contains "Codex config does not define the llama_cpp provider/profile required by local agents") {
+	throw "Local Codex plan did not block unsafe local-agent launch when config is missing"
 }
 if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Properties["LocalLlamaServer"]) {
 	throw "Local Codex plan did not expose served model and local server process evidence"
@@ -348,8 +354,14 @@ if (!$codexPlan.PSObject.Properties["WaitCommand"] -or $codexPlan.WaitCommand -n
 if (!$codexPlan.PSObject.Properties["RecommendedActions"]) {
 	throw "Local Codex plan did not expose recommended actions"
 }
+if (!$codexPlan.PSObject.Properties["ConfigWriteCommand"] -or $codexPlan.ConfigWriteCommand -notlike "*-WriteConfigOnly*") {
+	throw "Local Codex plan did not expose a config-only write command for local agents"
+}
 if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*") {
 	throw "Local Codex plan did not include llama-server tool compatibility overrides"
+}
+if ($codexPlan.LaunchCommand -notlike "*-p ofxggml_local*" -or $codexPlan.LaunchCommand -like "*model_provider=llama_cpp*") {
+	throw "Local Codex plan did not use the generated profile as the manual launch contract"
 }
 if ($codexPlan.LaunchCommand -notlike "*agents.max_threads=1*" -or $codexPlan.LaunchCommand -like "*agents.max_depth=1*") {
 	throw "Local Codex plan did not include local agent settings"
@@ -390,6 +402,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike "*LOCAL_CODEX_OK*") {
 	throw "Local Codex smoke did not build the expected codex exec marker command"
 }
+if ($codexSmoke.Command -notlike "*-p ofxggml_local*") {
+	throw "Local Codex smoke did not select the generated local profile"
+}
 if ($codexSmoke.Command -notlike "*--output-last-message*") {
 	throw "Local Codex smoke did not request final-message capture"
 }
@@ -401,6 +416,9 @@ if ($codexSmoke.Command -notlike "*agents.max_threads=1*" -or $codexSmoke.Comman
 }
 if (!$codexSmoke.PSObject.Properties["ServedModels"] -or !$codexSmoke.PSObject.Properties["LocalLlamaServer"]) {
 	throw "Local Codex smoke did not include preflight model/server evidence"
+}
+if (!$codexSmoke.PSObject.Properties["ConfigWrite"] -or !$codexSmoke.ConfigWrite.PSObject.Properties["ReadyForLocalAgents"]) {
+	throw "Local Codex smoke did not include provider/profile config evidence for local agents"
 }
 
 Write-Step "Checking Codex thread MCP smoke contract"

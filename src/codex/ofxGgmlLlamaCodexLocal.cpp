@@ -244,6 +244,7 @@ bool writeAgentRoleFiles(
 
 bool replaceSection(std::string & configText, const std::string & sectionName) {
 	const std::string sectionHeader = "[" + sectionName + "]";
+	const std::string childSectionPrefix = "[" + sectionName + ".";
 	std::istringstream input(configText);
 	std::ostringstream output;
 	bool inTargetSection = false;
@@ -257,12 +258,16 @@ bool replaceSection(std::string & configText, const std::string & sectionName) {
 			trimmed.back() == ']';
 		if (inTargetSection) {
 			if (isSectionHeader) {
+				if (trimmed.rfind(childSectionPrefix, 0) == 0) {
+					continue;
+				}
 				inTargetSection = false;
 			} else {
 				continue;
 			}
 		}
-		if (!inTargetSection && trimmed == sectionHeader) {
+		if (!inTargetSection &&
+			(trimmed == sectionHeader || trimmed.rfind(childSectionPrefix, 0) == 0)) {
 			sectionFound = true;
 			inTargetSection = true;
 			continue;
@@ -812,11 +817,6 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 		result.message = "model alias is required";
 		return result;
 	}
-	if (config.writeAgentSettings && config.writeAgentRoleFiles) {
-		if (!writeAgentRoleFiles(result.path, config, result.message)) {
-			return result;
-		}
-	}
 
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
 	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
@@ -857,6 +857,11 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 	if (!writeAllText(result.path, updated)) {
 		result.message = "failed to write Codex config: " + result.path;
 		return result;
+	}
+	if (config.writeAgentSettings && config.writeAgentRoleFiles) {
+		if (!writeAgentRoleFiles(result.path, config, result.message)) {
+			return result;
+		}
 	}
 
 	result.ok = true;
