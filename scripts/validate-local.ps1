@@ -186,6 +186,7 @@ Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") 
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "ImGui::Begin" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "syncCodexConfig" "Codex local launch config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "launch blocked" "Codex local launch config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy config" "Codex local clipboard config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "Copy Hermes config" "Codex local Hermes endpoint config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildHermesConfigSnippetText" "Codex local Hermes endpoint config"
@@ -207,6 +208,8 @@ Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "fu
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Get-ServedModelEvidence" "Codex local planner shared model preflight helper"
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Normalize-Text" "Codex local planner shared path helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Ensure-CodexProviderProfile" "Codex local smoke config writer"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "ReadyForLocalAgents" "Codex local smoke config writer"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "spawn_codex_thread" "Codex thread MCP server"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "codex app-server" "Codex thread MCP server"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "Content-Length" "Codex thread MCP server"
@@ -221,6 +224,7 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "buildManualServerCommand" "Codex local manual server command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "llama_cpp" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "localLaunchMode && !autoConfig" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "writeCodexConfig" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "providerIdForMode" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "web_search" "Codex local config writer"
@@ -390,6 +394,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike "*LOCAL_CODEX_OK*") {
 	throw "Local Codex smoke did not build the expected codex exec marker command"
 }
+if ($codexSmoke.Command -notlike "*-p ofxggml_local*") {
+	throw "Local Codex smoke did not select the generated local profile"
+}
 if ($codexSmoke.Command -notlike "*--output-last-message*") {
 	throw "Local Codex smoke did not request final-message capture"
 }
@@ -401,6 +408,9 @@ if ($codexSmoke.Command -notlike "*agents.max_threads=1*" -or $codexSmoke.Comman
 }
 if (!$codexSmoke.PSObject.Properties["ServedModels"] -or !$codexSmoke.PSObject.Properties["LocalLlamaServer"]) {
 	throw "Local Codex smoke did not include preflight model/server evidence"
+}
+if (!$codexSmoke.PSObject.Properties["ConfigWrite"] -or !$codexSmoke.ConfigWrite.PSObject.Properties["ReadyForLocalAgents"]) {
+	throw "Local Codex smoke did not include provider/profile config evidence for local agents"
 }
 
 Write-Step "Checking Codex thread MCP smoke contract"

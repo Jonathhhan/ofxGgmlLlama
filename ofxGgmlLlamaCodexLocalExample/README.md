@@ -230,6 +230,12 @@ The example's auto-config writer refreshes matching built-in role override
 files under your Codex home at `agents/`. The main config does not reference
 those files with `config_file`; Codex loads `agents/explorer.toml` and
 `agents/worker.toml` as overrides for its built-in agent names.
+Those role files set `model_provider = "llama_cpp"`, so local agents require
+the `[model_providers.llama_cpp]` provider and `ofxggml_local` profile to be
+present in the same Codex config directory. Keep **Auto-write Codex config**
+enabled, or press **Write config** before launching. The example blocks
+auto-configured launches when that write fails so you do not open Codex with
+agent role files pointing at an undefined provider.
 The example's **Launch Codex** button uses the same custom-provider contract:
 
 Use **Copy config** when you want the generated TOML snippet on the clipboard
@@ -237,7 +243,9 @@ without writing it, **Copy Hermes config** when you want a Hermes custom
 endpoint snippet that points to the same loaded model, **Copy server command**
 when you want to launch or tweak the matching `llama-server` command manually
 in a terminal, and **Copy launch command** when you want the pasteable Codex
-command for the current provider mode.
+command for the current provider mode. In local provider mode, the copied
+command expects the generated local profile to exist; use **Copy config** or
+**Write config** first when auto-write is disabled.
 
 ## Configure Hermes Agent
 

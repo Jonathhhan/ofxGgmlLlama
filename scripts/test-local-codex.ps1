@@ -17,6 +17,7 @@ param(
 	[int]$TimeoutSeconds = 120,
 	[string]$CodexSandbox = $(if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { "workspace-write" }),
 	[switch]$UseServedModel,
+	[switch]$SkipConfigWrite,
 	[switch]$SkipAgentRoleFiles,
 	[switch]$DryRun,
 	[switch]$Json,
@@ -140,6 +141,112 @@ function Get-CodexAgentText {
 	return (($messages -join "`n").Trim())
 }
 
+function ConvertTo-CodexTomlString {
+	param([string]$Value)
+	return $Value.Replace("\", "\\").Replace('"', '\"')
+}
+
+function Remove-CodexTomlSection {
+	param(
+		[string]$Text,
+		[string]$Section
+	)
+
+	if ([string]::IsNullOrWhiteSpace($Text) -or [string]::IsNullOrWhiteSpace($Section)) {
+		return $Text
+	}
+	$escaped = [regex]::Escape($Section)
+	$pattern = "(?ms)^\[$escaped\]\s*\r?\n.*?(?=^\[|\z)"
+	return ([regex]::Replace($Text, $pattern, "")).TrimEnd()
+}
+
+function Get-CodexProviderProfileToml {
+	param(
+		[string]$ApiRoot,
+		[string]$Model,
+		[string]$Profile,
+		[string]$WebSearch
+	)
+
+	$lines = @(
+		"[model_providers.llama_cpp]",
+		"name = `"llama.cpp local`"",
+		"base_url = `"$(ConvertTo-CodexTomlString $ApiRoot)`"",
+		"wire_api = `"responses`"",
+		"stream_idle_timeout_ms = 10000000",
+		"",
+		"[profiles.$Profile]",
+		"model = `"$(ConvertTo-CodexTomlString $Model)`"",
+		"model_provider = `"llama_cpp`"",
+		"web_search = `"$(ConvertTo-CodexTomlString $WebSearch)`"",
+		"model_reasoning_effort = `"medium`"",
+		"model_reasoning_summary = `"none`""
+	)
+	return (($lines -join "`n") + "`n")
+}
+
+function Ensure-CodexProviderProfile {
+	param(
+		[string]$ConfigFile,
+		[string]$ApiRoot,
+		[string]$Model,
+		[string]$Profile,
+		[string]$WebSearch
+	)
+
+	$result = [ordered]@{
+		ConfigPath = $ConfigFile
+		Checked = $false
+		Written = $false
+		Skipped = @()
+		Provider = "llama_cpp"
+		Profile = $Profile
+		ReadyForLocalAgents = $false
+	}
+	if ([string]::IsNullOrWhiteSpace($ConfigFile)) {
+		$result.Skipped += "config path is empty"
+		return [pscustomobject]$result
+	}
+	if ([string]::IsNullOrWhiteSpace($Model)) {
+		$result.Skipped += "model alias is empty"
+		return [pscustomobject]$result
+	}
+	if ([string]::IsNullOrWhiteSpace($Profile)) {
+		$result.Skipped += "profile is empty"
+		return [pscustomobject]$result
+	}
+
+	$result.Checked = $true
+	$configDirectory = Split-Path -Parent $ConfigFile
+	if (![string]::IsNullOrWhiteSpace($configDirectory)) {
+		New-Item -ItemType Directory -Path $configDirectory -Force | Out-Null
+	}
+	$existing = if (Test-Path -LiteralPath $ConfigFile -PathType Leaf) {
+		Get-Content -LiteralPath $ConfigFile -Raw
+	} else {
+		""
+	}
+	$updated = Remove-CodexTomlSection -Text $existing -Section "model_providers.llama_cpp"
+	$updated = Remove-CodexTomlSection -Text $updated -Section "profiles.$Profile"
+	$snippet = Get-CodexProviderProfileToml `
+		-ApiRoot $ApiRoot `
+		-Model $Model `
+		-Profile $Profile `
+		-WebSearch $WebSearch
+	if (![string]::IsNullOrWhiteSpace($updated)) {
+		$updated = $updated.TrimEnd() + "`n`n" + $snippet
+	} else {
+		$updated = $snippet
+	}
+	Set-Content -LiteralPath $ConfigFile -Value $updated -Encoding UTF8
+	$after = Get-Content -LiteralPath $ConfigFile -Raw
+	$result.Written = $true
+	$result.ReadyForLocalAgents =
+		($after -match "\[model_providers\.llama_cpp\]") -and
+		($after -match "\[profiles\.$([regex]::Escape($Profile))\]")
+	return [pscustomobject]$result
+}
+
 
 function Get-CodexAgentRoleToml {
 	param(
@@ -255,7 +362,7 @@ $arguments = @(
 	"--ephemeral",
 	"--skip-git-repo-check"
 )
-if ($plan.Config.HasProfile) {
+if ($plan.Config.HasProfile -or !$SkipConfigWrite) {
 	$arguments += @("-p", $CodexProfile)
 }
 $arguments += @(
@@ -287,6 +394,15 @@ $agentRoleFiles = [pscustomobject]@{
 	Existing = @()
 	Skipped = @("pending-smoke")
 }
+$configWrite = [pscustomobject]@{
+	ConfigPath = $plan.Config.Path
+	Checked = $true
+	Written = $false
+	Skipped = @("pending-smoke")
+	Provider = "llama_cpp"
+	Profile = $CodexProfile
+	ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+}
 
 $baseSummary = @{
 	Name = "ofxGgmlLlama local Codex smoke"
@@ -302,6 +418,7 @@ $baseSummary = @{
 	SuggestedModel = if ($plan.SuggestedModel) { [string]$plan.SuggestedModel } else { "" }
 	ServedModels = $plan.ServedModels
 	LocalLlamaServer = $plan.LocalLlamaServer
+	ConfigWrite = $configWrite
 	AgentRoleFiles = $agentRoleFiles
 	SmokeKind = "local-codex-llama-server"
 	InferenceCheck = if ($DryRun) { "dry-run" } else { "codex-exec" }
@@ -310,6 +427,15 @@ $baseSummary = @{
 }
 
 if ($DryRun) {
+	$baseSummary.ConfigWrite = [pscustomobject]@{
+		ConfigPath = $plan.Config.Path
+		Checked = $true
+		Written = $false
+		Skipped = @("dry-run")
+		Provider = "llama_cpp"
+		Profile = $CodexProfile
+		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+	}
 	if ($Json) {
 		Write-CodexSmokeJson -Value $baseSummary
 	} else {
@@ -327,6 +453,29 @@ if (!$plan.Ready) {
 }
 if (!(Test-Path -LiteralPath $resolvedCodex -PathType Leaf) -and $resolvedCodex -ne "codex") {
 	throw "Codex executable was not found: $resolvedCodex"
+}
+
+if (!$SkipConfigWrite) {
+	$configWrite = Ensure-CodexProviderProfile `
+		-ConfigFile $plan.Config.Path `
+		-ApiRoot $resolvedApiRoot `
+		-Model $resolvedModel `
+		-Profile $CodexProfile `
+		-WebSearch $WebSearch
+	$baseSummary.ConfigWrite = $configWrite
+	if (!$configWrite.ReadyForLocalAgents) {
+		throw "Codex config was not ready for local agents after write: $($plan.Config.Path)"
+	}
+} else {
+	$baseSummary.ConfigWrite = [pscustomobject]@{
+		ConfigPath = $plan.Config.Path
+		Checked = $true
+		Written = $false
+		Skipped = @("skip-config-write")
+		Provider = "llama_cpp"
+		Profile = $CodexProfile
+		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+	}
 }
 
 if (!$SkipAgentRoleFiles) {
