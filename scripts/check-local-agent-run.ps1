@@ -38,6 +38,36 @@ function Test-PathAllowed {
 	return $false
 }
 
+function Resolve-PowerShellRunner {
+	$candidates = New-Object System.Collections.Generic.List[string]
+	try {
+		$currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
+		if ($currentProcess.MainModule -and $currentProcess.MainModule.FileName) {
+			$candidates.Add([string]$currentProcess.MainModule.FileName)
+		}
+	} catch {
+	}
+	foreach ($commandName in @("pwsh", "powershell", "powershell.exe")) {
+		$command = Get-Command $commandName -ErrorAction SilentlyContinue
+		if ($command -and $command.Source) {
+			$candidates.Add([string]$command.Source)
+		}
+	}
+	foreach ($candidate in $candidates) {
+		if (![string]::IsNullOrWhiteSpace($candidate) -and
+			(Test-Path -LiteralPath $candidate -PathType Leaf)) {
+			return $candidate
+		}
+	}
+	throw "Could not find a PowerShell executable for required command checks."
+}
+
+function Test-ExecutionPolicyArgumentSupported {
+	param([string]$Runner)
+	return (($env:OS -eq "Windows_NT" -or $PSVersionTable.PSEdition -eq "Desktop") -and
+		([System.IO.Path]::GetFileName($Runner) -match "^(pwsh|powershell)(\.exe)?$"))
+}
+
 function Invoke-RequiredCommand {
 	param(
 		[string]$Command,
@@ -51,13 +81,20 @@ function Invoke-RequiredCommand {
 			dryRun = $true
 		}
 	}
+	$powerShellRunner = Resolve-PowerShellRunner
+	$arguments = @("-NoProfile")
+	if (Test-ExecutionPolicyArgumentSupported $powerShellRunner) {
+		$arguments += @("-ExecutionPolicy", "Bypass")
+	}
+	$arguments += @("-Command", $Command)
 	Push-Location $WorkingDirectory
 	try {
-		& powershell.exe -NoProfile -ExecutionPolicy Bypass -Command $Command
+		& $powerShellRunner @arguments
 		return [pscustomobject]@{
 			cmd = $Command
 			status = [int]$LASTEXITCODE
 			dryRun = $false
+			runner = $powerShellRunner
 		}
 	} finally {
 		Pop-Location

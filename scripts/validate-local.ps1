@@ -233,6 +233,7 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\hermes-
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Copy launch command' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Do not add `--oss`' "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "docs\LOCAL_AGENT_ROUTING.md") 'check-local-agent-run' "Local agent routing docs"
+Assert-FileContains (Join-Path $addonRoot "scripts\check-local-agent-run.ps1") "Resolve-PowerShellRunner" "Local agent run gate portable PowerShell runner"
 
 
 Write-Step "Checking workflow callers"
@@ -268,6 +269,7 @@ foreach ($scriptName in @(
 	"test-local-codex.sh",
 	"check-local-agent-run.ps1",
 	"check-local-agent-run.bat",
+	"check-local-agent-run.sh",
 	"run-example.ps1",
 	"test-doctor-llama.ps1",
 	"dev\release-candidate.ps1",
@@ -423,6 +425,13 @@ if ($agentRunCheck.status -ne "verified" -or !$agentRunCheck.scopeOk -or !$agent
 }
 if (!$agentRunCheck.PSObject.Properties["changedFiles"] -or !$agentRunCheck.PSObject.Properties["commands"]) {
 	throw "Local agent run gate did not emit changedFiles and commands evidence"
+}
+$agentRunCommandCheck = & (Join-Path $scriptRoot "check-local-agent-run.ps1") -RequiredCommand '$PSVersionTable.PSVersion.ToString() | Out-Null' -Json | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+	throw "Local agent run command gate failed with exit code $LASTEXITCODE"
+}
+if ($agentRunCommandCheck.status -ne "verified" -or !$agentRunCommandCheck.commandsOk -or !$agentRunCommandCheck.commands[0].runner) {
+	throw "Local agent run command gate did not execute through a detected PowerShell runner"
 }
 $agentRunContractCheck = & (Join-Path $scriptRoot "check-local-agent-run.ps1") -DryRun -ContractPath (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\local-agent-run.example.json") -Json | ConvertFrom-Json
 if ($LASTEXITCODE -ne 0) {
