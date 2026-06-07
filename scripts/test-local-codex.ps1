@@ -17,6 +17,7 @@ param(
 	[int]$TimeoutSeconds = 120,
 	[string]$CodexSandbox = $(if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { "workspace-write" }),
 	[switch]$UseServedModel,
+	[switch]$WriteConfigOnly,
 	[switch]$SkipConfigWrite,
 	[switch]$SkipAgentRoleFiles,
 	[switch]$DryRun,
@@ -448,11 +449,32 @@ if ($DryRun) {
 	exit 0
 }
 
-if (!$plan.Ready) {
-	throw "Local Codex preflight is not ready: $($baseSummary.PlanBlockers -join '; ')"
-}
-if (!(Test-Path -LiteralPath $resolvedCodex -PathType Leaf) -and $resolvedCodex -ne "codex") {
-	throw "Codex executable was not found: $resolvedCodex"
+if ($WriteConfigOnly) {
+	if ($SkipConfigWrite) {
+		throw "-WriteConfigOnly cannot be combined with -SkipConfigWrite"
+	}
+	$configWrite = Ensure-CodexProviderProfile `
+		-ConfigFile $plan.Config.Path `
+		-ApiRoot $resolvedApiRoot `
+		-Model $resolvedModel `
+		-Profile $CodexProfile `
+		-WebSearch $WebSearch
+	$baseSummary.ConfigWrite = $configWrite
+	if (!$configWrite.ReadyForLocalAgents) {
+		throw "Codex config was not ready for local agents after write: $($plan.Config.Path)"
+	}
+	if (!$SkipAgentRoleFiles) {
+		$agentRoleFiles = Ensure-CodexAgentRoleFiles -ConfigFile $plan.Config.Path -Model $resolvedModel
+		$baseSummary.AgentRoleFiles = $agentRoleFiles
+	}
+	$baseSummary.InferenceCheck = "config-write"
+	$baseSummary.Passed = [bool]$configWrite.ReadyForLocalAgents
+	if ($Json) {
+		Write-CodexSmokeJson -Value $baseSummary
+	} else {
+		Write-Host "Wrote Codex local provider/profile config: $($configWrite.ConfigPath)"
+	}
+	exit 0
 }
 
 if (!$SkipConfigWrite) {
@@ -476,6 +498,18 @@ if (!$SkipConfigWrite) {
 		Profile = $CodexProfile
 		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
 	}
+}
+$localAgentConfigBlocker = "Codex config does not define the llama_cpp provider/profile required by local agents"
+$remainingBlockers = if ($baseSummary.ConfigWrite.ReadyForLocalAgents) {
+	@($baseSummary.PlanBlockers | Where-Object { $_ -ne $localAgentConfigBlocker })
+} else {
+	@($baseSummary.PlanBlockers)
+}
+if ($remainingBlockers.Count -gt 0) {
+	throw "Local Codex preflight is not ready: $($remainingBlockers -join '; ')"
+}
+if (!(Test-Path -LiteralPath $resolvedCodex -PathType Leaf) -and $resolvedCodex -ne "codex") {
+	throw "Codex executable was not found: $resolvedCodex"
 }
 
 if (!$SkipAgentRoleFiles) {

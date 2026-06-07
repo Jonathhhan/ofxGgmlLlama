@@ -510,6 +510,7 @@ void ofApp::draw() {
 	bool copyHermesConfigRequested = false;
 	bool copyServerCommandRequested = false;
 	bool copyLaunchCommandRequested = false;
+	bool copyLaunchCommandAfterConfigRequested = false;
 
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
@@ -797,7 +798,11 @@ void ofApp::draw() {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
 		}
 		if (copyLaunchCommandRequested) {
-			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+			if (localProviderMode && autoConfig) {
+				copyLaunchCommandAfterConfigRequested = true;
+			} else {
+				copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+			}
 		}
 
 		ImGui::Separator();
@@ -820,6 +825,11 @@ void ofApp::draw() {
 	ImGui::End();
 	gui.end();
 
+	if (copyLaunchCommandAfterConfigRequested) {
+		if (syncCodexConfig()) {
+			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
+		}
+	}
 	if (refreshRequested) {
 		refreshRuntimeDiscovery();
 		refreshServerStatus();

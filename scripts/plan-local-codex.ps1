@@ -377,20 +377,25 @@ $configState = [ordered]@{
 	HasProvider = ($configText -match "\[model_providers\.llama_cpp\]")
 	HasProfile = ($configText -match "\[profiles\.$([regex]::Escape($resolvedProfile))\]")
 	HasModelProviderSelection = ($configText -match "model_provider\s*=\s*`"llama_cpp`"")
-	ProviderOverrideProvided = $true
+	ProviderOverrideProvided = $false
+	ReadyForLocalAgents = $false
 }
-$launchArguments = @("--no-alt-screen") + @(
-	Get-OfxGgmlCodexLocalProviderArguments `
-		-ApiRoot $apiRoot `
-		-ModelContextWindow $ModelContextWindow `
-		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
-		-ToolOutputTokenLimit $ToolOutputTokenLimit `
-		-WebSearch $WebSearch `
-		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
-		-AgentMaxDepth $AgentMaxDepth
+$configState.ReadyForLocalAgents = [bool]($configState.HasProvider -and $configState.HasProfile)
+$launchArguments = @(
+	"--no-alt-screen",
+	"-p", $resolvedProfile,
+	"--disable", "apps",
+	"--disable", "image_generation",
+	"--disable", "browser_use",
+	"--disable", "computer_use",
+	"--disable", "tool_search",
+	"-c", "web_search=`"$WebSearch`""
 )
-if ($configState.HasProfile) {
-	$launchArguments = @("--no-alt-screen", "-p", $resolvedProfile) + @($launchArguments | Select-Object -Skip 1)
+if ($AgentMaxConcurrentThreads -gt 0) {
+	$launchArguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
+}
+if ($AgentMaxDepth -gt 0) {
+	$launchArguments += @("-c", "agents.max_depth=$AgentMaxDepth")
 }
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$launchArguments += @("--model", $resolvedModel)
@@ -411,6 +416,9 @@ if (!$codexHelp.SupportsModel) {
 }
 if (!$codexHelp.SupportsDisable) {
 	$blockers.Add("codex CLI does not report --disable support needed for llama-server tool compatibility")
+}
+if (!$configState.ReadyForLocalAgents) {
+	$blockers.Add("Codex config does not define the llama_cpp provider/profile required by local agents")
 }
 if (!$health.Ready) {
 	$blockers.Add("llama-server health endpoint is not ready")
@@ -457,7 +465,19 @@ if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 $smokeCommandArguments += @("-WebSearch", $WebSearch)
 $smokeCommandArguments += @("-Json", "-SummaryOnly")
 $smokeCommand = (($smokeCommandArguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
+$configWriteCommandArguments = @(
+	".\scripts\test-local-codex.ps1",
+	"-Endpoint", $apiRoot
+)
+if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
+	$configWriteCommandArguments += @("-Model", $resolvedModel)
+}
+$configWriteCommandArguments += @("-Profile", $resolvedProfile, "-WebSearch", $WebSearch, "-WriteConfigOnly", "-Json", "-SummaryOnly")
+$configWriteCommand = (($configWriteCommandArguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 $recommendedActions = New-Object System.Collections.Generic.List[string]
+if (!$configState.ReadyForLocalAgents) {
+	$recommendedActions.Add("Write the local Codex provider/profile before launching agents: $configWriteCommand")
+}
 if (!$health.Ready) {
 	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")
 	$recommendedActions.Add("If automatic startup times out, run the foreground manual command: $manualServerCommand")
@@ -497,6 +517,7 @@ $result = [ordered]@{
 	StatusCommand = $statusCommand
 	WaitCommand = $waitCommand
 	SmokeCommand = $smokeCommand
+	ConfigWriteCommand = $configWriteCommand
 	CodexSettings = [pscustomobject]@{
 		ModelContextWindow = [int]$ModelContextWindow
 		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit

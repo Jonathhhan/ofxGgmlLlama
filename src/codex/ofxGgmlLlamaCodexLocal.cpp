@@ -817,11 +817,6 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 		result.message = "model alias is required";
 		return result;
 	}
-	if (config.writeAgentSettings && config.writeAgentRoleFiles) {
-		if (!writeAgentRoleFiles(result.path, config, result.message)) {
-			return result;
-		}
-	}
 
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
 	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
@@ -862,6 +857,11 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 	if (!writeAllText(result.path, updated)) {
 		result.message = "failed to write Codex config: " + result.path;
 		return result;
+	}
+	if (config.writeAgentSettings && config.writeAgentRoleFiles) {
+		if (!writeAgentRoleFiles(result.path, config, result.message)) {
+			return result;
+		}
 	}
 
 	result.ok = true;

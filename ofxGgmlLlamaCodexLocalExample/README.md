@@ -244,7 +244,8 @@ endpoint snippet that points to the same loaded model, **Copy server command**
 when you want to launch or tweak the matching `llama-server` command manually
 in a terminal, and **Copy launch command** when you want the pasteable Codex
 command for the current provider mode. In local provider mode, the copied
-command expects the generated local profile to exist; use **Copy config** or
+command expects the generated local profile to exist. With auto-write enabled,
+**Copy launch command** writes the config first; use **Copy config** or
 **Write config** first when auto-write is disabled.
 
 ## Configure Hermes Agent
