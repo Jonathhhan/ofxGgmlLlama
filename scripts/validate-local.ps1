@@ -388,6 +388,9 @@ if ($LASTEXITCODE -ne 0) {
 if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike "*LOCAL_CODEX_OK*") {
 	throw "Local Codex smoke did not build the expected codex exec marker command"
 }
+if ($codexSmoke.Command -notlike "*--output-last-message*") {
+	throw "Local Codex smoke did not request final-message capture"
+}
 if ($codexSmoke.Command -notlike "*model_provider=llama_cpp*" -or $codexSmoke.Command -notlike "*web_search=*" -or $codexSmoke.Command -notlike "*--disable apps*") {
 	throw "Local Codex smoke did not include llama-server tool compatibility overrides"
 }

@@ -275,6 +275,9 @@ if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 if (![string]::IsNullOrWhiteSpace($CodexSandbox)) {
 	$arguments += @("--sandbox", $CodexSandbox)
 }
+$lastMessagePath = Join-Path ([System.IO.Path]::GetTempPath()) (
+	"ofxggml-codex-last-message-" + [System.Guid]::NewGuid().ToString("N") + ".txt")
+$arguments += @("--output-last-message", $lastMessagePath)
 $arguments += @($Prompt)
 $command = "$(Format-OfxGgmlCommandArgument $resolvedCodex) $(Join-OfxGgmlCommandArguments $arguments)"
 $agentRoleFiles = [pscustomobject]@{
@@ -338,7 +341,18 @@ $started = Get-Date
 $result = Invoke-CodexProcess -Exe $resolvedCodex -Arguments $arguments -Timeout $TimeoutSeconds
 $elapsedMs = ((Get-Date) - $started).TotalMilliseconds
 $agentText = Get-CodexAgentText -Stdout $result.Stdout
-$passed = ($result.ExitCode -eq 0 -and !$result.TimedOut -and $agentText.Contains($ExpectedMarker))
+$lastMessageText = ""
+$lastMessageCaptured = $false
+if (Test-Path -LiteralPath $lastMessagePath -PathType Leaf) {
+	$lastMessageText = (Get-Content -LiteralPath $lastMessagePath -Raw).Trim()
+	$lastMessageCaptured = ![string]::IsNullOrWhiteSpace($lastMessageText)
+	if ([string]::IsNullOrWhiteSpace($agentText)) {
+		$agentText = $lastMessageText
+	}
+	Remove-Item -LiteralPath $lastMessagePath -Force -ErrorAction SilentlyContinue
+}
+$markerMatched = $agentText.Contains($ExpectedMarker)
+$passed = ($result.ExitCode -eq 0 -and !$result.TimedOut -and $markerMatched)
 
 $summary = $baseSummary.Clone()
 $summary.ElapsedMs = [Math]::Round($elapsedMs, 3)
@@ -346,7 +360,11 @@ $summary.ExitCode = [int]$result.ExitCode
 $summary.TimedOut = [bool]$result.TimedOut
 $summary.InferenceChecked = [bool]$passed
 $summary.Passed = [bool]$passed
+$summary.LastMessageCaptureRequested = $true
+$summary.LastMessageCaptured = [bool]$lastMessageCaptured
+$summary.MarkerMatched = [bool]$markerMatched
 $summary.AgentText = if ($SummaryOnly) { "" } else { $agentText }
+$summary.LastMessage = if ($SummaryOnly) { "" } else { $lastMessageText }
 $summary.Stderr = if ($SummaryOnly) { "" } else { $result.Stderr.Trim() }
 
 if ($Json) {
