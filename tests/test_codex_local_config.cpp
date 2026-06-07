@@ -35,6 +35,8 @@ OFXGGML_TEST(codex_config_replaces_stale_model_aliases) {
 			<< "[mcp_servers.ofxggml_codex_threads]\n"
 			<< "command = \"old-node\"\n"
 			<< "args = [\"old.js\"]\n\n"
+			<< "[mcp_servers.ofxggml_codex_threads.env]\n"
+			<< "OFXGGML_CODEX_MODEL = \"local/old-model\"\n\n"
 			<< "[profiles.keep_me]\n"
 			<< "model = \"remote/model\"\n";
 	}
@@ -51,6 +53,7 @@ OFXGGML_TEST(codex_config_replaces_stale_model_aliases) {
 	OFXGGML_REQUIRE(updated.find("model = \"local/new-model\"") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("[profiles.ofxggml_local]") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("[mcp_servers.ofxggml_codex_threads]") != std::string::npos);
+	OFXGGML_REQUIRE(updated.find("[mcp_servers.ofxggml_codex_threads.env]") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("old-node") == std::string::npos);
 	OFXGGML_REQUIRE(updated.find("[profiles.keep_me]") != std::string::npos);
 	OFXGGML_REQUIRE(updated.find("model = \"remote/model\"") != std::string::npos);

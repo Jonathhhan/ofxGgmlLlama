@@ -244,6 +244,7 @@ bool writeAgentRoleFiles(
 
 bool replaceSection(std::string & configText, const std::string & sectionName) {
 	const std::string sectionHeader = "[" + sectionName + "]";
+	const std::string childSectionPrefix = "[" + sectionName + ".";
 	std::istringstream input(configText);
 	std::ostringstream output;
 	bool inTargetSection = false;
@@ -257,12 +258,16 @@ bool replaceSection(std::string & configText, const std::string & sectionName) {
 			trimmed.back() == ']';
 		if (inTargetSection) {
 			if (isSectionHeader) {
+				if (trimmed.rfind(childSectionPrefix, 0) == 0) {
+					continue;
+				}
 				inTargetSection = false;
 			} else {
 				continue;
 			}
 		}
-		if (!inTargetSection && trimmed == sectionHeader) {
+		if (!inTargetSection &&
+			(trimmed == sectionHeader || trimmed.rfind(childSectionPrefix, 0) == 0)) {
 			sectionFound = true;
 			inTargetSection = true;
 			continue;
