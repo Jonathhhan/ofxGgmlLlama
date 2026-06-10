@@ -1347,10 +1347,13 @@ std::string ofApp::buildHermesConfigSnippetText() const {
 	snippet
 		<< "# Hermes Agent custom endpoint; point it at the same loaded llama-server used by Codex.\n"
 		<< "# Use `hermes model` and choose Custom Endpoint, or mirror these values in ~/.hermes/config.yaml.\n"
-		<< "model: " << effectiveModelAlias << "\n"
-		<< "base_url: " << baseUrl << "\n"
-		<< "api_key: local-dummy-key\n"
-		<< "context_length: " << modelContextWindow << "\n"
+		<< "model:\n"
+		<< "  default: " << effectiveModelAlias << "\n"
+		<< "  provider: custom\n"
+		<< "  base_url: " << baseUrl << "\n"
+		<< "  api_key: local-dummy-key\n"
+		<< "  context_length: " << modelContextWindow << "\n"
+		<< "  api_mode: chat_completions\n"
 		<< "terminal:\n"
 		<< "  backend: local\n";
 	return snippet.str();

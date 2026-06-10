@@ -195,10 +195,13 @@ Endpoint provider. Start the server once, then configure Hermes with the same
 base URL and model alias used by Codex:
 
 ```yaml
-model: local/Qwen3.6-27B-Q4_0
-base_url: http://127.0.0.1:8001/v1
-api_key: local-dummy-key
-context_length: 65536
+model:
+  default: local/Qwen3.6-27B-Q4_0
+  provider: custom
+  base_url: http://127.0.0.1:8001/v1
+  api_key: local-dummy-key
+  context_length: 65536
+  api_mode: chat_completions
 terminal:
   backend: local
 ```
