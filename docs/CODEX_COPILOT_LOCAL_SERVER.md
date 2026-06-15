@@ -7,16 +7,6 @@ the resulting OpenAI-compatible endpoint, not own the model runtime setup.
 Use this path when Codex, GitHub Copilot, Hermes Agent, or another coding
 assistant needs a local llama.cpp server.
 
-For an openFrameworks-facing walkthrough, generate
-`ofxGgmlLlamaCodexLocalExample` or run:
-
-```powershell
-scripts\run-example.bat codex -Build
-```
-
-The example displays the endpoint, model alias, Codex provider/profile snippet,
-and validation commands without editing local Codex config.
-
 ## Recommended addon path
 
 From the `ofxGgmlLlama` addon root, build the lane-owned llama.cpp runtime:
@@ -152,28 +142,6 @@ Use the model alias configured on the server, for example:
 ```text
 unsloth/GLM-4.7-Flash
 ```
-
-For Codex, this alias is not just display text. The profile `model` value must
-match the llama-server alias. In `ofxGgmlLlamaCodexLocalExample`, that alias is
-the editable `ServerModel` field. If you start the server with
-`-ServerModel local/qwen2.5-coder-1.5b`, the Codex profile must use
-`model = "local/qwen2.5-coder-1.5b"`.
-
-For Codex, the local config shape is:
-
-```toml
-[model_providers.llama_cpp]
-name = "llama.cpp local"
-base_url = "http://127.0.0.1:8001/v1"
-wire_api = "responses"
-stream_idle_timeout_ms = 10000000
-
-[profiles.ofxggml_local]
-model = "unsloth/GLM-4.7-Flash"
-model_provider = "llama_cpp"
-```
-
-Check the exact profile invocation against your installed Codex version.
 
 Keep the client integration outside this addon unless it is just documentation
 or a smoke check. Runtime setup, model selection, and llama.cpp server lifecycle

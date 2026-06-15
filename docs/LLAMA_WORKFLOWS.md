@@ -72,6 +72,12 @@ workspaces. Use `scripts\test-local-codex.bat` after the server is running to
 prove a real non-interactive `codex exec` request can complete through the local
 OpenAI-compatible endpoint.
 
+Codex, GitHub Copilot, Hermes Agent, and other local coding assistants should
+use [`CODEX_COPILOT_LOCAL_SERVER.md`](CODEX_COPILOT_LOCAL_SERVER.md) for
+llama.cpp build, GGUF download, and `llama-server` setup. Agent orchestration
+docs may point to the resulting OpenAI-compatible endpoint, but the runtime
+setup remains in this llama lane.
+
 ## Validation ladder
 
 Use the smallest command that proves the changed layer:
