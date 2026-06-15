@@ -39,7 +39,7 @@ git clone https://github.com/Jonathhhan/ofxGgmlCore.git
 git clone https://github.com/Jonathhhan/ofxGgmlLlama.git
 cd ofxGgmlLlama
 scripts\build-llama-server.bat
-scripts\list-models.bat
+scripts\list-models.bat -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
@@ -63,7 +63,14 @@ writing generated artifacts:
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
+scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json
 ```
+
+`scripts\list-models.bat -Json -SummaryOnly` reports the compact model
+discovery contract used by Core planning, including text, embedding, and tiny
+text-model candidate counts. A successful model-backed smoke can write local
+ignored evidence to `.llama-runtime-smoke.json` for Core release-readiness
+planning.
 
 ## Dependencies
 
