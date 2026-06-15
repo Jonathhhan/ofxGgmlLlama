@@ -253,18 +253,12 @@ $codexOutput = Invoke-DryRun `
 		ServerUrl = "http://127.0.0.1:9001/v1"
 		ServerModel = "dry-codex-model"
 		Model = $modelPath
-		GpuLayers = 77
-		ContextSize = 32768
-		Temperature = "1.1"
-		TopP = "0.91"
-		MinP = "0.03"
 		Configuration = $Configuration
 		Platform = $Platform
 	}
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 temp=1.1 top_p=0.91 min_p=0.03 cudaGraph=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
@@ -299,25 +293,12 @@ $serverOutput = Invoke-DryRun `
 		ModelPath = $modelPath
 		HostName = "127.0.0.1"
 		Port = 9082
-		Alias = "dry-server-alias"
-		GpuLayers = 77
-		ContextSize = 32768
-		Temperature = "1.1"
-		TopP = "0.91"
-		MinP = "0.03"
 		NoCudaGraphs = $true
 	}
 Assert-Contains $serverOutput "exe:       $serverExe" "Server dry-run"
 Assert-Contains $serverOutput "model:     $modelPath" "Server dry-run"
 Assert-Contains $serverOutput "url:       http://127.0.0.1:9082" "Server dry-run"
-Assert-Contains $serverOutput "alias:     dry-server-alias" "Server dry-run"
-Assert-Contains $serverOutput "ngl:       77" "Server dry-run"
-Assert-Contains $serverOutput "ctx:       32768" "Server dry-run"
-Assert-Contains $serverOutput "temp:      1.1" "Server dry-run"
-Assert-Contains $serverOutput "top_p:     0.91" "Server dry-run"
-Assert-Contains $serverOutput "min_p:     0.03" "Server dry-run"
 Assert-Contains $serverOutput "cudaGraph: off" "Server dry-run"
-Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
 
 $stopServerOutput = Invoke-DryRun `

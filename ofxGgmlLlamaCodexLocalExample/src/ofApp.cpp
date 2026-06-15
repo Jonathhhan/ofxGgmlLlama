@@ -3,15 +3,11 @@
 #include "imgui_stdlib.h"
 
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cstdlib>
 #include <cctype>
-#include <cwctype>
-#include <cstdio>
 #include <filesystem>
 #include <functional>
-#include <memory>
 #include <sstream>
 #include <thread>
 
@@ -19,19 +15,11 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <tlhelp32.h>
 #include <windows.h>
 #endif
 
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
-
-struct ServerProbe {
-	bool reachable = false;
-	bool ready = false;
-	int status = 0;
-	std::string message;
-};
 
 std::string toString(const std::filesystem::path & path) {
 	return path.lexically_normal().string();
@@ -175,94 +163,36 @@ std::string trimTrailingSlash(std::string value) {
 	return value;
 }
 
-ServerProbe probeServerHealth(const std::string & serverUrl, int timeoutSeconds = 2) {
-	ServerProbe probe;
+int serverHealthStatus(const std::string & serverUrl) {
 	ofHttpRequest request(trimTrailingSlash(serverUrl) + "/health", "llama-server-health");
 	request.method = ofHttpRequest::GET;
-	request.timeoutSeconds = std::max(1, timeoutSeconds);
+	request.timeoutSeconds = 1;
 	ofURLFileLoader loader;
 	const ofHttpResponse response = loader.handleRequest(request);
-	probe.status = response.status;
-	probe.reachable = response.status > 0;
-	probe.ready = response.status >= 200 && response.status < 300;
-	if (!response.error.empty()) {
-		probe.message = response.error;
-	} else {
-		probe.message = response.data.getText();
-	}
-	probe.message = trimTrailingSlash(probe.message);
-	return probe;
+	return response.status;
 }
 
 bool isServerReady(const std::string & serverUrl) {
-	return probeServerHealth(serverUrl, 2).ready;
+	const int status = serverHealthStatus(serverUrl);
+	return status >= 200 && status < 300;
 }
 
-ServerProbe waitForServerReady(
+bool waitForServerReady(
 	const std::string & serverUrl,
 	int timeoutSeconds,
 	const std::function<bool()> & shouldCancel) {
 	const auto deadline = std::chrono::steady_clock::now() +
 		std::chrono::seconds(std::max(1, timeoutSeconds));
-	ServerProbe lastProbe;
 	while (std::chrono::steady_clock::now() < deadline) {
 		if (shouldCancel && shouldCancel()) {
-			lastProbe.message = "cancelled";
-			return lastProbe;
+			return false;
 		}
-		lastProbe = probeServerHealth(serverUrl, 2);
-		if (lastProbe.ready) {
-			return lastProbe;
+		if (isServerReady(serverUrl)) {
+			return true;
 		}
 		std::this_thread::sleep_for(std::chrono::milliseconds(500));
 	}
-	return probeServerHealth(serverUrl, 2);
-}
-
-std::string describeProbe(const ServerProbe & probe) {
-	std::string detail;
-	if (probe.reachable) {
-		detail = "HTTP " + std::to_string(probe.status);
-	} else {
-		detail = "unreachable";
-	}
-	if (!probe.message.empty()) {
-		detail += ": " + probe.message;
-	}
-	return detail;
-}
-
-std::string readCommandOutput(const std::string & command) {
-	std::array<char, 512> buffer {};
-	std::string output;
-#if defined(_WIN32)
-	FILE * pipe = _popen(command.c_str(), "r");
-#else
-	FILE * pipe = popen(command.c_str(), "r");
-#endif
-	if (!pipe) {
-		return output;
-	}
-	while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe)) {
-		output += buffer.data();
-	}
-#if defined(_WIN32)
-	_pclose(pipe);
-#else
-	pclose(pipe);
-#endif
-	return output;
-}
-
-bool serverSupportsArgument(const std::string & serverExe, const std::string & argument) {
-	if (serverExe.empty() || argument.empty()) {
-		return false;
-	}
-	const std::string output = readCommandOutput(quoteShellPath(serverExe) + " --help 2>&1");
-	if (output.empty()) {
-		return true;
-	}
-	return output.find(argument) != std::string::npos;
+	return isServerReady(serverUrl);
 }
 
 bool startBundledServer(
@@ -305,11 +235,6 @@ bool startBundledServer(
 			return fallbackPort;
 		}
 	}(serverUrl, 8001);
-	const bool includeNoCudaGraphs = noCudaGraphs && serverSupportsArgument(serverExe, "--no-cuda-graphs");
-	if (noCudaGraphs && !includeNoCudaGraphs) {
-		ofLogWarning(LogModule)
-			<< "llama-server does not support --no-cuda-graphs; using server CUDA graph default";
-	}
 #if defined(_WIN32)
 	const std::filesystem::path exePath(serverExe);
 	std::wstring command = L"\"" + exePath.wstring() + L"\" -m \"" +
@@ -320,7 +245,7 @@ bool startBundledServer(
 	if (!modelAlias.empty()) {
 		command += L" --alias \"" + std::wstring(modelAlias.begin(), modelAlias.end()) + L"\"";
 	}
-	if (includeNoCudaGraphs) {
+	if (noCudaGraphs) {
 		command += L" --no-cuda-graphs";
 	}
 	command += L" --temp " + std::to_wstring(temperature);
@@ -358,7 +283,7 @@ bool startBundledServer(
 	if (!modelAlias.empty()) {
 		command += " --alias " + quoteShellPath(modelAlias);
 	}
-	if (includeNoCudaGraphs) {
+	if (noCudaGraphs) {
 		command += " --no-cuda-graphs";
 	}
 	command += " --temp " + std::to_string(temperature);
@@ -368,84 +293,6 @@ bool startBundledServer(
 	return std::system(command.c_str()) == 0;
 #endif
 }
-
-#if defined(_WIN32)
-std::wstring lowerWide(std::wstring value) {
-	std::transform(
-		value.begin(),
-		value.end(),
-		value.begin(),
-		[](wchar_t ch) { return static_cast<wchar_t>(std::towlower(ch)); });
-	return value;
-}
-
-std::wstring canonicalWidePath(const std::string & path) {
-	if (path.empty()) {
-		return {};
-	}
-	std::error_code error;
-	const auto canonical = std::filesystem::weakly_canonical(std::filesystem::path(path), error);
-	const auto normalized = error ? std::filesystem::path(path).lexically_normal() : canonical;
-	return lowerWide(normalized.wstring());
-}
-
-std::wstring processImagePath(DWORD processId, HANDLE processHandle) {
-	std::wstring imagePath(MAX_PATH, L'\0');
-	DWORD size = static_cast<DWORD>(imagePath.size());
-	while (!QueryFullProcessImageNameW(processHandle, 0, imagePath.data(), &size) &&
-		GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-		imagePath.resize(imagePath.size() * 2);
-		size = static_cast<DWORD>(imagePath.size());
-	}
-	if (size == 0) {
-		(void)processId;
-		return {};
-	}
-	imagePath.resize(size);
-	return lowerWide(std::filesystem::path(imagePath).lexically_normal().wstring());
-}
-
-int terminateMatchingServerProcesses(const std::string & serverExe) {
-	const std::wstring targetPath = canonicalWidePath(serverExe);
-	if (targetPath.empty()) {
-		return 0;
-	}
-	int terminated = 0;
-	const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (snapshot == INVALID_HANDLE_VALUE) {
-		return 0;
-	}
-	PROCESSENTRY32W entry {};
-	entry.dwSize = sizeof(entry);
-	if (Process32FirstW(snapshot, &entry)) {
-		do {
-			if (entry.th32ProcessID == GetCurrentProcessId()) {
-				continue;
-			}
-			HANDLE process = OpenProcess(
-				PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-				FALSE,
-				entry.th32ProcessID);
-			if (!process) {
-				continue;
-			}
-			const std::wstring imagePath = processImagePath(entry.th32ProcessID, process);
-			if (!imagePath.empty() && imagePath == targetPath) {
-				if (TerminateProcess(process, 0)) {
-					++terminated;
-				}
-			}
-			CloseHandle(process);
-		} while (Process32NextW(snapshot, &entry));
-	}
-	CloseHandle(snapshot);
-	return terminated;
-}
-#else
-int terminateMatchingServerProcesses(const std::string &) {
-	return 0;
-}
-#endif
 
 } // namespace
 
@@ -466,15 +313,10 @@ void ofApp::setup() {
 	temperature = std::stof(getEnvOrDefault("OFXGGML_CODEX_TEMP", "1.0"));
 	topP = std::stof(getEnvOrDefault("OFXGGML_CODEX_TOP_P", "0.95"));
 	minP = std::stof(getEnvOrDefault("OFXGGML_CODEX_MIN_P", "0.01"));
-	startupTimeoutSeconds = std::atoi(getEnvOrDefault("OFXGGML_CODEX_STARTUP_TIMEOUT", "300").c_str());
-	if (startupTimeoutSeconds <= 0) {
-		startupTimeoutSeconds = 300;
-	}
 	applyBaseUrlToServerUrl();
 	refreshRuntimeDiscovery();
 	refreshServerStatus();
 	rebuildLines();
-	endpointStatus = "endpoint smoke not run";
 
 	ofLogNotice(LogModule) << "Codex endpoint: " << baseUrl;
 	ofLogNotice(LogModule) << "Codex model alias: " << modelAlias;
@@ -490,12 +332,9 @@ void ofApp::draw() {
 	std::string modelPathEdit;
 	std::string serverExeEdit;
 	std::string statusSnapshot;
-	std::string endpointStatusSnapshot;
-	std::string endpointOutputSnapshot;
 	std::vector<std::string> lineSnapshot;
 	bool runningSnapshot = false;
 	bool serverReadySnapshot = false;
-	bool endpointReadySnapshot = false;
 	bool autoStartSnapshot = false;
 	bool noCudaGraphsSnapshot = false;
 	int gpuLayersSnapshot = 0;
@@ -512,12 +351,9 @@ void ofApp::draw() {
 		modelPathEdit = modelPath;
 		serverExeEdit = serverExe;
 		statusSnapshot = status;
-		endpointStatusSnapshot = endpointStatus;
-		endpointOutputSnapshot = endpointOutput;
 		lineSnapshot = lines;
 		runningSnapshot = running;
 		serverReadySnapshot = serverReady;
-		endpointReadySnapshot = endpointReady;
 		autoStartSnapshot = autoStartServer;
 		noCudaGraphsSnapshot = noCudaGraphs;
 		gpuLayersSnapshot = gpuLayers;
@@ -531,7 +367,6 @@ void ofApp::draw() {
 	bool startRequested = false;
 	bool forceStartRequested = false;
 	bool recheckRequested = false;
-	bool smokeRequested = false;
 	bool rediscoverRequested = false;
 
 	ofBackground(16);
@@ -550,10 +385,6 @@ void ofApp::draw() {
 			statusSnapshot.empty() ? "checking llama-server..." : statusSnapshot.c_str());
 		ImGui::SameLine();
 		ImGui::TextDisabled(serverReadySnapshot ? "ready" : "not ready");
-		ImGui::TextColored(
-			endpointReadySnapshot ? ImVec4(0.70f, 0.92f, 0.70f, 1.0f) : ImVec4(0.70f, 0.78f, 0.90f, 1.0f),
-			"%s",
-			endpointStatusSnapshot.empty() ? "endpoint smoke not run" : endpointStatusSnapshot.c_str());
 
 		if (runningSnapshot) {
 			ImGui::BeginDisabled();
@@ -568,10 +399,6 @@ void ofApp::draw() {
 		ImGui::SameLine();
 		if (ImGui::Button("Recheck")) {
 			recheckRequested = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Test endpoint")) {
-			smokeRequested = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Rediscover")) {
@@ -662,10 +489,6 @@ void ofApp::draw() {
 		}
 
 		ImGui::Separator();
-		if (!endpointOutputSnapshot.empty()) {
-			ImGui::TextWrapped("Smoke output: %s", endpointOutputSnapshot.c_str());
-			ImGui::Separator();
-		}
 		ImGui::TextUnformatted("Codex config.toml");
 		ImGui::BeginChild("codex-local-config", ImVec2(0.0f, 0.0f), true);
 		for (const auto & line : lineSnapshot) {
@@ -688,9 +511,6 @@ void ofApp::draw() {
 	if (recheckRequested) {
 		refreshServerStatus();
 	}
-	if (smokeRequested) {
-		requestEndpointSmoke();
-	}
 	if (startRequested) {
 		requestStartServer(false);
 	}
@@ -711,9 +531,6 @@ void ofApp::keyPressed(int key) {
 	}
 	if (key == 's' || key == 'S') {
 		requestStartServer(false);
-	}
-	if (key == 't' || key == 'T') {
-		requestEndpointSmoke();
 	}
 }
 
@@ -792,16 +609,6 @@ void ofApp::runStartServerWorker(bool force) {
 		running = false;
 		return;
 	}
-	if (force) {
-		const int terminated = terminateMatchingServerProcesses(requestServerExe);
-		if (terminated > 0) {
-			ofLogNotice(LogModule)
-				<< "stopped " << terminated << " existing llama-server process"
-				<< (terminated == 1 ? "" : "es")
-				<< " before restart";
-			std::this_thread::sleep_for(std::chrono::milliseconds(750));
-		}
-	}
 
 	ofLogNotice(LogModule)
 		<< "starting llama-server\n"
@@ -832,95 +639,15 @@ void ofApp::runStartServerWorker(bool force) {
 		std::lock_guard<std::mutex> lock(stateMutex);
 		status = "waiting for llama-server at " + requestServerUrl;
 	}
-	const ServerProbe probe = waitForServerReady(
+	const bool ready = waitForServerReady(
 		requestServerUrl,
 		requestStartupTimeout,
 		[this]() { return cancelRequested.load(); });
 	std::lock_guard<std::mutex> lock(stateMutex);
-	serverReady = probe.ready;
-	status = probe.ready
+	serverReady = ready;
+	status = ready
 		? "llama-server ready for Codex at " + baseUrl
-		: "llama-server did not become ready at " + requestServerUrl + " (" + describeProbe(probe) + ")";
-	running = false;
-}
-
-void ofApp::requestEndpointSmoke() {
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		if (running) {
-			endpointStatus = "another operation is already running";
-			return;
-		}
-	}
-	if (worker.joinable()) {
-		worker.join();
-	}
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		running = true;
-		cancelRequested = false;
-		endpointReady = false;
-		endpointOutput.clear();
-		endpointStatus = "testing OpenAI-compatible endpoint...";
-	}
-	worker = std::thread(&ofApp::runEndpointSmokeWorker, this);
-}
-
-void ofApp::runEndpointSmokeWorker() {
-	std::string requestBaseUrl;
-	std::string requestModelAlias;
-	float requestTemperature = 0.0f;
-	float requestTopP = 0.0f;
-	{
-		std::lock_guard<std::mutex> lock(stateMutex);
-		requestBaseUrl = baseUrl;
-		requestModelAlias = modelAlias;
-		requestTemperature = temperature;
-		requestTopP = topP;
-	}
-
-	ofxGgmlTextGenerationSettings requestSettings;
-	requestSettings.useServerBackend = true;
-	requestSettings.serverUrl = requestBaseUrl;
-	requestSettings.serverModel = requestModelAlias;
-	requestSettings.maxTokens = 24;
-	requestSettings.temperature = std::max(0.0f, requestTemperature);
-	requestSettings.topP = std::max(0.1f, requestTopP);
-	requestSettings.stream = false;
-
-	ofxGgmlTextRequest request;
-	request.systemPrompt = "Return a very short readiness confirmation.";
-	request.prompt = "Reply with: ofxGgml Codex endpoint ready.";
-	request.settings = requestSettings;
-
-	ofxGgmlTextGenerator generator;
-	generator.setBackend(std::make_shared<ofxGgmlLlamaServerTextBackend>(requestBaseUrl));
-	const auto result = generator.generate(
-		request,
-		[this](const std::string &) {
-			return !cancelRequested.load();
-		});
-
-	std::lock_guard<std::mutex> lock(stateMutex);
-	if (cancelRequested) {
-		endpointReady = false;
-		endpointStatus = "endpoint smoke cancelled";
-		running = false;
-		return;
-	}
-	if (result) {
-		endpointReady = true;
-		serverReady = true;
-		endpointOutput = trimCopy(result.text);
-		endpointStatus = "OpenAI-compatible endpoint answered in " +
-			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
-		ofLogNotice(LogModule) << "endpoint smoke output\n" << endpointOutput;
-	} else {
-		endpointReady = false;
-		endpointOutput = result.error;
-		endpointStatus = "endpoint smoke failed: " + result.error;
-		ofLogWarning(LogModule) << endpointStatus;
-	}
+		: "llama-server did not become ready at " + requestServerUrl;
 	running = false;
 }
 
@@ -942,15 +669,12 @@ void ofApp::refreshServerStatus() {
 		std::lock_guard<std::mutex> lock(stateMutex);
 		return serverUrl;
 	}();
-	const ServerProbe probe = probeServerHealth(requestServerUrl, 2);
+	const bool ready = isServerReady(requestServerUrl);
 	std::lock_guard<std::mutex> lock(stateMutex);
-	serverReady = probe.ready;
-	if (!probe.ready) {
-		endpointReady = false;
-	}
-	status = probe.ready
+	serverReady = ready;
+	status = ready
 		? "llama-server ready for Codex at " + baseUrl
-		: "llama-server is not ready at " + requestServerUrl + " (" + describeProbe(probe) + ")";
+		: "llama-server is not reachable at " + requestServerUrl;
 }
 
 void ofApp::applyBaseUrlToServerUrl() {
@@ -1003,7 +727,7 @@ void ofApp::rebuildLines() {
 	lines.push_back("  server exe:  " + (serverExe.empty() ? "(not found)" : serverExe));
 	lines.push_back("  GPU layers:  " + std::to_string(gpuLayers));
 	lines.push_back("  context:     " + std::to_string(contextSize));
-	appendWrapped("Use this provider/profile with Codex after the server is ready and the endpoint smoke has answered. The example starts llama-server locally but does not edit Codex config.", 96);
+	appendWrapped("Use this provider/profile with Codex after the server status is ready. The example starts llama-server locally but does not edit Codex config.", 96);
 }
 
 std::string ofApp::envValue(const char * name) {

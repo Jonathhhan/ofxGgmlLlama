@@ -21,8 +21,6 @@ public:
 private:
 	void requestStartServer(bool force);
 	void runStartServerWorker(bool force);
-	void requestEndpointSmoke();
-	void runEndpointSmokeWorker();
 	void refreshRuntimeDiscovery();
 	void refreshServerStatus();
 	void applyBaseUrlToServerUrl();
@@ -44,8 +42,6 @@ private:
 	std::string modelPath;
 	std::string serverExe;
 	std::string status;
-	std::string endpointStatus;
-	std::string endpointOutput;
 	std::vector<std::string> lines;
 	ofxImGui::Gui gui;
 	std::thread worker;
@@ -53,13 +49,12 @@ private:
 	std::atomic_bool cancelRequested { false };
 	int gpuLayers = 999;
 	int contextSize = 131072;
-	int startupTimeoutSeconds = 300;
+	int startupTimeoutSeconds = 120;
 	float temperature = 1.0f;
 	float topP = 0.95f;
 	float minP = 0.01f;
 	bool noCudaGraphs = true;
 	bool autoStartServer = true;
 	bool serverReady = false;
-	bool endpointReady = false;
 	bool running = false;
 };
