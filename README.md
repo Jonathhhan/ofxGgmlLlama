@@ -18,7 +18,6 @@ Family map: https://jonathhhan.github.io/ofxGgmlCore/
 | `ofxGgmlTextExample` | One editable prompt and one streamed response. | `8080` |
 | `ofxGgmlChatExample` | Interactive chat with history and sampling controls. | `8080` |
 | `ofxGgmlEmbeddingExample` | Compare two texts with cosine similarity. | `8081` |
-| `ofxGgmlLlamaCodexLocalExample` | Local OpenAI Codex provider/profile setup using `llama-server`. | `8001` |
 
 The examples use conventional openFrameworks addon example names. The helper
 scripts repair generated Visual Studio metadata when Project Generator includes
@@ -26,9 +25,6 @@ stale build-cache paths.
 
 For llama-lane planning and backend boundaries, see
 [`docs/LLAMA_WORKFLOWS.md`](docs/LLAMA_WORKFLOWS.md).
-For Codex, GitHub Copilot, Hermes Agent, or other local coding assistants using
-`llama-server`, see
-[`docs/CODEX_COPILOT_LOCAL_SERVER.md`](docs/CODEX_COPILOT_LOCAL_SERVER.md).
 
 ## First Run
 
@@ -39,20 +35,17 @@ git clone https://github.com/Jonathhhan/ofxGgmlCore.git
 git clone https://github.com/Jonathhhan/ofxGgmlLlama.git
 cd ofxGgmlLlama
 scripts\build-llama-server.bat
-scripts\list-models.bat -Json -SummaryOnly
+scripts\list-models.bat
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\run-example.bat text -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat chat -Build -Model C:\path\to\model.gguf
 scripts\run-example.bat embedding -Build -Model C:\path\to\embedding-model.gguf
-scripts\run-example.bat codex -Build
 ```
 
 Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
-embedding server on `8081`. The Codex local example documents a dedicated
-OpenAI-compatible server on `8001` and does not edit Codex config. `run-example`
-starts the bundled server when needed for text, chat, and embedding examples and
-waits until it is ready before opening the example.
+embedding server on `8081`. `run-example` starts the bundled server when needed
+and waits until it is ready before opening the example.
 
 The lane-owned runtime smoke uses the bundled `llama-cli` directly. The dry-run
 is model-free and reports discovery state. With a GGUF model available, the real
@@ -63,14 +56,7 @@ writing generated artifacts:
 scripts\run-llama-runtime-smoke.bat -DryRun
 scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly
 scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly
-scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json
 ```
-
-`scripts\list-models.bat -Json -SummaryOnly` reports the compact model
-discovery contract used by Core planning, including text, embedding, and tiny
-text-model candidate counts. A successful model-backed smoke can write local
-ignored evidence to `.llama-runtime-smoke.json` for Core release-readiness
-planning.
 
 ## Dependencies
 

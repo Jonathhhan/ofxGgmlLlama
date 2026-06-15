@@ -8,7 +8,6 @@ param(
 	[int]$Threads = 4,
 	[int]$ContextSize = 512,
 	[int]$TimeoutSeconds = 120,
-	[string]$OutputPath = "",
 	[switch]$DryRun,
 	[switch]$Json,
 	[switch]$SummaryOnly
@@ -30,26 +29,6 @@ function Write-Step {
 function ConvertTo-SmokeJson {
 	param([hashtable]$Value)
 	return ($Value | ConvertTo-Json -Depth 6)
-}
-
-function Write-SmokeOutputPath {
-	param(
-		[string]$Path,
-		[string]$Content
-	)
-	if ([string]::IsNullOrWhiteSpace($Path)) {
-		return
-	}
-	$target = if ([System.IO.Path]::IsPathRooted($Path)) {
-		$Path
-	} else {
-		Join-Path $addonRoot $Path
-	}
-	$directory = Split-Path -Parent $target
-	if (!(Test-Path -LiteralPath $directory -PathType Container)) {
-		New-Item -ItemType Directory -Path $directory -Force | Out-Null
-	}
-	Set-Content -LiteralPath $target -Value $Content
 }
 
 function Find-LlamaCli {
@@ -200,19 +179,13 @@ $plan = @{
 	NextCommands = @(
 		"scripts\run-llama-runtime-smoke.bat -DryRun",
 		"scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly",
-		"scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly",
-		"scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json"
+		"scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly"
 	)
-	SmokeKind = "model-backed-cli-text"
-	InferenceCheck = "dry-run"
-	InferenceChecked = $false
 }
 
 if ($DryRun) {
 	if ($Json) {
-		$content = ConvertTo-SmokeJson -Value $plan
-		Write-SmokeOutputPath -Path $OutputPath -Content $content
-		$content
+		ConvertTo-SmokeJson -Value $plan
 	} else {
 		Write-Host "ofxGgmlLlama runtime smoke plan"
 		Write-Host "Executable: $resolvedCli"
@@ -243,9 +216,6 @@ $summary = @{
 	SummaryOnly = [bool]$SummaryOnly
 	Summary = @{
 		Passed = [bool]$passed
-		InferenceChecked = [bool]$passed
-		SmokeKind = "model-backed-cli-text"
-		ExpectedMarker = $expectedMarker
 		Backend = $Backend
 		ModelPath = $resolvedModel
 		Executable = $resolvedCli
@@ -260,29 +230,17 @@ $summary = @{
 		Stderr = if ($SummaryOnly) { "" } else { $result.Stderr.Trim() }
 		Error = if ($passed) { "" } elseif ($result.TimedOut) { "llama-cli timed out" } elseif ($result.ExitCode -ne 0) { "llama-cli exited with code $($result.ExitCode)" } else { "llama-cli did not return the expected smoke marker" }
 	}
-	NextCommands = @(
-		"scripts\run-llama-runtime-smoke.bat -DryRun",
-		"scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json",
-		"scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json"
-	)
 }
 
 if ($Json) {
-	$content = ConvertTo-SmokeJson -Value $summary
-	Write-SmokeOutputPath -Path $OutputPath -Content $content
-	$content
+	ConvertTo-SmokeJson -Value $summary
 } else {
 	Write-Host "ofxGgmlLlama runtime smoke"
 	Write-Host "Passed:    $passed"
-	Write-Host "Inference: $($summary.Summary.SmokeKind)"
 	Write-Host "Backend:   $Backend"
 	Write-Host "Model:     $resolvedModel"
 	Write-Host "Text:      $text"
 	Write-Host "ElapsedMs: $([Math]::Round($elapsedMs, 1))"
-	if (![string]::IsNullOrWhiteSpace($OutputPath)) {
-		Write-Host "Evidence:  $OutputPath"
-		Write-SmokeOutputPath -Path $OutputPath -Content (ConvertTo-SmokeJson -Value $summary)
-	}
 	if (!$passed) {
 		Write-Host "Error:     $($summary.Summary.Error)"
 	}
