@@ -5,7 +5,7 @@
 #include "ofxImGui.h"
 
 #include <atomic>
-#include <cstdint>
+#include <cstddef>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -23,103 +23,43 @@ private:
 	void runStartServerWorker(bool force);
 	void requestEndpointSmoke();
 	void runEndpointSmokeWorker();
-	void requestWriteConfig();
-	void requestLaunchCodex();
-	void runLaunchCodexWorker();
 	void refreshRuntimeDiscovery();
 	void refreshServerStatus();
-	void refreshModelMetadata();
-	void refreshModelAliasForPath(const std::string & previousModelPath);
-	void applyModelContextMetadataDefaults();
-	void applyPreset(int index);
-	void applyInteractiveThreadBudget(
-		bool overwriteAgentOverride,
-		bool overwriteThreadOverride,
-		bool overwriteBatchThreadOverride,
-		bool overwriteHttpThreadOverride);
-	bool adoptServedModelAliasIfNeeded();
-	bool syncCodexConfig();
-	std::vector<std::string> collectPreflightIssues(
-		bool requireLocalServer,
-		bool requireCodexExecutable) const;
-	std::string formatPreflightSummary(const std::vector<std::string> & issues) const;
-	std::string buildCodexConfigSnippetText() const;
-	std::string buildHermesConfigSnippetText() const;
-	std::string buildManualServerCommand() const;
-	std::string buildCodexLaunchCommand() const;
-	void copyTextToClipboard(const std::string & label, const std::string & text);
+	void applyBaseUrlToServerUrl();
+	void applyServerUrlToBaseUrl();
+	void appendWrapped(const std::string & text, std::size_t maxChars);
 	void rebuildLines();
-	void joinWorker();
-
-	ofxGgmlLlamaCodexProviderConfig makeCodexConfig() const;
-	ofxGgmlLlamaServerStartSettings makeServerSettings() const;
-
-	ofxImGui::Gui gui;
-	std::thread worker;
-	mutable std::mutex stateMutex;
-	std::atomic_bool cancelRequested { false };
+	static std::string envValue(const char * name);
+	static std::string getEnvOrDefault(const char * name, const std::string & fallback);
+	static std::string normalizeEnvPath(const std::string & path);
+	static std::string trimCopy(const std::string & value);
+	static std::string serverRootFromBaseUrl(const std::string & value);
+	static std::string baseUrlFromServerRoot(const std::string & value);
+	static int serverPortFromUrl(const std::string & value, int fallbackPort);
+	static bool fileExists(const std::string & path);
 
 	std::string baseUrl;
 	std::string serverUrl;
 	std::string modelAlias;
-	std::string openAiModelAlias = "gpt-5";
 	std::string modelPath;
-	std::string codexExe;
 	std::string serverExe;
-	std::string codexProfile;
-	std::string codexSandbox = "";
-	std::string configPath;
-	std::string wireApi = "responses";
-	std::string webSearch = "disabled";
-
 	std::string status;
 	std::string endpointStatus;
 	std::string endpointOutput;
-	std::string configWriteStatus;
-	std::string preflightStatus;
-	std::string wireApiProbeStatus;
-	std::string servedModelStatus;
-	std::vector<std::string> servedModelAliases;
 	std::vector<std::string> lines;
-
+	ofxImGui::Gui gui;
+	std::thread worker;
+	std::mutex stateMutex;
+	std::atomic_bool cancelRequested { false };
 	int gpuLayers = 999;
-	int contextSize = 65536;
-	int parallel = 1;
-	int batchSize = 1024;
-	int ubatchSize = 256;
-	int threads = 0;
-	int threadsBatch = 0;
-	int threadsHttp = 0;
-	int cacheReuse = 256;
-	std::string kvCacheKeyType;
-	std::string kvCacheValueType;
-	std::string specType;
-	int modelContextWindow = 65536;
-	int modelAutoCompactTokenLimit = 56000;
-	int toolOutputTokenLimit = 12000;
-	int agentMaxConcurrentThreadsPerSession = 0;
-	int agentMaxDepth = 0;
-	int agentMinWaitTimeoutMs = 2500;
-	int agentMaxWaitTimeoutMs = 180000;
-	int agentDefaultWaitTimeoutMs = 30000;
-	int reasoningEffortIndex = 2;
+	int contextSize = 131072;
 	int startupTimeoutSeconds = 300;
-	int presetIndex = 1;
-	uint64_t modelLayerCount = 0;
-	uint64_t modelContextLength = 0;
-	float temperature = 0.2f;
-	float topP = 0.85f;
-	float minP = 0.03f;
-	bool gpuLayersAll = true;
-	bool noCudaGraphs = false;
-	bool skipChatParsing = false;
-	bool autoConfig = true;
-	bool codexSandboxManuallyEdited = false;
-	bool modelAliasManuallyEdited = false;
-	bool modelContextWindowManuallyEdited = false;
-	bool modelAutoCompactManuallyEdited = false;
+	float temperature = 1.0f;
+	float topP = 0.95f;
+	float minP = 0.01f;
+	bool noCudaGraphs = true;
+	bool autoStartServer = true;
 	bool serverReady = false;
 	bool endpointReady = false;
 	bool running = false;
-	int codexProviderMode = 0;
 };

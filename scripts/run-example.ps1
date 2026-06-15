@@ -14,6 +14,7 @@ param(
 	[string]$TopP = "",
 	[string]$MinP = "",
 	[switch]$NoCudaGraphs,
+	[switch]$ForceNewServer,
 	[switch]$Build,
 	[switch]$NoAutoServer,
 	[switch]$DryRun,
@@ -90,7 +91,7 @@ if ($isCodex) {
 		$ContextSize = if ($env:OFXGGML_CODEX_CONTEXT_SIZE) { [int]$env:OFXGGML_CODEX_CONTEXT_SIZE } else { 131072 }
 	}
 	if ($StartupTimeoutSeconds -eq [int]::MinValue) {
-		$StartupTimeoutSeconds = 180
+		$StartupTimeoutSeconds = if ($env:OFXGGML_CODEX_STARTUP_TIMEOUT) { [int]$env:OFXGGML_CODEX_STARTUP_TIMEOUT } else { 300 }
 	}
 	if ([string]::IsNullOrWhiteSpace($Temperature)) {
 		$Temperature = if ($env:OFXGGML_CODEX_TEMP) { $env:OFXGGML_CODEX_TEMP } else { "1.0" }
@@ -149,6 +150,7 @@ if ($isCodex) {
 		-TopP $TopP `
 		-MinP $MinP `
 		-NoCudaGraphs:$codexNoCudaGraphs `
+		-ForceNew:$ForceNewServer `
 		-NoAutoServer:$NoAutoServer
 } elseif ($isEmbedding) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
