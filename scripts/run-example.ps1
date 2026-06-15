@@ -11,7 +11,8 @@ param(
 	[switch]$NoAutoServer,
 	[switch]$DryRun,
 	[string]$Configuration = "Release",
-	[string]$Platform = "x64"
+	[string]$Platform = "x64",
+	[int]$Jobs = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,7 +49,8 @@ if ($Build) {
 	& (Join-Path $scriptRoot "build-example.ps1") `
 		-Example $canonicalExample `
 		-Configuration $Configuration `
-		-Platform $Platform
+		-Platform $Platform `
+		-Jobs $Jobs
 	if ($LASTEXITCODE -ne 0) {
 		exit $LASTEXITCODE
 	}
