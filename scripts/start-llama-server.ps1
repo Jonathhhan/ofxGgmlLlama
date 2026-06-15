@@ -4,29 +4,13 @@ param(
 	[string]$HostName = "127.0.0.1",
 	[int]$Port = 8080,
 	[string]$Alias = "",
-	[string]$GpuLayers = "28",
+	[int]$GpuLayers = 28,
 	[int]$ContextSize = 4096,
-	[int]$Parallel = 1,
-	[int]$BatchSize = 0,
-	[int]$UBatchSize = 0,
-	[int]$Threads = 0,
-	[int]$ThreadsBatch = 0,
-	[int]$ThreadsHttp = 0,
-	[int]$CacheReuse = 0,
-	[string]$KvCacheKeyType = "",
-	[string]$KvCacheValueType = "",
-	[string]$SpecType = "",
 	[string]$Temperature = "",
 	[string]$TopP = "",
 	[string]$MinP = "",
-	[string]$ChatTemplateKwargs = "",
-	[string]$Reasoning = "",
-	[string]$ReasoningBudget = "",
 	[string]$EmbeddingPooling = "mean",
-	[switch]$Jinja,
-	[switch]$FlashAttention,
 	[switch]$NoCudaGraphs,
-	[switch]$SkipChatParsing,
 	[switch]$Embeddings,
 	[switch]$Detached,
 	[switch]$ForceNew,
@@ -116,51 +100,6 @@ function Join-ProcessArguments {
 	return ($quoted -join " ")
 }
 
-function Test-LlamaServerArgument {
-	param(
-		[string]$ServerExePath,
-		[string]$Argument
-	)
-	$previousErrorActionPreference = $ErrorActionPreference
-	try {
-		$ErrorActionPreference = "Continue"
-		$output = & $ServerExePath --help *>&1 | ForEach-Object { $_.ToString() }
-		return (($output -join "`n") -like "*$Argument*")
-	} catch {
-		return $false
-	} finally {
-		$ErrorActionPreference = $previousErrorActionPreference
-	}
-}
-
-function Get-ProcessPath {
-	param([System.Diagnostics.Process]$Process)
-	try {
-		return [string]$Process.Path
-	} catch {
-		return ""
-	}
-}
-
-function Stop-MatchingLlamaServer {
-	param([string]$ServerExePath)
-	$targetPath = (Resolve-Path -LiteralPath $ServerExePath).Path
-	$targets = @(Get-Process -Name "llama-server" -ErrorAction SilentlyContinue |
-		Where-Object {
-			$processPath = Get-ProcessPath $_
-			![string]::IsNullOrWhiteSpace($processPath) -and
-				$processPath.Equals($targetPath, [System.StringComparison]::OrdinalIgnoreCase)
-		} |
-		Sort-Object Id)
-	if ($targets.Count -eq 0) {
-		return 0
-	}
-	foreach ($process in $targets) {
-		Stop-Process -Id $process.Id -Force -ErrorAction Stop
-	}
-	return $targets.Count
-}
-
 if ([string]::IsNullOrWhiteSpace($ServerExe)) {
 	$serverName = if ($IsLinux -or $IsMacOS) { "llama-server" } else { "llama-server.exe" }
 	$ServerExe = Resolve-OfxGgmlFirstFile @(
@@ -199,17 +138,6 @@ if (!(Test-Path -LiteralPath $ModelPath -PathType Leaf)) {
 }
 $ModelPath = (Resolve-Path -LiteralPath $ModelPath).Path
 $ServerExe = (Resolve-Path -LiteralPath $ServerExe).Path
-if ([string]::IsNullOrWhiteSpace($Alias)) {
-	$Alias = Get-OfxGgmlLocalModelAlias -ModelPath $ModelPath
-}
-
-if ($ForceNew -and !$DryRun) {
-	$stopped = Stop-MatchingLlamaServer -ServerExePath $ServerExe
-	if ($stopped -gt 0) {
-		Write-Host "Stopped $stopped existing llama-server process(es) for $ServerExe"
-		Start-Sleep -Milliseconds 750
-	}
-}
 
 if ($Embeddings -and !$PSBoundParameters.ContainsKey("Port")) {
 	$Port = 8081
@@ -237,54 +165,9 @@ $arguments = @(
 	"-m", $ModelPath,
 	"--host", $HostName,
 	"--port", $Port.ToString(),
-	"-ngl", $GpuLayers,
-	"-c", ([Math]::Max(0, $ContextSize)).ToString(),
-	"--kv-unified"
+	"-ngl", ([Math]::Max(0, $GpuLayers)).ToString(),
+	"-c", ([Math]::Max(512, $ContextSize)).ToString()
 )
-if ($Parallel -gt 0) {
-	$arguments += "--parallel"
-	$arguments += ([Math]::Max(1, $Parallel)).ToString()
-}
-if ($FlashAttention) {
-	$arguments += "--flash-attn"
-	$arguments += "on"
-}
-if ($BatchSize -gt 0) {
-	$arguments += "--batch-size"
-	$arguments += $BatchSize.ToString()
-}
-if ($UBatchSize -gt 0) {
-	$arguments += "--ubatch-size"
-	$arguments += $UBatchSize.ToString()
-}
-if ($Threads -gt 0) {
-	$arguments += "--threads"
-	$arguments += $Threads.ToString()
-}
-if ($ThreadsBatch -gt 0) {
-	$arguments += "--threads-batch"
-	$arguments += $ThreadsBatch.ToString()
-}
-if ($ThreadsHttp -gt 0) {
-	$arguments += "--threads-http"
-	$arguments += $ThreadsHttp.ToString()
-}
-if ($CacheReuse -gt 0) {
-	$arguments += "--cache-reuse"
-	$arguments += $CacheReuse.ToString()
-}
-if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) {
-	$arguments += "-ctk"
-	$arguments += $KvCacheKeyType
-}
-if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) {
-	$arguments += "-ctv"
-	$arguments += $KvCacheValueType
-}
-if (![string]::IsNullOrWhiteSpace($SpecType)) {
-	$arguments += "--spec-type"
-	$arguments += $SpecType
-}
 if (![string]::IsNullOrWhiteSpace($Alias)) {
 	$arguments += "--alias"
 	$arguments += $Alias
@@ -301,39 +184,8 @@ if (![string]::IsNullOrWhiteSpace($MinP)) {
 	$arguments += "--min-p"
 	$arguments += $MinP
 }
-if ($Jinja) {
-	$arguments += "--jinja"
-}
-if (![string]::IsNullOrWhiteSpace($ChatTemplateKwargs)) {
-	$arguments += "--chat-template-kwargs"
-	$arguments += $ChatTemplateKwargs
-}
-if (![string]::IsNullOrWhiteSpace($Reasoning)) {
-	$arguments += "--reasoning"
-	$arguments += $Reasoning
-}
-if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
-	$arguments += "--reasoning-budget"
-	$arguments += $ReasoningBudget
-}
-$cudaGraphsArgumentSupported = $true
-if ($NoCudaGraphs -and !$DryRun) {
-	$cudaGraphsArgumentSupported = Test-LlamaServerArgument -ServerExePath $ServerExe -Argument "--no-cuda-graphs"
-	if (!$cudaGraphsArgumentSupported) {
-		Write-Warning "llama-server does not support --no-cuda-graphs; using server CUDA graph default."
-	}
-}
-if ($SkipChatParsing -and !$DryRun) {
-	$skipChatParsingArgumentSupported = Test-LlamaServerArgument -ServerExePath $ServerExe -Argument "--skip-chat-parsing"
-	if (!$skipChatParsingArgumentSupported) {
-		Write-Warning "llama-server does not support --skip-chat-parsing; continuing without it."
-	}
-}
-if ($NoCudaGraphs -and $cudaGraphsArgumentSupported) {
+if ($NoCudaGraphs) {
 	$arguments += "--no-cuda-graphs"
-}
-if ($SkipChatParsing -and $skipChatParsingArgumentSupported) {
-	$arguments += "--skip-chat-parsing"
 }
 if ($Embeddings) {
 	$arguments += "--embeddings"
@@ -341,12 +193,6 @@ if ($Embeddings) {
 		$arguments += "--pooling"
 		$arguments += $EmbeddingPooling
 	}
-}
-if (![string]::IsNullOrWhiteSpace($LogDir)) {
-	New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
-	$LogDir = (Resolve-Path -LiteralPath $LogDir).Path
-	$arguments += "--log-file"
-	$arguments += (Join-Path $LogDir "llama-server.log")
 }
 
 Write-Host "Starting llama-server"
@@ -359,21 +205,6 @@ if (![string]::IsNullOrWhiteSpace($Alias)) {
 }
 Write-Host "  ngl:       $GpuLayers"
 Write-Host "  ctx:       $ContextSize"
-Write-Host "  kvUnified:  on"
-Write-Host "  parallel:  $Parallel"
-if ($BatchSize -gt 0) {
-	Write-Host "  batch:     $BatchSize"
-}
-if ($UBatchSize -gt 0) {
-	Write-Host "  ubatch:    $UBatchSize"
-}
-Write-Host "  threads:   $(if ($Threads -gt 0) { $Threads } else { 'auto' })"
-Write-Host "  batchTh:   $(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' })"
-Write-Host "  httpTh:    $(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' })"
-Write-Host "  cacheReuse: $(if ($CacheReuse -gt 0) { $CacheReuse } else { 'default' })"
-Write-Host "  ctk:       $(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' })"
-Write-Host "  ctv:       $(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' })"
-Write-Host "  specType:  $(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' })"
 if (![string]::IsNullOrWhiteSpace($Temperature)) {
 	Write-Host "  temp:      $Temperature"
 }
@@ -383,16 +214,7 @@ if (![string]::IsNullOrWhiteSpace($TopP)) {
 if (![string]::IsNullOrWhiteSpace($MinP)) {
 	Write-Host "  min_p:     $MinP"
 }
-Write-Host "  jinja:     $(if ($Jinja) { 'on' } else { 'default' })"
-Write-Host "  flashAttn: $(if ($FlashAttention) { 'on' } else { 'default' })"
-if (![string]::IsNullOrWhiteSpace($Reasoning)) {
-	Write-Host "  reasoning: $Reasoning"
-}
-if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
-	Write-Host "  thinkBudget: $ReasoningBudget"
-}
-Write-Host "  cudaGraph: $(if (!$NoCudaGraphs) { 'on' } elseif ($cudaGraphsArgumentSupported) { 'off' } else { 'off requested; unsupported by this llama-server' })"
-Write-Host "  skipChatParsing: $(if ($SkipChatParsing -and $skipChatParsingArgumentSupported) { 'on' } elseif ($SkipChatParsing) { 'requested; unsupported by this llama-server' } else { 'off' })"
+Write-Host "  cudaGraph: $(if ($NoCudaGraphs) { 'off' } else { 'on' })"
 Write-Host "  embeddings: $(if ($Embeddings) { 'on' } else { 'off' })"
 if ($Embeddings) {
 	Write-Host "  serverMode: embeddings only"
@@ -415,8 +237,12 @@ if ($Detached) {
 	$startInfo.FileName = $ServerExe
 	$startInfo.Arguments = Join-ProcessArguments $arguments
 	$startInfo.WorkingDirectory = $workingDir
-	$startInfo.UseShellExecute = $false
+	$startInfo.UseShellExecute = $true
 	$startInfo.CreateNoWindow = $true
+	$startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+	if (![string]::IsNullOrWhiteSpace($LogDir)) {
+		New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+	}
 	$process = New-Object System.Diagnostics.Process
 	$process.StartInfo = $startInfo
 	if (![string]::IsNullOrWhiteSpace($LogDir)) {
@@ -434,28 +260,7 @@ if ($Detached) {
 	}
 	if (!$NoHealthCheck -and $StartupTimeoutSeconds -gt 0) {
 		Write-Host "Waiting up to $StartupTimeoutSeconds seconds for llama-server readiness..."
-		$deadline = (Get-Date).AddSeconds([Math]::Max(1, $StartupTimeoutSeconds))
-		do {
-			if ($process.HasExited) {
-				$stderrTail = ""
-				if (![string]::IsNullOrWhiteSpace($LogDir)) {
-					$logPath = Join-Path $LogDir "llama-server.log"
-					if (Test-Path -LiteralPath $logPath -PathType Leaf) {
-						$stderrTail = ((Get-Content -LiteralPath $logPath -Tail 8 -ErrorAction SilentlyContinue) -join " ").Trim()
-					}
-				}
-				$detail = if (![string]::IsNullOrWhiteSpace($stderrTail)) { " $stderrTail" } else { "" }
-				throw "llama-server exited before readiness with code $($process.ExitCode).$detail"
-			}
-			$health = Test-LlamaServer $serverUrl
-			if ($health.Ready) {
-				break
-			}
-			Start-Sleep -Milliseconds 500
-		} while ((Get-Date) -lt $deadline)
-		if (!$health.Ready) {
-			$health = Test-LlamaServer $serverUrl
-		}
+		$health = Wait-LlamaServer -ServerUrl $serverUrl -TimeoutSeconds $StartupTimeoutSeconds
 		if ($health.Ready) {
 			Write-Host "llama-server is ready at $serverUrl"
 		} else {

@@ -64,57 +64,20 @@ function Resolve-OfxGgmlFirstFile {
 	return ""
 }
 
-function Get-OfxGgmlUniqueDirectories {
+function Find-OfxGgmlFirstModel {
 	param([string[]]$Directories)
-	$seen = @{}
 	foreach ($directory in $Directories) {
-		if ([string]::IsNullOrWhiteSpace($directory)) {
-			continue
-		}
-		$fullPath = [System.IO.Path]::GetFullPath($directory)
-		$key = $fullPath.ToLowerInvariant()
-		if (!$seen.ContainsKey($key)) {
-			$seen[$key] = $true
-			$fullPath
-		}
-	}
-}
-
-function Get-OfxGgmlModelFiles {
-	param([string[]]$Directories)
-	foreach ($directory in (Get-OfxGgmlUniqueDirectories $Directories)) {
 		if (!(Test-Path -LiteralPath $directory -PathType Container)) {
 			continue
 		}
-		Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
-			Sort-Object Name
-	}
-}
-
-function Find-OfxGgmlFirstModel {
-	param([string[]]$Directories)
-	$model = Get-OfxGgmlModelFiles $Directories | Select-Object -First 1
-	if ($model) {
-		return $model.FullName
+		$model = Get-ChildItem -LiteralPath $directory -Filter "*.gguf" -File -ErrorAction SilentlyContinue |
+			Sort-Object Name |
+			Select-Object -First 1
+		if ($model) {
+			return $model.FullName
+		}
 	}
 	return ""
-}
-
-function Get-OfxGgmlLocalModelAlias {
-	param([string]$ModelPath)
-
-	if ([string]::IsNullOrWhiteSpace($ModelPath)) {
-		return ""
-	}
-	$name = [System.IO.Path]::GetFileNameWithoutExtension($ModelPath)
-	if ([string]::IsNullOrWhiteSpace($name)) {
-		return ""
-	}
-	$slug = ($name -replace '[^A-Za-z0-9._-]+', '-').Trim("-")
-	if ([string]::IsNullOrWhiteSpace($slug)) {
-		return ""
-	}
-	return "local/$slug"
 }
 
 function Get-OfxGgmlModelSearchDirectories {
@@ -219,173 +182,6 @@ function Get-OfxGgmlServerEndpoint {
 	}
 }
 
-function Test-OfxGgmlUrl {
-	param(
-		[string]$Url,
-		[int]$TimeoutSeconds = 2
-	)
-
-	$result = [ordered]@{
-		Url = $Url
-		Reachable = $false
-		Ready = $false
-		StatusCode = 0
-		Message = ""
-	}
-	if ([string]::IsNullOrWhiteSpace($Url)) {
-		$result.Message = "URL is empty"
-		return [pscustomobject]$result
-	}
-	try {
-		$response = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
-		$result.Reachable = $true
-		$result.Ready = ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300)
-		$result.StatusCode = [int]$response.StatusCode
-		$result.Message = ($response.Content | Out-String).Trim()
-	} catch {
-		if ($_.Exception.Response) {
-			$result.Reachable = $true
-			$result.StatusCode = [int]$_.Exception.Response.StatusCode
-			$result.Message = $_.Exception.Message
-		} else {
-			$result.Message = $_.Exception.Message
-		}
-	}
-	return [pscustomobject]$result
-}
-
-function Get-OfxGgmlServedModelEvidence {
-	param(
-		[string]$ApiRoot,
-		[string]$ExpectedModel,
-		[int]$TimeoutSeconds = 2
-	)
-
-	$result = [ordered]@{
-		Url = ($ApiRoot.TrimEnd("/") + "/models")
-		Reachable = $false
-		Models = @()
-		ExpectedModelServed = $false
-		Message = ""
-	}
-	try {
-		$response = Invoke-RestMethod -Uri $result.Url -Method Get -TimeoutSec ([Math]::Max(1, $TimeoutSeconds)) -ErrorAction Stop
-		$modelIds = New-Object System.Collections.Generic.List[string]
-		if ($response.PSObject.Properties["data"]) {
-			foreach ($item in @($response.data)) {
-				if ($item.PSObject.Properties["id"] -and ![string]::IsNullOrWhiteSpace([string]$item.id)) {
-					$modelIds.Add([string]$item.id)
-				}
-				if ($item.PSObject.Properties["aliases"]) {
-					foreach ($alias in @($item.aliases)) {
-						if (![string]::IsNullOrWhiteSpace([string]$alias)) {
-							$modelIds.Add([string]$alias)
-						}
-					}
-				}
-			}
-		}
-		if ($response.PSObject.Properties["models"]) {
-			foreach ($item in @($response.models)) {
-				foreach ($property in @("model", "name", "id")) {
-					if ($item.PSObject.Properties[$property] -and ![string]::IsNullOrWhiteSpace([string]$item.$property)) {
-						$modelIds.Add([string]$item.$property)
-					}
-				}
-			}
-		}
-		$models = @($modelIds.ToArray() | Sort-Object -Unique)
-		$result.Reachable = $true
-		$result.Models = @($models)
-		$result.ExpectedModelServed = @($models) -contains $ExpectedModel
-	} catch {
-		$result.Message = $_.Exception.Message
-	}
-	return [pscustomobject]$result
-}
-
-function Format-OfxGgmlPowerShellArgument {
-	param([AllowNull()][string]$Value)
-	if ($null -eq $Value) {
-		return "''"
-	}
-	if ($Value -match "[\s`"']") {
-		return "'" + ($Value -replace "'", "''") + "'"
-	}
-	return $Value
-}
-
-function Format-OfxGgmlCommandArgument {
-	param([AllowNull()][string]$Value)
-	if ($null -eq $Value) {
-		return '""'
-	}
-	if ($Value -match '[\s"]') {
-		return '"' + ($Value.Replace('"', '\"')) + '"'
-	}
-	return $Value
-}
-
-function Join-OfxGgmlCommandArguments {
-	param([string[]]$Arguments)
-	return (($Arguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
-}
-
-function Get-OfxGgmlCodexLocalProviderArguments {
-	param(
-		[string]$ApiRoot = "http://127.0.0.1:8001/v1",
-		[string]$ProviderId = "llama_cpp",
-		[string]$ProviderName = "llama.cpp local",
-		[string]$WireApi = "responses",
-		[int]$StreamIdleTimeoutMs = 10000000,
-		[int]$ModelContextWindow = 262144,
-		[int]$ModelAutoCompactTokenLimit = 220000,
-		[int]$ToolOutputTokenLimit = 12000,
-		[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
-		[string]$ReasoningEffort = "medium",
-		[string]$ReasoningSummary = "none",
-		[bool]$HideAgentReasoning = $true,
-		[int]$AgentMaxConcurrentThreads = 0,
-		[int]$AgentMaxDepth = 0,
-		[switch]$SkipToolGuards,
-		[switch]$SkipProviderOverrides
-	)
-
-	$arguments = @()
-	if (!$SkipToolGuards) {
-		$arguments += @(
-			"--disable", "apps",
-			"--disable", "image_generation",
-			"--disable", "browser_use",
-			"--disable", "computer_use",
-			"--disable", "tool_search",
-			"-c", "web_search=`"$WebSearch`""
-		)
-	}
-	if (!$SkipProviderOverrides) {
-		$arguments += @(
-			"-c", "model_provider=$ProviderId",
-			"-c", "model_providers.$ProviderId.name=`"$ProviderName`"",
-			"-c", "model_providers.$ProviderId.base_url=`"$ApiRoot`"",
-			"-c", "model_providers.$ProviderId.wire_api=`"$WireApi`"",
-			"-c", "model_providers.$ProviderId.stream_idle_timeout_ms=$StreamIdleTimeoutMs",
-			"-c", "model_context_window=$ModelContextWindow",
-			"-c", "model_auto_compact_token_limit=$ModelAutoCompactTokenLimit",
-			"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
-			"-c", "model_reasoning_effort=$ReasoningEffort",
-			"-c", "model_reasoning_summary=$ReasoningSummary",
-			"-c", "hide_agent_reasoning=$($HideAgentReasoning.ToString().ToLowerInvariant())"
-		)
-	}
-	if ($AgentMaxConcurrentThreads -gt 0) {
-		$arguments += @("-c", "agents.max_threads=$AgentMaxConcurrentThreads")
-	}
-	if ($AgentMaxDepth -gt 0) {
-		$arguments += @("-c", "agents.max_depth=$AgentMaxDepth")
-	}
-	return @($arguments)
-}
-
 function Start-OfxGgmlBundledLlamaServerIfNeeded {
 	param(
 		[string]$ScriptRoot,
@@ -397,34 +193,17 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$StartMessage,
 		[int]$StartupTimeoutSeconds = 120,
 		[string]$Alias = "",
-		[string]$GpuLayers = "",
+		[Nullable[int]]$GpuLayers = $null,
 		[Nullable[int]]$ContextSize = $null,
-		[Nullable[int]]$Parallel = $null,
-		[Nullable[int]]$BatchSize = $null,
-		[Nullable[int]]$UBatchSize = $null,
-		[Nullable[int]]$Threads = $null,
-		[Nullable[int]]$ThreadsBatch = $null,
-		[Nullable[int]]$ThreadsHttp = $null,
-		[Nullable[int]]$CacheReuse = $null,
-		[string]$KvCacheKeyType = "",
-		[string]$KvCacheValueType = "",
-		[string]$SpecType = "",
 		[string]$Temperature = "",
 		[string]$TopP = "",
 		[string]$MinP = "",
-		[string]$ChatTemplateKwargs = "",
-		[string]$Reasoning = "",
-		[string]$ReasoningBudget = "",
-		[switch]$Jinja,
-		[switch]$FlashAttention,
 		[switch]$NoCudaGraphs,
-		[switch]$SkipChatParsing,
-		[switch]$ForceNew,
 		[switch]$NoAutoServer,
 		[switch]$Embeddings
 	)
 
-	if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlLocalServerUrl $ServerUrl))) {
+	if ($NoAutoServer -or (Test-OfxGgmlLocalServerUrl $ServerUrl)) {
 		return
 	}
 	if ([string]::IsNullOrWhiteSpace($Model)) {
@@ -446,53 +225,13 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		$args += "-Alias"
 		$args += $Alias
 	}
-	if (![string]::IsNullOrWhiteSpace($GpuLayers)) {
+	if ($null -ne $GpuLayers) {
 		$args += "-GpuLayers"
 		$args += $GpuLayers
 	}
 	if ($null -ne $ContextSize) {
 		$args += "-ContextSize"
 		$args += $ContextSize
-	}
-	if ($null -ne $Parallel) {
-		$args += "-Parallel"
-		$args += $Parallel
-	}
-	if ($null -ne $BatchSize) {
-		$args += "-BatchSize"
-		$args += $BatchSize
-	}
-	if ($null -ne $UBatchSize) {
-		$args += "-UBatchSize"
-		$args += $UBatchSize
-	}
-	if ($null -ne $Threads) {
-		$args += "-Threads"
-		$args += $Threads
-	}
-	if ($null -ne $ThreadsBatch) {
-		$args += "-ThreadsBatch"
-		$args += $ThreadsBatch
-	}
-	if ($null -ne $ThreadsHttp) {
-		$args += "-ThreadsHttp"
-		$args += $ThreadsHttp
-	}
-	if ($null -ne $CacheReuse) {
-		$args += "-CacheReuse"
-		$args += $CacheReuse
-	}
-	if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) {
-		$args += "-KvCacheKeyType"
-		$args += $KvCacheKeyType
-	}
-	if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) {
-		$args += "-KvCacheValueType"
-		$args += $KvCacheValueType
-	}
-	if (![string]::IsNullOrWhiteSpace($SpecType)) {
-		$args += "-SpecType"
-		$args += $SpecType
 	}
 	if (![string]::IsNullOrWhiteSpace($Temperature)) {
 		$args += "-Temperature"
@@ -506,153 +245,11 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		$args += "-MinP"
 		$args += $MinP
 	}
-	if (![string]::IsNullOrWhiteSpace($ChatTemplateKwargs)) {
-		$args += "-ChatTemplateKwargs"
-		$args += $ChatTemplateKwargs
-	}
-	if (![string]::IsNullOrWhiteSpace($Reasoning)) {
-		$args += "-Reasoning"
-		$args += $Reasoning
-	}
-	if (![string]::IsNullOrWhiteSpace($ReasoningBudget)) {
-		$args += "-ReasoningBudget"
-		$args += $ReasoningBudget
-	}
-	if ($Jinja) {
-		$args += "-Jinja"
-	}
-	if ($FlashAttention) {
-		$args += "-FlashAttention"
-	}
-	if ($SkipChatParsing) {
-		$args += "-SkipChatParsing"
-	}
 	if ($NoCudaGraphs) {
 		$args += "-NoCudaGraphs"
-	}
-	if ($ForceNew) {
-		$args += "-ForceNew"
 	}
 	if ($Embeddings) {
 		$args += "-Embeddings"
 	}
 	& (Join-Path $ScriptRoot "start-llama-server.ps1") @args
-}
-
-# ── Ollama backend helpers ──
-
-function Find-OfxGgmlOllama {
-    $candidates = @(
-        (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
-        (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
-    )
-    $cmd = Get-Command "ollama" -ErrorAction SilentlyContinue
-    if ($cmd) { $candidates.Insert(0, $cmd.Source) }
-    return Resolve-OfxGgmlFirstFile $candidates
-}
-
-function Test-OfxGgmlOllamaRunning {
-    param([string]$Host = "127.0.0.1", [int]$Port = 11434)
-    return (Test-OfxGgmlLocalServerUrl "http://$Host`:$Port")
-}
-
-function Get-OfxGgmlOllamaEndpoint {
-    param([string]$Host = "127.0.0.1", [int]$Port = 11434)
-    return "http://$Host`:$Port/v1"
-}
-
-function Start-OfxGgmlOllamaIfNeeded {
-    param(
-        [string]$Model = "qwen2.5-coder:7b",
-        [string]$HostName = "127.0.0.1",
-        [int]$Port = 11434,
-        [switch]$Pull,
-        [switch]$ForceNew,
-        [switch]$NoAutoServer
-    )
-
-    if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlOllamaRunning -Host $HostName -Port $Port))) {
-        return
-    }
-
-    $ollamaExe = Find-OfxGgmlOllama
-    if (!$ollamaExe) {
-        Write-Warning "Ollama not found. Run scripts\install-ollama.bat first."
-        return
-    }
-
-    Write-OfxGgmlStep "Starting Ollama service..."
-    Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden
-
-    # Wait for service
-    $timeout = 30
-    $started = $false
-    for ($i = 0; $i -lt $timeout; $i++) {
-        Start-Sleep -Seconds 1
-        if (Test-OfxGgmlOllamaRunning -Host $HostName -Port $Port) {
-            $started = $true
-            break
-        }
-    }
-    if (!$started) {
-        Write-Warning "Ollama service did not start within ${timeout}s"
-        return
-    }
-
-    # Pull model if needed
-    $needsPull = $Pull
-    if (!$needsPull) {
-        try {
-            $out = & $ollamaExe list 2>&1 | Out-String
-            if ($out -notmatch [regex]::Escape($Model)) {
-                $needsPull = $true
-            }
-        } catch {}
-    }
-
-    if ($needsPull) {
-        Write-OfxGgmlStep "Pulling model: $Model"
-        & $ollamaExe pull $Model 2>&1 | Out-Host
-    }
-
-    $endpoint = Get-OfxGgmlOllamaEndpoint -Host $HostName -Port $Port
-    Write-OfxGgmlStep "Ollama ready: $endpoint (model: $Model)"
-}
-
-# ── Backend selector: pick best available local backend ──
-
-function Get-OfxGgmlLocalBackend {
-    param(
-        [string]$Preferred = "",  # "ollama", "llama-server", or "" for auto
-        [string]$ServerUrl = ""
-    )
-
-    $ollamaExe = Find-OfxGgmlOllama
-    $ollamaRunning = Test-OfxGgmlOllamaRunning
-    $llamaRunning = if ($ServerUrl) { Test-OfxGgmlLocalServerUrl $ServerUrl } else { $false }
-
-    switch ($Preferred) {
-        "ollama" {
-            if ($ollamaRunning) {
-                return [ordered]@{ Type = "ollama"; Endpoint = Get-OfxGgmlOllamaEndpoint; Path = $ollamaExe }
-            }
-            return $null
-        }
-        "llama-server" {
-            if ($llamaRunning -and $ServerUrl) {
-                return [ordered]@{ Type = "llama-server"; Endpoint = $ServerUrl }
-            }
-            return $null
-        }
-        default {
-            # Auto: prefer ollama if running, then llama-server
-            if ($ollamaRunning) {
-                return [ordered]@{ Type = "ollama"; Endpoint = Get-OfxGgmlOllamaEndpoint; Path = $ollamaExe }
-            }
-            if ($llamaRunning -and $ServerUrl) {
-                return [ordered]@{ Type = "llama-server"; Endpoint = $ServerUrl }
-            }
-            return $null
-        }
-    }
 }

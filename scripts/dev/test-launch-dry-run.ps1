@@ -29,54 +29,6 @@ function Invoke-DryRun {
 	$previousEmbeddingServerModel = $env:OFXGGML_EMBEDDING_SERVER_MODEL
 	$previousCodexBaseUrl = $env:OFXGGML_CODEX_BASE_URL
 	$previousCodexModel = $env:OFXGGML_CODEX_MODEL
-	$previousCodexAgentThreads = $env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS
-	$previousCodexAgentDepth = $env:OFXGGML_CODEX_AGENT_MAX_DEPTH
-	$previousCodexAgentMinWait = $env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS
-	$previousCodexAgentMaxWait = $env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS
-	$previousCodexAgentDefaultWait = $env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS
-	$codexEnvNames = @(
-		"OFXGGML_CODEX_BASE_URL",
-		"OFXGGML_CODEX_MODEL",
-		"OFXGGML_CODEX_OPENAI_MODEL",
-		"OFXGGML_CODEX_PROVIDER",
-		"OFXGGML_CODEX_SANDBOX",
-		"OFXGGML_CODEX_PRESET",
-		"OFXGGML_CODEX_GPU_LAYERS",
-		"OFXGGML_CODEX_CONTEXT_SIZE",
-		"OFXGGML_CODEX_PARALLEL",
-		"OFXGGML_CODEX_BATCH_SIZE",
-		"OFXGGML_CODEX_UBATCH_SIZE",
-		"OFXGGML_CODEX_THREADS",
-		"OFXGGML_CODEX_THREADS_BATCH",
-		"OFXGGML_CODEX_THREADS_HTTP",
-		"OFXGGML_CODEX_CACHE_REUSE",
-		"OFXGGML_CODEX_KV_CACHE_KEY_TYPE",
-		"OFXGGML_CODEX_KV_CACHE_VALUE_TYPE",
-		"OFXGGML_CODEX_SPEC_TYPE",
-		"OFXGGML_CODEX_FLASH_ATTN",
-		"OFXGGML_CODEX_MODEL_CONTEXT_WINDOW",
-		"OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT",
-		"OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT",
-		"OFXGGML_CODEX_AGENT_MAX_AGENTS",
-		"OFXGGML_CODEX_AGENT_MAX_THREADS",
-		"OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS",
-		"OFXGGML_CODEX_AGENT_MAX_DEPTH",
-		"OFXGGML_CODEX_AGENT_MIN_WAIT_MS",
-		"OFXGGML_CODEX_AGENT_MAX_WAIT_MS",
-		"OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS",
-		"OFXGGML_CODEX_STARTUP_TIMEOUT",
-		"OFXGGML_CODEX_TEMP",
-		"OFXGGML_CODEX_TOP_P",
-		"OFXGGML_CODEX_MIN_P",
-		"OFXGGML_CODEX_CHAT_TEMPLATE_KWARGS",
-		"OFXGGML_CODEX_REASONING",
-		"OFXGGML_CODEX_REASONING_BUDGET",
-		"OFXGGML_CODEX_NO_CUDA_GRAPHS",
-		"OFXGGML_CODEX_SKIP_CHAT_PARSING")
-	$previousCodexEnv = @{}
-	foreach ($name in $codexEnvNames) {
-		$previousCodexEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
-	}
 	$env:OFXGGML_LAUNCH_DRY_RUN_ONLY = "1"
 	try {
 		$output = & $Script @Parameters *>&1 | ForEach-Object { $_.ToString() }
@@ -144,38 +96,6 @@ function Invoke-DryRun {
 		} else {
 			$env:OFXGGML_CODEX_MODEL = $previousCodexModel
 		}
-		if ($null -eq $previousCodexAgentThreads) {
-			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS = $previousCodexAgentThreads
-		}
-		if ($null -eq $previousCodexAgentDepth) {
-			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_DEPTH -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_AGENT_MAX_DEPTH = $previousCodexAgentDepth
-		}
-		if ($null -eq $previousCodexAgentMinWait) {
-			Remove-Item Env:\OFXGGML_CODEX_AGENT_MIN_WAIT_MS -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_AGENT_MIN_WAIT_MS = $previousCodexAgentMinWait
-		}
-		if ($null -eq $previousCodexAgentMaxWait) {
-			Remove-Item Env:\OFXGGML_CODEX_AGENT_MAX_WAIT_MS -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_AGENT_MAX_WAIT_MS = $previousCodexAgentMaxWait
-		}
-		if ($null -eq $previousCodexAgentDefaultWait) {
-			Remove-Item Env:\OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS -ErrorAction SilentlyContinue
-		} else {
-			$env:OFXGGML_CODEX_AGENT_DEFAULT_WAIT_MS = $previousCodexAgentDefaultWait
-		}
-		foreach ($name in $codexEnvNames) {
-			if ($null -eq $previousCodexEnv[$name]) {
-				Remove-Item "Env:\$name" -ErrorAction SilentlyContinue
-			} else {
-				[Environment]::SetEnvironmentVariable($name, [string]$previousCodexEnv[$name], "Process")
-			}
-		}
 	}
 	return @($output)
 }
@@ -202,16 +122,6 @@ function Assert-NotContains {
 	if ($text -like "*$Needle*") {
 		throw "$Label contained unexpected text: $Needle`n$text"
 	}
-}
-
-function Get-LocalAliasFromOutput {
-	param([string[]]$Output)
-	$text = $Output -join "`n"
-	$match = [regex]::Match($text, 'Using text model: (?<path>.+?\.gguf)')
-	if (!$match.Success) {
-		return ""
-	}
-	return "local/" + [System.IO.Path]::GetFileNameWithoutExtension($match.Groups["path"].Value)
 }
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
@@ -256,22 +166,6 @@ Assert-Contains $textOutput "Executable:" "Text dry-run"
 Assert-Contains $textOutput "Auto server: off" "Text dry-run"
 Assert-NotContains $textOutput "Starting ofxGgmlTextExample" "Text dry-run"
 
-$expectedTextAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
-$textLocalAliasOutput = Invoke-DryRun `
-	-Label "Text example local alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "text"
-		DryRun = $true
-		NoAutoServer = $true
-		ServerUrl = "http://127.0.0.1:9080"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $textLocalAliasOutput "Using server model: $expectedTextAlias" "Text local alias dry-run"
-Assert-Contains $textLocalAliasOutput "Using text model: $modelPath" "Text local alias dry-run"
-
 $textCliOutput = Invoke-DryRun `
 	-Label "Text example CLI dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `
@@ -310,21 +204,6 @@ Assert-Contains $chatOutput "Using text model: $modelPath" "Chat dry-run"
 Assert-Contains $chatOutput "Executable:" "Chat dry-run"
 Assert-Contains $chatOutput "Auto server: off" "Chat dry-run"
 Assert-NotContains $chatOutput "Starting ofxGgmlChatExample" "Chat dry-run"
-
-$chatLocalAliasOutput = Invoke-DryRun `
-	-Label "Chat example local alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "chat"
-		DryRun = $true
-		NoAutoServer = $true
-		ServerUrl = "http://127.0.0.1:9080"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $chatLocalAliasOutput "Using server model: $expectedTextAlias" "Chat local alias dry-run"
-Assert-Contains $chatLocalAliasOutput "Using text model: $modelPath" "Chat local alias dry-run"
 
 $chatCliOutput = Invoke-DryRun `
 	-Label "Chat example CLI dry-run" `
@@ -365,22 +244,6 @@ Assert-Contains $embeddingOutput "Executable:" "Embedding dry-run"
 Assert-Contains $embeddingOutput "Auto server: off" "Embedding dry-run"
 Assert-NotContains $embeddingOutput "Starting ofxGgmlEmbeddingExample" "Embedding dry-run"
 
-$expectedEmbeddingAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
-$embeddingLocalAliasOutput = Invoke-DryRun `
-	-Label "Embedding example local alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "embedding"
-		DryRun = $true
-		NoAutoServer = $true
-		ServerUrl = "http://127.0.0.1:9081"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $embeddingLocalAliasOutput "Using server model: $expectedEmbeddingAlias" "Embedding local alias dry-run"
-Assert-Contains $embeddingLocalAliasOutput "Using embedding model: $modelPath" "Embedding local alias dry-run"
-
 $codexOutput = Invoke-DryRun `
 	-Label "Codex local example dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `
@@ -395,267 +258,16 @@ $codexOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
-		SpecType = "ngram-cache"
 		Configuration = $Configuration
 		Platform = $Platform
 	}
 Assert-Contains $codexOutput "Using Codex local endpoint: http://127.0.0.1:9001/v1" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex provider: local" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex sandbox: workspace-write" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex preset: Qwen 27B RTX 3090" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=1024 ubatch=256 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=q4_0 ctv=q4_0 spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=56000 tool_output=12000" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 temp=1.1 top_p=0.91 min_p=0.03 cudaGraph=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
 Assert-Contains $codexOutput "Auto server: off" "Codex local dry-run"
 Assert-NotContains $codexOutput "Starting ofxGgmlLlamaCodexLocalExample" "Codex local dry-run"
-
-$codexOpenAiOutput = Invoke-DryRun `
-	-Label "Codex OpenAI profile dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "openai"
-		ServerModel = "gpt-5"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexOpenAiOutput "Using Codex provider: openai" "Codex OpenAI dry-run"
-Assert-Contains $codexOpenAiOutput "Using Codex sandbox: default config" "Codex OpenAI dry-run"
-Assert-Contains $codexOpenAiOutput "Using Codex model alias: gpt-5" "Codex OpenAI dry-run"
-Assert-NotContains $codexOpenAiOutput "Using Codex local endpoint:" "Codex OpenAI dry-run"
-Assert-Contains $codexOpenAiOutput "Auto server: off" "Codex OpenAI dry-run"
-Assert-NotContains $codexOpenAiOutput "Starting bundled server" "Codex OpenAI dry-run"
-
-$codexHybridOutput = Invoke-DryRun `
-	-Label "Codex hybrid local agents dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "hybrid"
-		OpenAiModel = "gpt-5"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexHybridOutput "Using Codex provider: hybrid" "Codex hybrid dry-run"
-Assert-Contains $codexHybridOutput "Using Codex sandbox: default config" "Codex hybrid dry-run"
-Assert-Contains $codexHybridOutput "Using Codex local endpoint: http://127.0.0.1:8001/v1" "Codex hybrid dry-run"
-$expectedHybridAlias = Get-LocalAliasFromOutput $codexHybridOutput
-Assert-Contains $codexHybridOutput "Using Codex model alias: $expectedHybridAlias" "Codex hybrid dry-run"
-Assert-Contains $codexHybridOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid dry-run"
-Assert-Contains $codexHybridOutput "Auto server: off" "Codex hybrid dry-run"
-Assert-NotContains $codexHybridOutput "Starting bundled server" "Codex hybrid dry-run"
-
-$codexOllamaOutput = Invoke-DryRun `
-	-Label "Codex Ollama Hermes dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "ollama"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexOllamaOutput "Using Codex provider: ollama" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex sandbox: workspace-write" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex model alias: hermes3-codex-32k:latest" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Auto server: off" "Codex Ollama dry-run"
-Assert-NotContains $codexOllamaOutput "Using text model:" "Codex Ollama dry-run"
-Assert-NotContains $codexOllamaOutput "Starting bundled server" "Codex Ollama dry-run"
-
-$codexHybridOllamaOutput = Invoke-DryRun `
-	-Label "Codex hybrid Ollama agents dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "hybrid-ollama"
-		OpenAiModel = "gpt-5"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexHybridOllamaOutput "Using Codex provider: hybrid-ollama" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex sandbox: default config" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex model alias: hermes3-codex-32k:latest" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Auto server: off" "Codex hybrid Ollama dry-run"
-Assert-NotContains $codexHybridOllamaOutput "Using text model:" "Codex hybrid Ollama dry-run"
-Assert-NotContains $codexHybridOllamaOutput "Starting bundled server" "Codex hybrid Ollama dry-run"
-
-$codexDefaultAliasOutput = Invoke-DryRun `
-	-Label "Codex local default alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexDefaultAliasOutput "Using Codex provider: local" "Codex local default alias dry-run"
-$expectedDefaultAlias = Get-LocalAliasFromOutput $codexDefaultAliasOutput
-Assert-Contains $codexDefaultAliasOutput "Using Codex model alias: $expectedDefaultAlias" "Codex local default alias dry-run"
-
-$previousAutoModel = $env:OFXGGML_TEXT_MODEL
-$env:OFXGGML_TEXT_MODEL = $modelPath
-try {
-	$codexAutoLocalAliasOutput = Invoke-DryRun `
-		-Label "Codex local auto model alias dry-run" `
-		-Script (Join-Path $scriptRoot "run-example.ps1") `
-		-Parameters @{
-			Example = "codex"
-			DryRun = $true
-			ServerUrl = "http://127.0.0.1:9001/v1"
-			Configuration = $Configuration
-			Platform = $Platform
-		}
-} finally {
-	if ($null -eq $previousAutoModel) {
-		Remove-Item Env:\OFXGGML_TEXT_MODEL -ErrorAction SilentlyContinue
-	} else {
-		$env:OFXGGML_TEXT_MODEL = $previousAutoModel
-	}
-}
-$expectedAutoAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
-Assert-Contains $codexAutoLocalAliasOutput "Using text model: $modelPath" "Codex local auto model alias dry-run"
-Assert-Contains $codexAutoLocalAliasOutput "Using Codex model alias: $expectedAutoAlias" "Codex local auto model alias dry-run"
-Assert-NotContains $codexAutoLocalAliasOutput "Using Codex model alias: local/Qwen3.6-27B-Q4_0" "Codex local auto model alias dry-run"
-
-$codexDerivedAliasOutput = Invoke-DryRun `
-	-Label "Codex local derived alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-$expectedDerivedAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
-Assert-Contains $codexDerivedAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local derived alias dry-run"
-Assert-Contains $codexDerivedAliasOutput "ngl=all" "Codex local derived alias dry-run"
-Assert-NotContains $codexDerivedAliasOutput "unsloth/GLM-4.7-Flash" "Codex local derived alias dry-run"
-
-$env:OFXGGML_CODEX_MODEL = "local/GLM-4.7-Flash-UD-Q4_K_XL"
-$codexStaleEnvAliasOutput = Invoke-DryRun `
-	-Label "Codex local stale env alias dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexStaleEnvAliasOutput "Using Codex model alias: $expectedDerivedAlias" "Codex local stale env alias dry-run"
-Assert-NotContains $codexStaleEnvAliasOutput "Using Codex model alias: local/GLM-4.7-Flash-UD-Q4_K_XL" "Codex local stale env alias dry-run"
-Remove-Item Env:\OFXGGML_CODEX_MODEL -ErrorAction SilentlyContinue
-$codexFastPresetOutput = Invoke-DryRun `
-	-Label "Codex local fast preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "fast"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexFastPresetOutput "Using Codex preset: Fast coding" "Codex local fast preset dry-run"
-Assert-Contains $codexFastPresetOutput "ctx=32768 parallel=1 batch=4096 ubatch=1024" "Codex local fast preset dry-run"
-Assert-Contains $codexFastPresetOutput "cacheReuse=256" "Codex local fast preset dry-run"
-Assert-Contains $codexFastPresetOutput "model_context_window=32768 auto_compact=24000 tool_output=5000" "Codex local fast preset dry-run"
-
-$codexHermesSharedPresetOutput = Invoke-DryRun `
-	-Label "Codex local Hermes shared preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "hermes-codex-shared"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexHermesSharedPresetOutput "Using Codex preset: Hermes + Codex shared" "Codex local Hermes shared preset dry-run"
-Assert-Contains $codexHermesSharedPresetOutput "ctx=65536 parallel=2 batch=1024 ubatch=256" "Codex local Hermes shared preset dry-run"
-Assert-Contains $codexHermesSharedPresetOutput "cacheReuse=256 ctk=q4_0 ctv=q4_0" "Codex local Hermes shared preset dry-run"
-Assert-Contains $codexHermesSharedPresetOutput "model_context_window=65536 auto_compact=52000 tool_output=8000" "Codex local Hermes shared preset dry-run"
-Assert-Contains $codexHermesSharedPresetOutput "Using Codex agent settings: max_threads=2" "Codex local Hermes shared preset dry-run"
-
-$codexFullContextPresetOutput = Invoke-DryRun `
-	-Label "Codex local full-context preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "fullctx"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexFullContextPresetOutput "Using Codex preset: Full context Q8" "Codex local full-context preset dry-run"
-Assert-Contains $codexFullContextPresetOutput "ctx=0 parallel=1 batch=2048 ubatch=512" "Codex local full-context preset dry-run"
-Assert-Contains $codexFullContextPresetOutput "cacheReuse=512 ctk=q8_0 ctv=q8_0" "Codex local full-context preset dry-run"
-Assert-Contains $codexFullContextPresetOutput "model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local full-context preset dry-run"
-
-$codexFullContextQ5PresetOutput = Invoke-DryRun `
-	-Label "Codex local full-context q5 preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "fullctx-q5"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexFullContextQ5PresetOutput "Using Codex preset: Full context Q5" "Codex local full-context q5 preset dry-run"
-Assert-Contains $codexFullContextQ5PresetOutput "ctx=0 parallel=1 batch=2048 ubatch=512" "Codex local full-context q5 preset dry-run"
-Assert-Contains $codexFullContextQ5PresetOutput "cacheReuse=512 ctk=q5_0 ctv=q5_0" "Codex local full-context q5 preset dry-run"
-
-$codexFullContextQ4PresetOutput = Invoke-DryRun `
-	-Label "Codex local full-context q4 preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "fullctx-q4"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexFullContextQ4PresetOutput "Using Codex preset: Full context Q4" "Codex local full-context q4 preset dry-run"
-Assert-Contains $codexFullContextQ4PresetOutput "ctx=0 parallel=1 batch=1536 ubatch=384" "Codex local full-context q4 preset dry-run"
-Assert-Contains $codexFullContextQ4PresetOutput "cacheReuse=512 ctk=q4_0 ctv=q4_0" "Codex local full-context q4 preset dry-run"
-
-$codexLongPresetOutput = Invoke-DryRun `
-	-Label "Codex local long-context preset dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexPreset = "long"
-		ServerUrl = "http://127.0.0.1:9001/v1"
-		Model = $modelPath
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexLongPresetOutput "Using Codex preset: Long context" "Codex local long-context preset dry-run"
-Assert-Contains $codexLongPresetOutput "ctx=262144 parallel=1 batch=4096 ubatch=1024" "Codex local long-context preset dry-run"
-Assert-Contains $codexLongPresetOutput "model_context_window=262144 auto_compact=220000 tool_output=12000" "Codex local long-context preset dry-run"
 
 $embeddingRunnerOutput = Invoke-DryRun `
 	-Label "embedding runner dry-run" `
@@ -693,7 +305,6 @@ $serverOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
-		SpecType = "ngram-cache"
 		NoCudaGraphs = $true
 	}
 Assert-Contains $serverOutput "exe:       $serverExe" "Server dry-run"
@@ -706,25 +317,8 @@ Assert-Contains $serverOutput "temp:      1.1" "Server dry-run"
 Assert-Contains $serverOutput "top_p:     0.91" "Server dry-run"
 Assert-Contains $serverOutput "min_p:     0.03" "Server dry-run"
 Assert-Contains $serverOutput "cudaGraph: off" "Server dry-run"
-Assert-Contains $serverOutput "specType:  ngram-cache" "Server dry-run"
-Assert-Contains $serverOutput "--kv-unified" "Server dry-run"
-Assert-Contains $serverOutput "--spec-type ngram-cache" "Server dry-run"
 Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
-
-$serverLocalAliasOutput = Invoke-DryRun `
-	-Label "llama-server local alias dry-run" `
-	-Script (Join-Path $scriptRoot "start-llama-server.ps1") `
-	-Parameters @{
-		DryRun = $true
-		ServerExe = $serverExe
-		ModelPath = $modelPath
-		HostName = "127.0.0.1"
-		Port = 9082
-	}
-$expectedServerAlias = "local/" + [System.IO.Path]::GetFileNameWithoutExtension($modelPath)
-Assert-Contains $serverLocalAliasOutput "alias:     $expectedServerAlias" "Server local alias dry-run"
-Assert-Contains $serverLocalAliasOutput "--alias $expectedServerAlias" "Server local alias dry-run"
 
 $stopServerOutput = Invoke-DryRun `
 	-Label "stop llama-server dry-run" `
@@ -746,7 +340,6 @@ $statusServerOutput = Invoke-DryRun `
 Assert-Contains $statusServerOutput "llama-server status" "Status server smoke"
 Assert-Contains $statusServerOutput "text      http://127.0.0.1:9080" "Status server smoke"
 Assert-Contains $statusServerOutput "embedding http://127.0.0.1:9081" "Status server smoke"
-Assert-Contains $statusServerOutput "codex     http://127.0.0.1:8001" "Status server smoke"
 
 $embeddingServerOutput = Invoke-DryRun `
 	-Label "embedding llama-server dry-run" `
