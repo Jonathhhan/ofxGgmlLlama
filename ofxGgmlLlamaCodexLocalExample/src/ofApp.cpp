@@ -8,6 +8,7 @@
 #include <cctype>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <sstream>
 #include <thread>
 
@@ -317,6 +318,7 @@ void ofApp::setup() {
 	refreshRuntimeDiscovery();
 	refreshServerStatus();
 	rebuildLines();
+	endpointStatus = "endpoint smoke not run";
 
 	ofLogNotice(LogModule) << "Codex endpoint: " << baseUrl;
 	ofLogNotice(LogModule) << "Codex model alias: " << modelAlias;
@@ -332,9 +334,12 @@ void ofApp::draw() {
 	std::string modelPathEdit;
 	std::string serverExeEdit;
 	std::string statusSnapshot;
+	std::string endpointStatusSnapshot;
+	std::string endpointOutputSnapshot;
 	std::vector<std::string> lineSnapshot;
 	bool runningSnapshot = false;
 	bool serverReadySnapshot = false;
+	bool endpointReadySnapshot = false;
 	bool autoStartSnapshot = false;
 	bool noCudaGraphsSnapshot = false;
 	int gpuLayersSnapshot = 0;
@@ -351,9 +356,12 @@ void ofApp::draw() {
 		modelPathEdit = modelPath;
 		serverExeEdit = serverExe;
 		statusSnapshot = status;
+		endpointStatusSnapshot = endpointStatus;
+		endpointOutputSnapshot = endpointOutput;
 		lineSnapshot = lines;
 		runningSnapshot = running;
 		serverReadySnapshot = serverReady;
+		endpointReadySnapshot = endpointReady;
 		autoStartSnapshot = autoStartServer;
 		noCudaGraphsSnapshot = noCudaGraphs;
 		gpuLayersSnapshot = gpuLayers;
@@ -367,6 +375,7 @@ void ofApp::draw() {
 	bool startRequested = false;
 	bool forceStartRequested = false;
 	bool recheckRequested = false;
+	bool smokeRequested = false;
 	bool rediscoverRequested = false;
 
 	ofBackground(16);
@@ -385,6 +394,10 @@ void ofApp::draw() {
 			statusSnapshot.empty() ? "checking llama-server..." : statusSnapshot.c_str());
 		ImGui::SameLine();
 		ImGui::TextDisabled(serverReadySnapshot ? "ready" : "not ready");
+		ImGui::TextColored(
+			endpointReadySnapshot ? ImVec4(0.70f, 0.92f, 0.70f, 1.0f) : ImVec4(0.70f, 0.78f, 0.90f, 1.0f),
+			"%s",
+			endpointStatusSnapshot.empty() ? "endpoint smoke not run" : endpointStatusSnapshot.c_str());
 
 		if (runningSnapshot) {
 			ImGui::BeginDisabled();
@@ -399,6 +412,10 @@ void ofApp::draw() {
 		ImGui::SameLine();
 		if (ImGui::Button("Recheck")) {
 			recheckRequested = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Test endpoint")) {
+			smokeRequested = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Rediscover")) {
@@ -489,6 +506,10 @@ void ofApp::draw() {
 		}
 
 		ImGui::Separator();
+		if (!endpointOutputSnapshot.empty()) {
+			ImGui::TextWrapped("Smoke output: %s", endpointOutputSnapshot.c_str());
+			ImGui::Separator();
+		}
 		ImGui::TextUnformatted("Codex config.toml");
 		ImGui::BeginChild("codex-local-config", ImVec2(0.0f, 0.0f), true);
 		for (const auto & line : lineSnapshot) {
@@ -511,6 +532,9 @@ void ofApp::draw() {
 	if (recheckRequested) {
 		refreshServerStatus();
 	}
+	if (smokeRequested) {
+		requestEndpointSmoke();
+	}
 	if (startRequested) {
 		requestStartServer(false);
 	}
@@ -531,6 +555,9 @@ void ofApp::keyPressed(int key) {
 	}
 	if (key == 's' || key == 'S') {
 		requestStartServer(false);
+	}
+	if (key == 't' || key == 'T') {
+		requestEndpointSmoke();
 	}
 }
 
@@ -651,6 +678,86 @@ void ofApp::runStartServerWorker(bool force) {
 	running = false;
 }
 
+void ofApp::requestEndpointSmoke() {
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		if (running) {
+			endpointStatus = "another operation is already running";
+			return;
+		}
+	}
+	if (worker.joinable()) {
+		worker.join();
+	}
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		running = true;
+		cancelRequested = false;
+		endpointReady = false;
+		endpointOutput.clear();
+		endpointStatus = "testing OpenAI-compatible endpoint...";
+	}
+	worker = std::thread(&ofApp::runEndpointSmokeWorker, this);
+}
+
+void ofApp::runEndpointSmokeWorker() {
+	std::string requestBaseUrl;
+	std::string requestModelAlias;
+	float requestTemperature = 0.0f;
+	float requestTopP = 0.0f;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		requestBaseUrl = baseUrl;
+		requestModelAlias = modelAlias;
+		requestTemperature = temperature;
+		requestTopP = topP;
+	}
+
+	ofxGgmlTextGenerationSettings requestSettings;
+	requestSettings.useServerBackend = true;
+	requestSettings.serverUrl = requestBaseUrl;
+	requestSettings.serverModel = requestModelAlias;
+	requestSettings.maxTokens = 24;
+	requestSettings.temperature = std::max(0.0f, requestTemperature);
+	requestSettings.topP = std::max(0.1f, requestTopP);
+	requestSettings.stream = false;
+
+	ofxGgmlTextRequest request;
+	request.systemPrompt = "Return a very short readiness confirmation.";
+	request.prompt = "Reply with: ofxGgml Codex endpoint ready.";
+	request.settings = requestSettings;
+
+	ofxGgmlTextGenerator generator;
+	generator.setBackend(std::make_shared<ofxGgmlLlamaServerTextBackend>(requestBaseUrl));
+	const auto result = generator.generate(
+		request,
+		[this](const std::string &) {
+			return !cancelRequested.load();
+		});
+
+	std::lock_guard<std::mutex> lock(stateMutex);
+	if (cancelRequested) {
+		endpointReady = false;
+		endpointStatus = "endpoint smoke cancelled";
+		running = false;
+		return;
+	}
+	if (result) {
+		endpointReady = true;
+		serverReady = true;
+		endpointOutput = trimCopy(result.text);
+		endpointStatus = "OpenAI-compatible endpoint answered in " +
+			std::to_string(static_cast<int>(result.elapsedMs)) + " ms";
+		ofLogNotice(LogModule) << "endpoint smoke output\n" << endpointOutput;
+	} else {
+		endpointReady = false;
+		endpointOutput = result.error;
+		endpointStatus = "endpoint smoke failed: " + result.error;
+		ofLogWarning(LogModule) << endpointStatus;
+	}
+	running = false;
+}
+
 void ofApp::refreshRuntimeDiscovery() {
 	std::lock_guard<std::mutex> lock(stateMutex);
 	if (serverExe.empty() || !fileExists(serverExe)) {
@@ -672,6 +779,9 @@ void ofApp::refreshServerStatus() {
 	const bool ready = isServerReady(requestServerUrl);
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = ready;
+	if (!ready) {
+		endpointReady = false;
+	}
 	status = ready
 		? "llama-server ready for Codex at " + baseUrl
 		: "llama-server is not reachable at " + requestServerUrl;
@@ -727,7 +837,7 @@ void ofApp::rebuildLines() {
 	lines.push_back("  server exe:  " + (serverExe.empty() ? "(not found)" : serverExe));
 	lines.push_back("  GPU layers:  " + std::to_string(gpuLayers));
 	lines.push_back("  context:     " + std::to_string(contextSize));
-	appendWrapped("Use this provider/profile with Codex after the server status is ready. The example starts llama-server locally but does not edit Codex config.", 96);
+	appendWrapped("Use this provider/profile with Codex after the server is ready and the endpoint smoke has answered. The example starts llama-server locally but does not edit Codex config.", 96);
 }
 
 std::string ofApp::envValue(const char * name) {
