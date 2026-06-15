@@ -1,8 +1,5 @@
 #include "ofApp.h"
 
-#include "imgui.h"
-
-#include <algorithm>
 #include <cstdlib>
 #include <sstream>
 
@@ -45,7 +42,6 @@ void ofApp::appendWrapped(const std::string & text, std::size_t maxChars) {
 void ofApp::setup() {
 	ofSetWindowTitle("ofxGgmlLlama Codex Local Example");
 	ofBackground(16);
-	gui.setup(nullptr, false);
 
 	baseUrl = getEnvOrDefault("OFXGGML_CODEX_BASE_URL", "http://127.0.0.1:8001/v1");
 	modelAlias = getEnvOrDefault("OFXGGML_CODEX_MODEL", "unsloth/GLM-4.7-Flash");
@@ -58,47 +54,13 @@ void ofApp::setup() {
 
 void ofApp::draw() {
 	ofBackground(16);
-
-	gui.begin();
-	const ImVec2 display = ImGui::GetIO().DisplaySize;
-	ImGui::SetNextWindowPos(ImVec2(18.0f, 18.0f), ImGuiCond_Once);
-	ImGui::SetNextWindowSize(
-		ImVec2(std::min(980.0f, std::max(360.0f, display.x - 36.0f)),
-			std::min(640.0f, std::max(320.0f, display.y - 36.0f))),
-		ImGuiCond_Once);
-
-	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
-		if (ImGui::Button("Reload env")) {
-			baseUrl = getEnvOrDefault("OFXGGML_CODEX_BASE_URL", "http://127.0.0.1:8001/v1");
-			modelAlias = getEnvOrDefault("OFXGGML_CODEX_MODEL", "unsloth/GLM-4.7-Flash");
-			rebuildLines();
-			ofLogNotice(LogModule) << "refreshed local Codex endpoint display";
-		}
-
-		ImGui::Separator();
-		ImGui::TextUnformatted("Endpoint");
-		ImGui::TextUnformatted("Base URL");
-		ImGui::SameLine(120.0f);
-		ImGui::TextWrapped("%s", baseUrl.c_str());
-		ImGui::TextUnformatted("Model");
-		ImGui::SameLine(120.0f);
-		ImGui::TextWrapped("%s", modelAlias.c_str());
-
-		ImGui::Separator();
-		ImGui::TextUnformatted("Setup");
-		ImGui::BeginChild("codex-local-setup", ImVec2(0.0f, 0.0f), true);
-		for (const auto & line : lines) {
-			if (line.empty()) {
-				ImGui::Spacing();
-			} else {
-				ImGui::TextWrapped("%s", line.c_str());
-			}
-		}
-		ImGui::EndChild();
+	ofSetColor(238);
+	const int left = 32;
+	int y = 44;
+	for (const auto & line : lines) {
+		ofDrawBitmapString(line, left, y);
+		y += 22;
 	}
-	ImGui::End();
-	gui.end();
-	gui.draw();
 }
 
 void ofApp::keyPressed(int key) {

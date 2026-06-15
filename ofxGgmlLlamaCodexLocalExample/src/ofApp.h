@@ -2,7 +2,6 @@
 
 #include "ofMain.h"
 #include "ofxGgmlLlama.h"
-#include "ofxImGui.h"
 
 #include <cstddef>
 #include <string>
@@ -22,5 +21,4 @@ private:
 	std::string baseUrl;
 	std::string modelAlias;
 	std::vector<std::string> lines;
-	ofxImGui::Gui gui;
 };

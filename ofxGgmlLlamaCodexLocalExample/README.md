@@ -57,26 +57,22 @@ snapshot_download(
 You can use another compatible GGUF model by changing the model path and server
 alias.
 
-## Run this example
+## Start llama-server for Codex
 
-Generate the project with openFrameworks projectGenerator using addons
-`ofxGgmlLlama`, `ofxGgmlCore`, and `ofxImGui`, or use the helper:
+Use port `8001` for coding-agent sessions so the text/chat/embedding examples
+can keep their default ports.
 
 ```powershell
-scripts\run-example.bat codex -Build `
-    -Model ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
-    -ServerModel unsloth/GLM-4.7-Flash
+scripts\start-llama-server.bat `
+    -ModelPath ..\models\unsloth\GLM-4.7-Flash-GGUF\GLM-4.7-Flash-UD-Q4_K_XL.gguf `
+    -Port 8001 `
+    -GpuLayers 999 `
+    -ContextSize 131072
 ```
 
-The example uses port `8001` by default for coding-agent sessions so the
-text/chat/embedding examples can keep their default ports. It discovers the
-built `llama-server`, discovers a local `.gguf` model, starts the server for
-local endpoints, shows editable runtime fields in the ImGui panel, and can run
-a short OpenAI-compatible endpoint smoke request before you point Codex at it.
-
-For advanced llama.cpp flags such as KV-cache quantization, batch sizing, or
-`--kv-unified`, run `llama-server` directly from the built runtime and keep the
-same OpenAI-compatible endpoint:
+For advanced llama.cpp flags such as KV-cache quantization, batch sizing,
+`--kv-unified`, or explicit sampling defaults, run `llama-server` directly from
+the built runtime and keep the same OpenAI-compatible endpoint:
 
 ```text
 http://127.0.0.1:8001/v1
@@ -104,35 +100,28 @@ model = "unsloth/GLM-4.7-Flash"
 model_provider = "llama_cpp"
 ```
 
-`profiles.ofxggml_local.model` must match the llama-server alias used by the
-example's `ServerModel` field. With the default GLM setup, both values are
-`unsloth/GLM-4.7-Flash`. If you launch a smaller local Qwen model with
-`-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
-
-```toml
-[profiles.ofxggml_local]
-model = "local/qwen2.5-coder-1.5b"
-model_provider = "llama_cpp"
-```
-
 This folder includes `codex-config.example.toml` with the same starting point.
 Check the exact profile invocation against your installed Codex version.
+
+## Run this example
+
+Generate the project with openFrameworks projectGenerator using addons
+`ofxGgmlLlama`, `ofxGgmlCore`, and `ofxImGui`, or use the helper:
+
+```powershell
+scripts\run-example.bat codex -Build
+```
 
 Optional environment overrides:
 
 ```powershell
 $env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 $env:OFXGGML_CODEX_MODEL = "unsloth/GLM-4.7-Flash"
-$env:OFXGGML_TEXT_MODEL = "C:\path\to\model.gguf"
-$env:OFXGGML_CODEX_GPU_LAYERS = "999"
-$env:OFXGGML_CODEX_CONTEXT_SIZE = "131072"
-$env:OFXGGML_CODEX_AUTO_SERVER = "1"
 ```
 
-The example displays the exact endpoint, model alias, server status, endpoint
-smoke result, local Codex provider snippet, and editable startup options. It
-starts the local server when possible, but it does not edit Codex config or
-start an agent automatically.
+The example displays the exact endpoint, model alias, local Codex provider
+snippet, and validation commands. It does not edit Codex config or start an
+agent automatically.
 
 ## Validate
 
