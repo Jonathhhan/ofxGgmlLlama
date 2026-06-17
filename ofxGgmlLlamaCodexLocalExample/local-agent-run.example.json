@@ -1,15 +1,19 @@
-{
+﻿{
     "repoRoot":  "..",
     "allowedPaths":  [
                          "src/codex",
+                         "src/inference",
+                         "src",
                          "ofxGgmlLlamaCodexLocalExample",
                          "scripts",
                          "tests",
                          "docs",
-                         "ofxggml-addon.json"
+                         "README.md",
+                         "ofxggml-addon.json",
+                         "AGENTS.md"
                      ],
     "requiredCommands":  [
                              "scripts\\dev\\test-launch-dry-run.ps1"
                          ],
-    "includeUntracked":  false
+    "includeUntracked":  true
 }

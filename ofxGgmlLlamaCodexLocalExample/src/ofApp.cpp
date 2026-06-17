@@ -4,6 +4,7 @@
 #include "model/ofxGgmlModel.h"
 
 #include <algorithm>
+#include <exception>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -12,7 +13,6 @@
 namespace {
 constexpr const char * LogModule = "ofxGgmlLlamaCodexLocalExample";
 constexpr const char * DefaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0";
-constexpr const char * DefaultCodexOllamaModelAlias = "hermes3-codex-32k:latest";
 constexpr const char * WorkspaceWriteSandbox = "workspace-write";
 
 struct CodexLocalPreset {
@@ -44,8 +44,9 @@ struct CodexLocalPreset {
 
 const std::vector<CodexLocalPreset> & codexLocalPresets() {
 	static const std::vector<CodexLocalPreset> presets {
-		{"memory", "Memory saver", 16384, 1, 1024, 256, 0, 0, 0, 128, "", "", 16384, 12000, 3000, 0, 0, 2500, 90000, 30000, 300, 0.2f, 0.85f, 0.03f},
+		{"default", "Default local", 32768, 1, 2048, 512, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.2f, 0.85f, 0.03f},
 		{"qwen27b-3090", "Qwen 27B RTX 3090", 65536, 1, 1024, 256, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
+		{"unsloth-glm-24gb", "Unsloth GLM 24GB", 131072, 1, 4096, 1024, 0, 0, 0, 512, "q8_0", "q8_0", 131072, 110000, 12000, 1, 0, 5000, 240000, 30000, 600, 1.0f, 0.95f, 0.01f},
 		{"hermes-codex-shared", "Hermes + Codex shared", 65536, 2, 1024, 256, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 52000, 8000, 2, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
 		{"rtx4090", "Qwen 27B RTX 4090", 65536, 1, 2048, 512, 0, 0, 0, 256, "q4_0", "q4_0", 65536, 56000, 12000, 1, 0, 2500, 180000, 30000, 600, 0.2f, 0.85f, 0.03f},
 		{"fast", "Fast coding", 32768, 1, 4096, 1024, 0, 0, 0, 256, "", "", 32768, 24000, 5000, 0, 0, 2500, 120000, 30000, 300, 0.2f, 0.85f, 0.03f},
@@ -72,8 +73,8 @@ const std::vector<const char *> & codexReasoningEfforts() {
 
 const std::vector<const char *> & codexWebSearchModes() {
 	static const std::vector<const char *> modes {
-		"disabled",
-		"live"
+		"live",
+		"disabled"
 	};
 	return modes;
 }
@@ -82,55 +83,50 @@ const std::vector<const char *> & codexProviderModes() {
 	static const std::vector<const char *> modes {
 		"Local llama.cpp",
 		"OpenAI profile",
-		"Hybrid: local agents",
-		"Ollama Hermes",
-		"Hybrid: Ollama agents"
+		"Hybrid: local agents"
 	};
 	return modes;
 }
 
 bool isLocalCodexProviderMode(int mode) {
-	return mode == 0 || mode == 3;
+	return mode == 0;
 }
 
 bool usesLocalCodexProvider(int mode) {
-	return mode == 0 || mode == 2 || mode == 3 || mode == 4;
+	return mode == 0 || mode == 2;
 }
 
 bool usesOpenAiCodexLaunch(int mode) {
-	return mode == 1 || mode == 2 || mode == 4;
+	return mode == 1 || mode == 2;
 }
 
 bool usesLlamaCppCodexProvider(int mode) {
 	return mode == 0 || mode == 2;
 }
 
-bool usesOllamaCodexProvider(int mode) {
-	return mode == 3 || mode == 4;
-}
-
 std::string defaultBaseUrlForProviderMode(int mode) {
-	return usesOllamaCodexProvider(mode)
-		? "http://127.0.0.1:11434/v1"
-		: "http://127.0.0.1:8001/v1";
+	(void)mode;
+	return "http://127.0.0.1:8001/v1";
 }
 
 std::string defaultModelForProviderMode(int mode) {
-	return usesOllamaCodexProvider(mode)
-		? DefaultCodexOllamaModelAlias
-		: DefaultCodexModelAlias;
+	(void)mode;
+	return DefaultCodexModelAlias;
 }
 
 std::string providerIdForMode(int mode) {
-	return usesOllamaCodexProvider(mode) ? "local_ollama" : "llama_cpp";
+	(void)mode;
+	return "llama_cpp";
 }
 
 std::string providerNameForMode(int mode) {
-	return usesOllamaCodexProvider(mode) ? "local Ollama" : "llama.cpp local";
+	(void)mode;
+	return "llama.cpp local";
 }
 
 std::string profileForMode(int mode) {
-	return usesOllamaCodexProvider(mode) ? "ofxggml_ollama" : "ofxggml_local";
+	(void)mode;
+	return "ofxggml_local";
 }
 
 std::string defaultSandboxForProviderMode(int mode) {
@@ -147,12 +143,6 @@ int codexProviderModeFromValue(const std::string & value) {
 	}
 	if (lower == "hybrid" || lower == "mixed" || lower == "local-agents") {
 		return 2;
-	}
-	if (lower == "ollama" || lower == "hermes") {
-		return 3;
-	}
-	if (lower == "hybrid-ollama" || lower == "ollama-agents" || lower == "hybrid-hermes") {
-		return 4;
 	}
 	return 0;
 }
@@ -298,6 +288,38 @@ void appendCommandArgument(
 	arguments.push_back(value);
 }
 
+std::string tomlString(const std::string & value) {
+	std::string escaped;
+	escaped.reserve(value.size() + 2);
+	escaped.push_back('"');
+	for (const auto c : value) {
+		if (c == '\\' || c == '"') {
+			escaped.push_back('\\');
+		}
+		escaped.push_back(c);
+	}
+	escaped.push_back('"');
+	return escaped;
+}
+
+void appendCodexConfigOverride(
+	std::vector<std::string> & arguments,
+	const std::string & value) {
+	arguments.push_back("-c");
+	arguments.push_back(value);
+}
+
+std::string joinCodexArguments(const std::vector<std::string> & arguments) {
+	std::ostringstream command;
+	for (std::size_t i = 0; i < arguments.size(); ++i) {
+		if (i > 0) {
+			command << " ";
+		}
+		command << ofxGgmlLlamaCodexLocal::quoteArgument(arguments[i]);
+	}
+	return command.str();
+}
+
 std::string chooseFile(const std::string & title, const std::string & currentPath) {
 	const auto startPath = currentPath.empty() ? ofToDataPath("", true) : currentPath;
 	auto result = ofSystemLoadDialog(title, false, startPath);
@@ -439,6 +461,16 @@ void ofApp::setup() {
 	specType = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 		"OFXGGML_CODEX_SPEC_TYPE",
 		specType);
+	draftModelPath = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_DRAFT_MODEL",
+		draftModelPath);
+	draftGpuLayers = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
+		"OFXGGML_CODEX_DRAFT_GPU_LAYERS",
+		draftGpuLayers);
+	draftMaxTokens = envInt("OFXGGML_CODEX_DRAFT_MAX_TOKENS", draftMaxTokens);
+	draftMinTokens = envInt("OFXGGML_CODEX_DRAFT_MIN_TOKENS", draftMinTokens);
+	draftPSplit = envFloat("OFXGGML_CODEX_DRAFT_P_SPLIT", draftPSplit);
+	draftPMin = envFloat("OFXGGML_CODEX_DRAFT_P_MIN", draftPMin);
 	webSearch = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 		"OFXGGML_CODEX_WEB_SEARCH",
 		webSearch);
@@ -510,7 +542,7 @@ void ofApp::draw() {
 	bool copyHermesConfigRequested = false;
 	bool copyServerCommandRequested = false;
 	bool copyLaunchCommandRequested = false;
-	bool copyLaunchCommandAfterConfigRequested = false;
+	bool writeHermesConfigRequested = false;
 
 	gui.begin();
 	if (ImGui::Begin("OpenAI Codex + local llama-server")) {
@@ -533,14 +565,11 @@ void ofApp::draw() {
 			} else if (usesOpenAiCodexLaunch(codexProviderMode) && codexProfile == "ofxggml_local") {
 				codexProfile.clear();
 			}
-			if (baseUrl == "http://127.0.0.1:8001/v1" ||
-				baseUrl == "http://127.0.0.1:11434/v1") {
+			if (baseUrl == "http://127.0.0.1:8001/v1") {
 				baseUrl = defaultBaseUrlForProviderMode(codexProviderMode);
 				serverUrl = ofxGgmlLlamaCodexLocal::serverRootFromBaseUrl(baseUrl);
 			}
-			if (modelAlias == DefaultCodexModelAlias ||
-				modelAlias == "hermes3:latest" ||
-				modelAlias == DefaultCodexOllamaModelAlias) {
+			if (modelAlias == DefaultCodexModelAlias) {
 				modelAlias = defaultModelForProviderMode(codexProviderMode);
 				modelAliasManuallyEdited = false;
 			}
@@ -686,6 +715,32 @@ void ofApp::draw() {
 		if (drawStringCombo("Spec type", specType, specTypes())) {
 			settingsChanged = true;
 		}
+		if (ImGui::InputText("Draft model", &draftModelPath)) {
+			settingsChanged = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Choose draft model")) {
+			const auto selected = chooseFile("Choose speculative decoding draft GGUF", draftModelPath);
+			if (!selected.empty()) {
+				draftModelPath = selected;
+				settingsChanged = true;
+			}
+		}
+		if (ImGui::InputText("Draft GPU layers", &draftGpuLayers)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Draft max tokens", &draftMaxTokens)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputInt("Draft min tokens", &draftMinTokens)) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputFloat("Draft split probability", &draftPSplit, 0.01f, 0.10f, "%.3f")) {
+			settingsChanged = true;
+		}
+		if (ImGui::InputFloat("Draft min probability", &draftPMin, 0.01f, 0.10f, "%.3f")) {
+			settingsChanged = true;
+		}
 		if (ImGui::InputInt("Model context window", &modelContextWindow)) {
 			modelContextWindowManuallyEdited = true;
 			settingsChanged = true;
@@ -783,6 +838,10 @@ void ofApp::draw() {
 		copyHermesConfigRequested = ImGui::Button("Copy Hermes config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
+		ImGui::BeginDisabled(!localProviderMode || modelAlias.empty() || baseUrl.empty());
+		writeHermesConfigRequested = ImGui::Button("Write Hermes config");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
 		ImGui::BeginDisabled(!llamaCppProviderMode || modelPath.empty());
 		copyServerCommandRequested = ImGui::Button("Copy server command");
 		ImGui::EndDisabled();
@@ -794,15 +853,15 @@ void ofApp::draw() {
 		if (copyHermesConfigRequested) {
 			copyTextToClipboard("Hermes custom endpoint snippet", buildHermesConfigSnippetText());
 		}
+		if (writeHermesConfigRequested) {
+			syncHermesConfig();
+			refreshRuntimeDiscovery();
+		}
 		if (copyServerCommandRequested) {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
 		}
 		if (copyLaunchCommandRequested) {
-			if (localProviderMode && autoConfig) {
-				copyLaunchCommandAfterConfigRequested = true;
-			} else {
-				copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
-			}
+			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
 		}
 
 		ImGui::Separator();
@@ -816,6 +875,7 @@ void ofApp::draw() {
 			ImGui::TextWrapped("endpoint output: %s", endpointOutput.c_str());
 		}
 		ImGui::TextWrapped("%s", configWriteStatus.c_str());
+		ImGui::TextWrapped("%s", hermesConfigWriteStatus.c_str());
 
 		ImGui::Separator();
 		for (const auto & line : lines) {
@@ -825,11 +885,6 @@ void ofApp::draw() {
 	ImGui::End();
 	gui.end();
 
-	if (copyLaunchCommandAfterConfigRequested) {
-		if (syncCodexConfig()) {
-			copyTextToClipboard("Codex launch command", buildCodexLaunchCommand());
-		}
-	}
 	if (refreshRequested) {
 		refreshRuntimeDiscovery();
 		refreshServerStatus();
@@ -1048,6 +1103,7 @@ void ofApp::requestLaunchCodex() {
 
 void ofApp::runLaunchCodexWorker() {
 	std::string requestCodexExe;
+	std::string requestAppArguments;
 	int requestProviderMode = 0;
 	bool requestAutoConfig = false;
 	{
@@ -1055,6 +1111,51 @@ void ofApp::runLaunchCodexWorker() {
 		requestCodexExe = codexExe;
 		requestProviderMode = codexProviderMode;
 		requestAutoConfig = autoConfig;
+		if (usesLocalCodexProvider(requestProviderMode)) {
+			const auto config = makeCodexConfig();
+			const auto launchModel = usesOpenAiCodexLaunch(requestProviderMode)
+				? openAiModelAlias
+				: (modelAlias.empty() ? defaultModelForProviderMode(requestProviderMode) : modelAlias);
+			std::vector<std::string> arguments {
+				"app",
+				"--disable", "apps",
+				"--disable", "image_generation",
+				"--disable", "browser_use",
+				"--disable", "computer_use",
+				"--disable", "tool_search",
+				"--disable", "tool_search_always_defer_mcp_tools"
+			};
+			appendCodexConfigOverride(arguments, "mcp_servers.node_repl.enabled=false");
+			appendCodexConfigOverride(arguments, "web_search=" + tomlString(config.webSearch.empty() ? "live" : config.webSearch));
+			if (isLocalCodexProviderMode(requestProviderMode)) {
+				appendCodexConfigOverride(arguments, "model_provider=" + config.providerId);
+				appendCodexConfigOverride(arguments, "model_providers." + config.providerId + ".name=" + tomlString(config.providerName));
+				appendCodexConfigOverride(arguments, "model_providers." + config.providerId + ".base_url=" + tomlString(config.baseUrl));
+				appendCodexConfigOverride(arguments, "model_providers." + config.providerId + ".wire_api=" + tomlString(config.wireApi));
+				appendCodexConfigOverride(arguments, "model_providers." + config.providerId + ".stream_idle_timeout_ms=" + std::to_string(config.streamIdleTimeoutMs));
+			}
+			appendCodexConfigOverride(arguments, "model_context_window=" + std::to_string(config.modelContextWindow));
+			appendCodexConfigOverride(arguments, "model_auto_compact_token_limit=" + std::to_string(config.modelAutoCompactTokenLimit));
+			appendCodexConfigOverride(arguments, "tool_output_token_limit=" + std::to_string(config.toolOutputTokenLimit));
+			appendCodexConfigOverride(arguments, "model_reasoning_effort=" + config.modelReasoningEffort);
+			appendCodexConfigOverride(arguments, "model_reasoning_summary=" + config.modelReasoningSummary);
+			appendCodexConfigOverride(arguments, "model_verbosity=" + config.modelVerbosity);
+			appendCodexConfigOverride(arguments, std::string("hide_agent_reasoning=") + (config.hideAgentReasoning ? "true" : "false"));
+			if (config.agentMaxConcurrentThreadsPerSession > 0) {
+				appendCodexConfigOverride(arguments, "agents.max_threads=" + std::to_string(config.agentMaxConcurrentThreadsPerSession));
+			}
+			if (config.agentMaxDepth > 0) {
+				appendCodexConfigOverride(arguments, "agents.max_depth=" + std::to_string(config.agentMaxDepth));
+			}
+			if (!launchModel.empty()) {
+				appendCodexConfigOverride(arguments, "model=" + tomlString(launchModel));
+			}
+			if (!codexSandbox.empty()) {
+				appendCodexConfigOverride(arguments, "sandbox_mode=" + tomlString(codexSandbox));
+			}
+			arguments.push_back(".");
+			requestAppArguments = joinCodexArguments(arguments);
+		}
 	}
 
 	const bool requestLocalProvider = usesLocalCodexProvider(requestProviderMode);
@@ -1062,18 +1163,28 @@ void ofApp::runLaunchCodexWorker() {
 		ofLogWarning(LogModule) << "Codex auto-config failed; launch blocked";
 		std::lock_guard<std::mutex> lock(stateMutex);
 		running = false;
-		status = "Codex launch blocked: failed to write local provider/profile config";
+		status = "Codex launch blocked: failed to write local provider selection config";
 		configWriteStatus = "local agents need the llama_cpp provider in " + configPath;
 		return;
 	}
 
-	const bool launched = ofxGgmlLlamaCodexLocal::launchUiProcess(requestCodexExe);
+	const bool launched = requestLocalProvider
+		? ofxGgmlLlamaCodexLocal::launchDetachedProcess(
+			requestCodexExe.empty() ? std::string("codex") : requestCodexExe,
+			requestAppArguments)
+		: ofxGgmlLlamaCodexLocal::launchUiProcess(requestCodexExe);
 	std::lock_guard<std::mutex> lock(stateMutex);
 	running = false;
-	status = launched ? "Opened Codex UI" : "failed to open Codex UI";
+	status = launched
+		? "Opened Codex UI"
+		: "failed to open Codex UI";
 	configWriteStatus = launched
-		? "Codex UI opened; provider/profile settings are read from " + configPath
-		: "Codex UI launch failed; check executable path";
+		? (requestLocalProvider
+			? "Codex Desktop opened with llama.cpp-safe tool guards"
+			: "Codex UI opened; provider selection settings are read from " + configPath)
+		: (requestLocalProvider
+			? "Codex Desktop launch failed; check executable path"
+			: "Codex UI launch failed; check executable path");
 }
 
 void ofApp::refreshRuntimeDiscovery() {
@@ -1361,11 +1472,13 @@ std::string ofApp::buildHermesConfigSnippetText() const {
 	std::ostringstream snippet;
 	snippet
 		<< "# Hermes Agent custom endpoint; point it at the same loaded llama-server used by Codex.\n"
-		<< "# Use `hermes model` and choose Custom Endpoint, or mirror these values in ~/.hermes/config.yaml.\n"
-		<< "model: " << effectiveModelAlias << "\n"
-		<< "base_url: " << baseUrl << "\n"
-		<< "api_key: local-dummy-key\n"
-		<< "context_length: " << modelContextWindow << "\n"
+		<< "# Use `hermes model` and choose Custom Endpoint, or mirror this model section in ~/.hermes/config.yaml.\n"
+		<< "model:\n"
+		<< "  default: " << effectiveModelAlias << "\n"
+		<< "  provider: custom\n"
+		<< "  base_url: " << baseUrl << "\n"
+		<< "  api_key: local-dummy-key\n"
+		<< "  context_length: " << modelContextWindow << "\n"
 		<< "terminal:\n"
 		<< "  backend: local\n";
 	return snippet.str();
@@ -1415,6 +1528,24 @@ std::string ofApp::buildManualServerCommand() const {
 	appendCommandArgument(arguments, "-KvCacheKeyType", kvCacheKeyType);
 	appendCommandArgument(arguments, "-KvCacheValueType", kvCacheValueType);
 	appendCommandArgument(arguments, "-SpecType", specType);
+	appendCommandArgument(arguments, "-DraftModel", draftModelPath);
+	appendCommandArgument(arguments, "-DraftGpuLayers", draftGpuLayers);
+	if (draftMaxTokens > 0) {
+		arguments.push_back("-DraftMaxTokens");
+		arguments.push_back(std::to_string(draftMaxTokens));
+	}
+	if (draftMinTokens > 0) {
+		arguments.push_back("-DraftMinTokens");
+		arguments.push_back(std::to_string(draftMinTokens));
+	}
+	if (draftPSplit >= 0.0f) {
+		arguments.push_back("-DraftPSplit");
+		arguments.push_back(std::to_string(draftPSplit));
+	}
+	if (draftPMin >= 0.0f) {
+		arguments.push_back("-DraftPMin");
+		arguments.push_back(std::to_string(draftPMin));
+	}
 	arguments.push_back("-Jinja");
 	arguments.push_back("-FlashAttention");
 	if (noCudaGraphs) {
@@ -1452,12 +1583,12 @@ std::string ofApp::buildCodexLaunchCommand() const {
 
 	ofxGgmlLlamaCodexLaunchCommandSettings settings;
 	settings.executable = codexExe;
-	settings.profile = localProviderMode ? config.profile : codexProfile;
+	settings.profile = codexProfile;
 	settings.model = launchModel;
 	settings.sandbox = codexSandbox;
 	settings.provider = config;
 	settings.includeLocalProviderToolGuards = localProviderMode;
-	settings.includeLocalProviderOverrides = localLaunchMode && !autoConfig;
+	settings.includeLocalProviderOverrides = localLaunchMode;
 	return ofxGgmlLlamaCodexLocal::buildLaunchCommand(settings);
 }
 
@@ -1466,7 +1597,7 @@ void ofApp::copyTextToClipboard(const std::string & label, const std::string & t
 		configWriteStatus = label + " is empty";
 		return;
 	}
-	ImGui::SetClipboardText(text.c_str());
+	ofSetClipboardString(text);
 	configWriteStatus = "copied " + label + " to clipboard";
 }
 
@@ -1483,9 +1614,7 @@ void ofApp::rebuildLines() {
 		}
 	}
 	if (openAiLaunchMode && localProviderMode) {
-		lines.push_back(usesOllamaCodexProvider(codexProviderMode)
-			? "Hybrid mode: cheap explorer/worker agents use Ollama Hermes."
-			: "Hybrid mode: cheap explorer/worker agents use local llama.cpp.");
+		lines.push_back("Hybrid mode: cheap explorer/worker agents use local llama.cpp.");
 		lines.push_back("OpenAI handles the main Codex launch and expensive reasoning.");
 	} else if (openAiLaunchMode) {
 		lines.push_back("OpenAI profile mode: Codex uses the selected profile from your existing config.");
@@ -1511,6 +1640,9 @@ void ofApp::rebuildLines() {
 			" ctk=" + (kvCacheKeyType.empty() ? std::string("default") : kvCacheKeyType) +
 			" ctv=" + (kvCacheValueType.empty() ? std::string("default") : kvCacheValueType) +
 			" spec=" + (specType.empty() ? std::string("default") : specType) +
+			" draft=" + (draftModelPath.empty() ? std::string("none") : draftModelPath) +
+			" draft_ngl=" + (draftGpuLayers.empty() ? std::string("auto") : draftGpuLayers) +
+			" draft_n=" + (draftMaxTokens > 0 ? std::to_string(draftMaxTokens) : std::string("default")) +
 			" cudaGraph=" + std::string(noCudaGraphs ? "off" : "on"));
 	}
 	if (localProviderMode && !servedModelAliases.empty()) {
@@ -1523,12 +1655,6 @@ void ofApp::rebuildLines() {
 				" and model " + (modelAlias.empty() ? defaultModelForProviderMode(codexProviderMode) : modelAlias) +
 				". This reuses the same loaded model as Codex; conversation memory remains client-local.",
 			96);
-		if (!autoConfig) {
-			appendWrapped(
-				lines,
-				"Local agents require the llama_cpp provider/profile and role files in the Codex config directory. Write config before launching when auto-write is off.",
-				96);
-		}
 	}
 	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));
 	appendWrapped(
@@ -1542,15 +1668,7 @@ void ofApp::rebuildLines() {
 			96);
 		appendWrapped(
 			lines,
-			usesOllamaCodexProvider(codexProviderMode)
-				? "Use this Ollama provider/profile with Codex after ollama serve is ready. Hermes model lifecycle stays in Ollama."
-				: "Use this provider/profile with Codex after the server is ready. The reusable config and llama-server helpers live in ofxGgmlLlama/src/codex.",
-			96);
-	} else if (usesOllamaCodexProvider(codexProviderMode)) {
-		appendWrapped(
-			lines,
-			"Ollama endpoint uses " + baseUrl + " with model " + modelAlias +
-				". Start Ollama separately and create the 32k tag from ollama-codex.Modelfile.example first.",
+			"Use this provider selection with Codex after the server is ready. The reusable config and llama-server helpers live in ofxGgmlLlama/src/codex.",
 			96);
 	} else if (openAiLaunchMode) {
 		appendWrapped(
@@ -1576,16 +1694,18 @@ ofxGgmlLlamaCodexProviderConfig ofApp::makeCodexConfig() const {
 	config.baseUrl = baseUrl;
 	config.modelAlias = modelAlias;
 	config.wireApi = wireApi.empty() ? "responses" : wireApi;
-	config.webSearch = webSearch.empty() ? "disabled" : webSearch;
+	config.webSearch = webSearch.empty() ? "live" : webSearch;
 	config.modelContextWindow = modelContextWindow;
 	config.modelAutoCompactTokenLimit = modelAutoCompactTokenLimit;
 	config.toolOutputTokenLimit = toolOutputTokenLimit;
 	config.modelReasoningEffort = reasoningEffortFromIndex(reasoningEffortIndex);
+	config.modelReasoningSummary = "auto";
 	config.agentMaxConcurrentThreadsPerSession = agentMaxConcurrentThreadsPerSession;
 	config.agentMaxDepth = agentMaxDepth;
 	config.agentMinWaitTimeoutMs = agentMinWaitTimeoutMs;
 	config.agentMaxWaitTimeoutMs = agentMaxWaitTimeoutMs;
 	config.agentDefaultWaitTimeoutMs = agentDefaultWaitTimeoutMs;
+	config.hideAgentReasoning = true;
 	config.writeTopLevelSelection = true;
 	if (usesLocalCodexProvider(codexProviderMode) && usesOpenAiCodexLaunch(codexProviderMode)) {
 		config.profile = profileForMode(codexProviderMode);
@@ -1616,10 +1736,52 @@ ofxGgmlLlamaServerStartSettings ofApp::makeServerSettings() const {
 	settings.kvCacheKeyType = kvCacheKeyType;
 	settings.kvCacheValueType = kvCacheValueType;
 	settings.specType = specType;
+	settings.draftModelPath = draftModelPath;
+	settings.draftGpuLayers = draftGpuLayers;
+	settings.draftMaxTokens = draftMaxTokens;
+	settings.draftMinTokens = draftMinTokens;
+	settings.draftPSplit = draftPSplit;
+	settings.draftPMin = draftPMin;
 	settings.temperature = temperature;
 	settings.topP = topP;
 	settings.minP = minP;
 	settings.noCudaGraphs = noCudaGraphs;
 	settings.skipChatParsing = skipChatParsing;
 	return settings;
+}
+
+bool ofApp::syncHermesConfig() {
+	ofxGgmlLlamaHermesConfig config;
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		config = makeHermesConfig();
+	}
+	ofxGgmlLlamaHermesConfigResult result;
+	try {
+		result = ofxGgmlLlamaCodexLocal::writeHermesConfig(std::string(), config);
+	} catch (const std::exception & error) {
+		result.ok = false;
+		result.message = std::string("failed to write Hermes config: ") + error.what();
+	} catch (...) {
+		result.ok = false;
+		result.message = "failed to write Hermes config: unknown error";
+	}
+	{
+		std::lock_guard<std::mutex> lock(stateMutex);
+		hermesConfigWriteStatus = result.message;
+	}
+	rebuildLines();
+	return result.ok;
+}
+
+ofxGgmlLlamaHermesConfig ofApp::makeHermesConfig() const {
+	ofxGgmlLlamaHermesConfig config;
+	config.modelAlias = modelAlias.empty()
+		? defaultModelForProviderMode(codexProviderMode)
+		: modelAlias;
+	config.baseUrl = baseUrl;
+	config.apiKey = "local-dummy-key";
+	config.contextLength = modelContextWindow;
+	config.terminalBackend = "local";
+	return config;
 }

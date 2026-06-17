@@ -7,7 +7,8 @@ param(
 	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 65536 }),
 	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 56000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 12000 }),
-	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
+	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "live" }),
+	[string]$ModelVerbosity = $(if ($env:OFXGGML_CODEX_MODEL_VERBOSITY) { $env:OFXGGML_CODEX_MODEL_VERBOSITY } else { "low" }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
 	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
@@ -380,15 +381,16 @@ $configState = [ordered]@{
 	ProviderOverrideProvided = $false
 	ReadyForLocalAgents = $false
 }
-$configState.ReadyForLocalAgents = [bool]($configState.HasProvider -and $configState.HasProfile)
+$configState.ReadyForLocalAgents = [bool]($configState.HasProvider -and $configState.HasModelProviderSelection)
 $launchArguments = @(
 	"--no-alt-screen",
-	"-p", $resolvedProfile,
 	"--disable", "apps",
 	"--disable", "image_generation",
 	"--disable", "browser_use",
 	"--disable", "computer_use",
 	"--disable", "tool_search",
+	"--disable", "tool_search_always_defer_mcp_tools",
+	"-c", "mcp_servers.node_repl.enabled=false",
 	"-c", "web_search=`"$WebSearch`""
 )
 if ($AgentMaxConcurrentThreads -gt 0) {
@@ -396,6 +398,9 @@ if ($AgentMaxConcurrentThreads -gt 0) {
 }
 if ($AgentMaxDepth -gt 0) {
 	$launchArguments += @("-c", "agents.max_depth=$AgentMaxDepth")
+}
+if (![string]::IsNullOrWhiteSpace($ModelVerbosity)) {
+	$launchArguments += @("-c", "model_verbosity=$ModelVerbosity")
 }
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
 	$launchArguments += @("--model", $resolvedModel)
@@ -408,9 +413,6 @@ if (!$codexHelp.Found) {
 if (!$codexHelp.SupportsConfig) {
 	$blockers.Add("codex CLI does not report -c/--config support")
 }
-if (!$codexHelp.SupportsProfile) {
-	$blockers.Add("codex CLI does not report -p/--profile support")
-}
 if (!$codexHelp.SupportsModel) {
 	$blockers.Add("codex CLI does not report --model support")
 }
@@ -418,7 +420,7 @@ if (!$codexHelp.SupportsDisable) {
 	$blockers.Add("codex CLI does not report --disable support needed for llama-server tool compatibility")
 }
 if (!$configState.ReadyForLocalAgents) {
-	$blockers.Add("Codex config does not define the llama_cpp provider/profile required by local agents")
+	$blockers.Add("Codex config does not define the llama_cpp provider/selection required by local agents")
 }
 if (!$health.Ready) {
 	$blockers.Add("llama-server health endpoint is not ready")
@@ -476,7 +478,7 @@ $configWriteCommandArguments += @("-Profile", $resolvedProfile, "-WebSearch", $W
 $configWriteCommand = (($configWriteCommandArguments | ForEach-Object { Format-OfxGgmlCommandArgument $_ }) -join " ")
 $recommendedActions = New-Object System.Collections.Generic.List[string]
 if (!$configState.ReadyForLocalAgents) {
-	$recommendedActions.Add("Write the local Codex provider/profile before launching agents: $configWriteCommand")
+	$recommendedActions.Add("Write the local Codex provider selection before launching agents: $configWriteCommand")
 }
 if (!$health.Ready) {
 	$recommendedActions.Add("Start the Codex llama-server endpoint: $startServerCommand")
@@ -523,6 +525,7 @@ $result = [ordered]@{
 		ModelAutoCompactTokenLimit = [int]$ModelAutoCompactTokenLimit
 		ToolOutputTokenLimit = [int]$ToolOutputTokenLimit
 		WebSearch = $WebSearch
+		ModelVerbosity = $ModelVerbosity
 		ModelReasoningEffort = "medium"
 		ModelReasoningSummary = "none"
 		HideAgentReasoning = $true

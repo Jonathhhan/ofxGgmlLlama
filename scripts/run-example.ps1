@@ -8,7 +8,7 @@ param(
 	[string]$LlamaCli = $env:OFXGGML_LLAMA_CLI,
 	[string]$Model = "",
 	[string]$CodexPreset = "",
-	[ValidateSet("local", "openai", "hybrid", "ollama", "hybrid-ollama")]
+	[ValidateSet("local", "openai", "hybrid")]
 	[string]$CodexProvider = "",
 	[string]$OpenAiModel = "",
 	[string]$CodexSandbox = "",
@@ -24,6 +24,12 @@ param(
 	[string]$KvCacheKeyType = "",
 	[string]$KvCacheValueType = "",
 	[string]$SpecType = "",
+	[string]$DraftModel = "",
+	[string]$DraftGpuLayers = "",
+	[int]$DraftMaxTokens = [int]::MinValue,
+	[int]$DraftMinTokens = [int]::MinValue,
+	[string]$DraftPSplit = "",
+	[string]$DraftPMin = "",
 	[int]$ModelContextWindow = [int]::MinValue,
 	[int]$ModelAutoCompactTokenLimit = [int]::MinValue,
 	[int]$ToolOutputTokenLimit = [int]::MinValue,
@@ -72,7 +78,6 @@ $canonicalExample = switch ($Example) {
 $isEmbedding = $canonicalExample -eq "embedding"
 $isCodex = $canonicalExample -eq "codex"
 $defaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0"
-$defaultCodexOllamaModel = "hermes3-codex-32k:latest"
 $exampleName = switch ($canonicalExample) {
 	"text" { "ofxGgmlTextExample" }
 	"chat" { "ofxGgmlChatExample" }
@@ -167,6 +172,34 @@ function Get-OfxGgmlCodexPresetDefaults {
 				Temperature = "0.2"
 				TopP = "0.85"
 				MinP = "0.03"
+			}
+		}
+		"unsloth-glm-24gb" {
+			return @{
+				Name = "unsloth-glm-24gb"
+				Label = "Unsloth GLM 24GB"
+				ContextSize = 131072
+				Parallel = 1
+				BatchSize = 4096
+				UBatchSize = 1024
+				Threads = 0
+				ThreadsBatch = 0
+				ThreadsHttp = 0
+				CacheReuse = 512
+				KvCacheKeyType = "q8_0"
+				KvCacheValueType = "q8_0"
+				ModelContextWindow = 131072
+				ModelAutoCompactTokenLimit = 110000
+				ToolOutputTokenLimit = 12000
+				AgentMaxConcurrentThreads = 1
+				AgentMaxDepth = 0
+				AgentMinWaitMs = 5000
+				AgentMaxWaitMs = 240000
+				AgentDefaultWaitMs = 30000
+				StartupTimeoutSeconds = 600
+				Temperature = "1.0"
+				TopP = "0.95"
+				MinP = "0.01"
 			}
 		}
 		"hermes-codex-shared" {
@@ -422,7 +455,7 @@ function Get-OfxGgmlCodexPresetDefaults {
 			}
 		}
 		default {
-			throw "Unknown Codex preset '$Name'. Use memory, qwen27b-3090, hermes-codex-shared, fast, balanced, quality, fullctx, fullctx-q5, fullctx-q4, long, or concurrent."
+			throw "Unknown Codex preset '$Name'. Use memory, qwen27b-3090, unsloth-glm-24gb, hermes-codex-shared, fast, balanced, quality, fullctx, fullctx-q5, fullctx-q4, long, or concurrent."
 		}
 	}
 }
@@ -431,7 +464,6 @@ function Get-OfxGgmlCodexDefaultSandbox {
 	param([string]$Provider)
 	switch ($Provider) {
 		"local" { return "workspace-write" }
-		"ollama" { return "workspace-write" }
 		default { return "" }
 	}
 }
@@ -444,14 +476,14 @@ if ($isCodex) {
 	} else {
 		"local"
 	}
-	$useOllamaCodexProvider = $resolvedCodexProvider -eq "ollama" -or
-		$resolvedCodexProvider -eq "hybrid-ollama"
+	if ($resolvedCodexProvider -notin @("local", "openai", "hybrid")) {
+		throw "Unknown Codex provider '$resolvedCodexProvider'. Use local, openai, or hybrid."
+	}
 	$useLlamaCppCodexProvider = $resolvedCodexProvider -eq "local" -or
 		$resolvedCodexProvider -eq "hybrid"
-	$useLocalCodexProvider = $useOllamaCodexProvider -or $useLlamaCppCodexProvider
+	$useLocalCodexProvider = $useLlamaCppCodexProvider
 	$useOpenAiCodexLaunch = $resolvedCodexProvider -eq "openai" -or
-		$resolvedCodexProvider -eq "hybrid" -or
-		$resolvedCodexProvider -eq "hybrid-ollama"
+		$resolvedCodexProvider -eq "hybrid"
 	if ([string]::IsNullOrWhiteSpace($CodexSandbox)) {
 		$CodexSandbox = if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { Get-OfxGgmlCodexDefaultSandbox $resolvedCodexProvider }
 	}
@@ -475,8 +507,6 @@ if ($isCodex) {
 	if ([string]::IsNullOrWhiteSpace($ServerUrl)) {
 		$ServerUrl = if ($env:OFXGGML_CODEX_BASE_URL) {
 			$env:OFXGGML_CODEX_BASE_URL
-		} elseif ($useOllamaCodexProvider) {
-			"http://127.0.0.1:11434/v1"
 		} else {
 			"http://127.0.0.1:8001/v1"
 		}
@@ -516,6 +546,24 @@ if ($isCodex) {
 	}
 	if ([string]::IsNullOrWhiteSpace($SpecType)) {
 		$SpecType = if ($env:OFXGGML_CODEX_SPEC_TYPE) { $env:OFXGGML_CODEX_SPEC_TYPE } else { "" }
+	}
+	if ([string]::IsNullOrWhiteSpace($DraftModel)) {
+		$DraftModel = if ($env:OFXGGML_CODEX_DRAFT_MODEL) { $env:OFXGGML_CODEX_DRAFT_MODEL } else { "" }
+	}
+	if ([string]::IsNullOrWhiteSpace($DraftGpuLayers)) {
+		$DraftGpuLayers = if ($env:OFXGGML_CODEX_DRAFT_GPU_LAYERS) { $env:OFXGGML_CODEX_DRAFT_GPU_LAYERS } else { "" }
+	}
+	if ($DraftMaxTokens -eq [int]::MinValue) {
+		$DraftMaxTokens = if ($env:OFXGGML_CODEX_DRAFT_MAX_TOKENS) { [int]$env:OFXGGML_CODEX_DRAFT_MAX_TOKENS } else { 0 }
+	}
+	if ($DraftMinTokens -eq [int]::MinValue) {
+		$DraftMinTokens = if ($env:OFXGGML_CODEX_DRAFT_MIN_TOKENS) { [int]$env:OFXGGML_CODEX_DRAFT_MIN_TOKENS } else { 0 }
+	}
+	if ([string]::IsNullOrWhiteSpace($DraftPSplit)) {
+		$DraftPSplit = if ($env:OFXGGML_CODEX_DRAFT_P_SPLIT) { $env:OFXGGML_CODEX_DRAFT_P_SPLIT } else { "" }
+	}
+	if ([string]::IsNullOrWhiteSpace($DraftPMin)) {
+		$DraftPMin = if ($env:OFXGGML_CODEX_DRAFT_P_MIN) { $env:OFXGGML_CODEX_DRAFT_P_MIN } else { "" }
 	}
 	if ($ModelContextWindow -eq [int]::MinValue) {
 		$ModelContextWindow = if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { $codexPresetDefaults.ModelContextWindow }
@@ -594,9 +642,6 @@ if ($isCodex) {
 			$env:OFXGGML_CODEX_MODEL) {
 			$ServerModel = $env:OFXGGML_CODEX_MODEL
 		}
-		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $useOllamaCodexProvider) {
-			$ServerModel = $defaultCodexOllamaModel
-		}
 		if ([string]::IsNullOrWhiteSpace($ServerModel) -and $useLlamaCppCodexProvider) {
 			$ServerModel = $defaultCodexModelAlias
 		}
@@ -623,6 +668,12 @@ if ($isCodex) {
 	$env:OFXGGML_CODEX_KV_CACHE_KEY_TYPE = $KvCacheKeyType
 	$env:OFXGGML_CODEX_KV_CACHE_VALUE_TYPE = $KvCacheValueType
 	$env:OFXGGML_CODEX_SPEC_TYPE = $SpecType
+	$env:OFXGGML_CODEX_DRAFT_MODEL = $DraftModel
+	$env:OFXGGML_CODEX_DRAFT_GPU_LAYERS = $DraftGpuLayers
+	$env:OFXGGML_CODEX_DRAFT_MAX_TOKENS = $DraftMaxTokens.ToString()
+	$env:OFXGGML_CODEX_DRAFT_MIN_TOKENS = $DraftMinTokens.ToString()
+	$env:OFXGGML_CODEX_DRAFT_P_SPLIT = $DraftPSplit
+	$env:OFXGGML_CODEX_DRAFT_P_MIN = $DraftPMin
 	$env:OFXGGML_CODEX_FLASH_ATTN = "1"
 	$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW = $ModelContextWindow.ToString()
 	$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT = $ModelAutoCompactTokenLimit.ToString()
@@ -660,7 +711,7 @@ if ($isCodex) {
 	}
 	Write-OfxGgmlStep "Using Codex sandbox: $(if (![string]::IsNullOrWhiteSpace($CodexSandbox)) { $CodexSandbox } else { 'default config' })"
 	Write-OfxGgmlStep "Using Codex preset: $($codexPresetDefaults.Label)"
-	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
+	Write-OfxGgmlStep "Using Codex server options: ngl=$GpuLayers ctx=$ContextSize parallel=$Parallel batch=$BatchSize ubatch=$UBatchSize threads=$(if ($Threads -gt 0) { $Threads } else { 'auto' }) batchThreads=$(if ($ThreadsBatch -gt 0) { $ThreadsBatch } else { 'auto' }) httpThreads=$(if ($ThreadsHttp -gt 0) { $ThreadsHttp } else { 'auto' }) cacheReuse=$CacheReuse ctk=$(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' }) ctv=$(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' }) spec=$(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' }) draft=$(if (![string]::IsNullOrWhiteSpace($DraftModel)) { $DraftModel } else { 'none' }) draft_ngl=$(if (![string]::IsNullOrWhiteSpace($DraftGpuLayers)) { $DraftGpuLayers } else { 'auto' }) draft_n=$(if ($DraftMaxTokens -gt 0) { $DraftMaxTokens } else { 'default' }) flashAttn=on temp=$Temperature top_p=$TopP min_p=$MinP reasoning=$Reasoning thinkBudget=$ReasoningBudget cudaGraph=$(if ($codexNoCudaGraphs) { 'off' } else { 'on' }) skipChatParsing=$(if ($codexSkipChatParsing) { 'on' } else { 'off' })"
 	Write-OfxGgmlStep "Using Codex config defaults: model_context_window=$ModelContextWindow auto_compact=$ModelAutoCompactTokenLimit tool_output=$ToolOutputTokenLimit"
 	Write-OfxGgmlStep "Using Codex agent settings: max_threads=$(if ($AgentMaxConcurrentThreads -gt 0) { $AgentMaxConcurrentThreads } else { 'auto' }) max_depth=$(if ($AgentMaxDepth -gt 0) { $AgentMaxDepth } else { 'auto' }) wait_ms=$AgentMinWaitMs/$AgentDefaultWaitMs/$AgentMaxWaitMs"
 	if ($DryRun) {
@@ -691,6 +742,12 @@ if ($isCodex) {
 			-KvCacheKeyType $KvCacheKeyType `
 			-KvCacheValueType $KvCacheValueType `
 			-SpecType $SpecType `
+			-DraftModel $DraftModel `
+			-DraftGpuLayers $DraftGpuLayers `
+			-DraftMaxTokens $DraftMaxTokens `
+			-DraftMinTokens $DraftMinTokens `
+			-DraftPSplit $DraftPSplit `
+			-DraftPMin $DraftPMin `
 			-Temperature $Temperature `
 			-TopP $TopP `
 			-MinP $MinP `

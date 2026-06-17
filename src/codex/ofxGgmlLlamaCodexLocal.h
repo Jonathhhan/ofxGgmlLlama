@@ -31,20 +31,22 @@ struct ofxGgmlLlamaCodexProviderConfig {
 	std::string baseUrl = "http://127.0.0.1:8001/v1";
 	std::string modelAlias;
 	std::string wireApi = "responses";
-	std::string webSearch = "disabled";
+	std::string webSearch = "live";
 	int modelContextWindow = 65536;
-	int modelAutoCompactTokenLimit = 50000;
-	int toolOutputTokenLimit = 8000;
-	int agentMaxConcurrentThreadsPerSession = 0;
+	int modelAutoCompactTokenLimit = 56000;
+	int toolOutputTokenLimit = 12000;
+	int agentMaxConcurrentThreadsPerSession = 1;
 	int agentMaxDepth = 0;
 	int agentMinWaitTimeoutMs = 2500;
 	int agentMaxWaitTimeoutMs = 180000;
 	int agentDefaultWaitTimeoutMs = 30000;
 	std::string modelReasoningEffort = "medium";
 	std::string modelReasoningSummary = "none";
+	std::string modelVerbosity = "low";
 	bool hideAgentReasoning = true;
 	int streamIdleTimeoutMs = 10000000;
 	bool writeTopLevelSelection = true;
+	bool writeLocalProviderToolGuards = true;
 	bool writeAgentSettings = true;
 	bool writeAgentRoleFiles = true;
 	bool writeThreadMcpServer = true;
@@ -68,18 +70,24 @@ struct ofxGgmlLlamaServerStartSettings {
 	bool gpuLayersAll = true;
 	int contextSize = 65536;
 	int parallel = 1;
-	int batchSize = 3072;
-	int ubatchSize = 768;
+	int batchSize = 1024;
+	int ubatchSize = 256;
 	int threads = 0;
 	int threadsBatch = 0;
 	int threadsHttp = 0;
 	int cacheReuse = 256;
-	std::string kvCacheKeyType;
-	std::string kvCacheValueType;
+	std::string kvCacheKeyType = "q4_0";
+	std::string kvCacheValueType = "q4_0";
 	std::string specType;
-	float temperature = 0.7f;
-	float topP = 0.9f;
-	float minP = 0.02f;
+	std::string draftModelPath;
+	std::string draftGpuLayers;
+	int draftMaxTokens = 0;
+	int draftMinTokens = 0;
+	float draftPSplit = -1.0f;
+	float draftPMin = -1.0f;
+	float temperature = 0.2f;
+	float topP = 0.85f;
+	float minP = 0.03f;
 	bool noCudaGraphs = false;
 	bool skipChatParsing = false;
 	bool jinja = true;
@@ -97,6 +105,23 @@ struct ofxGgmlLlamaCodexLaunchCommandSettings {
 	bool includeLocalProviderToolGuards = false;
 	bool includeLocalProviderOverrides = false;
 	bool includeAgentOverrides = true;
+};
+
+
+struct ofxGgmlLlamaHermesConfig {
+	std::string modelAlias;
+	std::string baseUrl = "http://127.0.0.1:8001/v1";
+	std::string apiKey = "local-dummy-key";
+	int contextLength = 65536;
+	std::string terminalBackend = "local";
+	std::string hermesExe;
+};
+
+struct ofxGgmlLlamaHermesConfigResult {
+	bool ok = false;
+	bool created = false;
+	std::string path;
+	std::string message;
 };
 
 class ofxGgmlLlamaCodexLocal {
@@ -153,4 +178,12 @@ public:
 		const std::string & arguments);
 	static bool launchUiProcess(const std::string & executable);
 	static bool startLlamaServer(const ofxGgmlLlamaServerStartSettings & settings);
+
+	static std::string resolveHermesConfigPath();
+	static std::string discoverHermesExecutable();
+	static std::string buildHermesConfigSnippet(
+		const ofxGgmlLlamaHermesConfig & config);
+	static ofxGgmlLlamaHermesConfigResult writeHermesConfig(
+		const std::string & configPath,
+		const ofxGgmlLlamaHermesConfig & config);
 };

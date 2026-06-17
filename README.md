@@ -26,7 +26,7 @@ Family map: https://jonathhhan.github.io/ofxGgmlCore/
 | `ofxGgmlTextExample` | One editable prompt and one streamed response. | `8080` |
 | `ofxGgmlChatExample` | Interactive chat with history and sampling controls. | `8080` |
 | `ofxGgmlEmbeddingExample` | Compare two texts with cosine similarity. | `8081` |
-| `ofxGgmlLlamaCodexLocalExample` | Local OpenAI Codex provider/profile setup using `llama-server`. | `8001` |
+| `ofxGgmlLlamaCodexLocalExample` | Local OpenAI Codex provider selection using `llama-server`. | `8001` |
 
 The examples use conventional openFrameworks addon example names. The helper
 scripts repair generated Visual Studio metadata when Project Generator includes
@@ -70,7 +70,7 @@ Put GGUF models in `addons\models`, `ofxGgmlLlama\models`, or pass `-Model`.
 Text and chat use `llama-server` on `8080` by default. Embeddings use a separate
 embedding server on `8081`. The Codex local example documents a dedicated
 OpenAI-compatible server on `8001`; it can also auto-write Codex-compatible
-provider/profile config sections to `%USERPROFILE%\.codex\config.toml` when
+provider-selection config sections to `%USERPROFILE%\.codex\config.toml` when
 `OFXGGML_CODEX_AUTO_CONFIG=1` (default). `run-example`
 starts the bundled server when needed for text, chat, and embedding examples and
 waits until it is ready before opening the example.
@@ -94,7 +94,7 @@ ignored evidence to `.llama-runtime-smoke.json` for Core release-readiness
 planning.
 
 The Codex-local planner checks the installed Codex CLI, config path, selected
-profile/provider, server endpoint health, and launch command without starting an
+provider/model, server endpoint health, and launch command without starting an
 interactive Codex session:
 
 ```powershell

@@ -87,6 +87,7 @@ Preset choices:
 | --- | --- | --- |
 | `memory` | Smaller GPUs and first smoke tests. | `ctx=16384`, `batch=1024`, one agent slot. |
 | `qwen27b-3090` | `Qwen3.6-27B-Q4_0` on RTX 3090 24 GB. | `ctx=65536`, `parallel=1`, `batch=1024`, `ubatch=256`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
+| `unsloth-glm-24gb` | Unsloth GLM-4.7-Flash Codex recipe for 24 GB GPUs. | `ctx=131072`, `parallel=1`, `batch=4096`, `ubatch=1024`, `ctk=q8_0`, `ctv=q8_0`, max agents `1`, `temp=1.0`, `top_p=0.95`, `min_p=0.01`. |
 | `hermes-codex-shared` | Share one loaded local model between Hermes Agent and Codex on RTX 3090 24 GB. | `ctx=65536`, `parallel=2`, `batch=1024`, `ubatch=256`, `ctk=q4_0`, `ctv=q4_0`, max agents `2`, `tool_output_token_limit=8000`. |
 | `rtx4090` | Qwen3.6-27B on RTX 4090 24 GB with higher batch. | `ctx=65536`, `parallel=1`, `batch=2048`, `ubatch=512`, `ctk=q4_0`, `ctv=q4_0`, max agents `1`, `temp=0.2`, `top_p=0.85`. |
 | `fast` | Lower-latency coding on large local models. | `ctx=32768`, `batch=4096`, `ubatch=1024`, cache reuse on. |
@@ -103,6 +104,9 @@ Use `OFXGGML_CODEX_PRESET` or `-CodexPreset` to pick one. Use
 `llama-server` model with two server slots. The default preset is now
 `qwen27b-3090` for 24 GB GPUs. Any explicit script
 argument or `OFXGGML_CODEX_*` setting still overrides the preset value.
+Use `unsloth-glm-24gb` when running a GLM-4.7-Flash UD-Q4_K_XL-style GGUF with
+the Unsloth Codex settings: 131k context, q8 KV cache, larger prompt batches,
+and GLM's recommended `temp=1.0`, `top_p=0.95`, `min_p=0.01` sampling.
 
 If an older local `llama-server` process is stuck on the Codex port and the
 example stays at "not ready", use the GUI's `Force new` button or launch with
@@ -119,12 +123,11 @@ a short OpenAI-compatible endpoint smoke request before you point Codex at it.
 The ImGui panel now shows a preflight line near the top and disables only the
 actions that are missing required inputs: starting a local server requires a
 valid `llama-server` executable and GGUF path, while launching Codex only needs
-the endpoint/profile/model alias, Codex config path, and Codex executable. If a
+the endpoint/model alias, Codex config path, and Codex executable. If a
 button is disabled, the preflight line names the next field to fix.
 
-For less common llama.cpp flags such as `--kv-unified` or speculative decoding,
-run `llama-server` directly from the built runtime and keep the same
-OpenAI-compatible endpoint:
+For less common llama.cpp flags, run `llama-server` directly from the built
+runtime and keep the same OpenAI-compatible endpoint:
 
 ```text
 http://127.0.0.1:8001/v1
@@ -137,9 +140,10 @@ and match the Qwen3.6 27B local Codex runtime shape by launching `llama-server` 
 `--flash-attn on`, `--batch-size 1024`, `--ubatch-size 256`, `-ctk q4_0`,
 and `-ctv q4_0`. `--skip-chat-parsing` is off by default so the model
 chat template remains active.
-Set the GUI's **Spec type** dropdown to `ngram-cache` when llama.cpp asks for a
-speculative decoding implementation but you are not using a separate draft
-model.
+Set the GUI's **Spec type** dropdown to `draft-mtp` for models with built-in MTP
+heads. This enables llama.cpp's `--spec-type draft-mtp` path without loading a
+separate draft model. Use the other speculative decoding options only when you
+are intentionally testing a different llama.cpp implementation.
 The ImGui panel exposes a `GPU layers all` toggle for literal `-ngl all` mode;
 turn it off only when you need a fixed numeric layer count.
 
@@ -172,40 +176,38 @@ standard config locations and writes:
 %APPDATA%\OpenAI\Codex\config.toml (legacy fallback)
 ```
 
-Use this provider/profile shape:
+Use this provider shape:
 
 ```toml
 model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 262144
 model_auto_compact_token_limit = 220000
 tool_output_token_limit = 12000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
+model_verbosity = "low"
 hide_agent_reasoning = true
+
+[features]
+apps = false
+multi_agent = true
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
 base_url = "http://127.0.0.1:8001/v1"
 wire_api = "responses"
 stream_idle_timeout_ms = 10000000
-
-[profiles.ofxggml_local]
-model = "local/Qwen3.6-27B-Q4_0"
-model_provider = "llama_cpp"
-web_search = "disabled"
-model_reasoning_effort = "medium"
-model_reasoning_summary = "none"
 ```
 
-`web_search = "disabled"` is the llama.cpp-safe default. Local server-backed
-Codex runs cannot use the hosted web-search tool directly; set
-`OFXGGML_CODEX_WEB_SEARCH=live` or pass `-WebSearch live` only when your Codex
-provider/profile can actually service web search.
+`web_search = "live"` is the default so local Codex runs can use hosted web
+search when the active Codex provider supports it. Set
+`OFXGGML_CODEX_WEB_SEARCH=disabled` or pass `-WebSearch disabled` for fully
+offline local runs.
 
-`profiles.ofxggml_local.model` must match the llama-server alias used by the
-example's `ServerModel` field. The alias is not proof of which GGUF is loaded:
+The top-level `model` must match the llama-server alias used by the example's
+`ServerModel` field. The alias is not proof of which GGUF is loaded:
 `llama-server` can serve one GGUF while advertising a different alias if you pass
 the wrong `--alias`. If you do not pass `-ServerModel`, the launcher prefers the
 resolved local GGUF path from `-Model`, `OFXGGML_TEXT_MODEL`, or local model
@@ -214,26 +216,24 @@ discovery and derives a truthful alias from that filename, such as
 `local/qwen2.5-coder-1.5b-instruct-q4_k_m`. If no local GGUF is resolved, it
 falls back to `OFXGGML_CODEX_MODEL` or the example default
 `local/Qwen3.6-27B-Q4_0`. If you launch a smaller local Qwen model with
-`-ServerModel local/qwen2.5-coder-1.5b`, use this profile instead:
+`-ServerModel local/qwen2.5-coder-1.5b`, set:
 
 ```toml
-[profiles.ofxggml_local]
 model = "local/qwen2.5-coder-1.5b"
 model_provider = "llama_cpp"
 ```
 
 This folder includes `codex-config.example.toml` with the same starting point.
-It also includes `codex-config.ollama.example.toml` for the Hermes/Ollama
-provider shape.
 It also includes `codex-agents/explorer.toml` and `codex-agents/worker.toml`.
 The example's auto-config writer refreshes matching built-in role override
 files under your Codex home at `agents/`. The main config does not reference
 those files with `config_file`; Codex loads `agents/explorer.toml` and
 `agents/worker.toml` as overrides for its built-in agent names.
 Those role files set `model_provider = "llama_cpp"`, so local agents require
-the `[model_providers.llama_cpp]` provider and `ofxggml_local` profile to be
-present in the same Codex config directory. Keep **Auto-write Codex config**
-enabled, or press **Write config** before launching. The example blocks
+the `[model_providers.llama_cpp]` provider and top-level
+`model_provider = "llama_cpp"` selection to be present in the same Codex config
+directory. Keep **Auto-write Codex config** enabled, or press **Write config**
+before launching. The example blocks
 auto-configured launches when that write fails so you do not open Codex with
 agent role files pointing at an undefined provider.
 The example's **Launch Codex** button uses the same custom-provider contract:
@@ -244,7 +244,7 @@ endpoint snippet that points to the same loaded model, **Copy server command**
 when you want to launch or tweak the matching `llama-server` command manually
 in a terminal, and **Copy launch command** when you want the pasteable Codex
 command for the current provider mode. In local provider mode, the copied
-command expects the generated local profile to exist. With auto-write enabled,
+command includes the local provider overrides directly. With auto-write enabled,
 **Copy launch command** writes the config first; use **Copy config** or
 **Write config** first when auto-write is disabled.
 
@@ -254,10 +254,12 @@ Start the local server once, then configure Hermes Agent as a custom
 OpenAI-compatible endpoint:
 
 ```yaml
-model: local/Qwen3.6-27B-Q4_0
-base_url: http://127.0.0.1:8001/v1
-api_key: local-dummy-key
-context_length: 65536
+model:
+  default: local/Qwen3.6-27B-Q4_0
+  provider: custom
+  base_url: http://127.0.0.1:8001/v1
+  api_key: local-dummy-key
+  context_length: 65536
 terminal:
   backend: local
 ```
@@ -270,9 +272,10 @@ Codex and OpenCode, but each client keeps its own conversation state, tool
 permissions, and memory.
 
 ```powershell
-codex --no-alt-screen -p ofxggml_local `
-    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"disabled"' `
+codex --no-alt-screen `
+    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search --disable tool_search_always_defer_mcp_tools `
+    -c mcp_servers.node_repl.enabled=false `
+    -c web_search='"live"' `
     -c model_provider=llama_cpp `
     -c model_providers.llama_cpp.base_url='"http://127.0.0.1:8001/v1"' `
     -c model_providers.llama_cpp.wire_api='"responses"' `
@@ -281,11 +284,12 @@ codex --no-alt-screen -p ofxggml_local `
     -c tool_output_token_limit=12000 `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
+    -c model_verbosity=low `
     -c hide_agent_reasoning=true `
     --model local/Qwen3.6-27B-Q4_0
 ```
 
-The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap. They keep `-WebSearch disabled` by default for local llama.cpp and accept `-WebSearch live` as an explicit opt-in.
+The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap. They keep `-WebSearch live` by default and accept `-WebSearch disabled` for offline runs.
 
 ### MCP thread spawning
 
@@ -312,14 +316,9 @@ agent-role file writes, and does not start `llama-server`.
 `Hybrid: local agents` keeps the local `llama_cpp` provider and explorer/worker
 agent role files for cheap agent work, while the main Codex launch uses the
 OpenAI model field for expensive reasoning.
-`Ollama Hermes` uses Ollama's OpenAI-compatible endpoint for the main local
-Codex launch, defaulting to `http://127.0.0.1:11434/v1` and
-`hermes3:latest`. `Hybrid: Ollama agents` keeps Hermes/Ollama for cheap
-explorer/worker agents while the main launch uses the OpenAI model field.
 
 Sandbox defaults are part of the provider-mode contract. `Local llama.cpp` and
-`Ollama Hermes` default the main Codex launch to `workspace-write`. `OpenAI
-profile` and the hybrid modes leave the main launch sandbox unset unless you
+`OpenAI profile` and the hybrid mode leave the main launch sandbox unset unless you
 provide `OFXGGML_CODEX_SANDBOX` or edit **Codex sandbox** in the UI. The
 generated `explorer` role stays `read-only`, while the generated `worker` role
 uses `workspace-write`.
@@ -329,8 +328,6 @@ From the helper script:
 ```powershell
 scripts\run-example.bat codex -CodexProvider openai -ServerModel gpt-5
 scripts\run-example.bat codex -CodexProvider hybrid -OpenAiModel gpt-5
-scripts\run-example.bat codex -CodexProvider ollama -ServerModel hermes3:latest
-scripts\run-example.bat codex -CodexProvider hybrid-ollama -OpenAiModel gpt-5
 ```
 
 The environment equivalent is:
@@ -339,14 +336,11 @@ The environment equivalent is:
 $env:OFXGGML_CODEX_PROVIDER = "openai"
 $env:OFXGGML_CODEX_PROVIDER = "hybrid"
 $env:OFXGGML_CODEX_OPENAI_MODEL = "gpt-5"
-$env:OFXGGML_CODEX_PROVIDER = "hybrid-ollama"
-$env:OFXGGML_CODEX_MODEL = "hermes3:latest"
-$env:OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:11434/v1"
 ```
 
 Do not add `--oss` for this llama.cpp path. Codex's built-in OSS shortcut is
-for built-in local providers such as Ollama or LM Studio; this example uses the
-explicit `llama_cpp` OpenAI-compatible provider configured above.
+for built-in local providers; this example uses the explicit `llama_cpp`
+OpenAI-compatible provider configured above.
 The disable flags keep Codex from sending non-function Responses tools such as
 app namespaces, image generation, browser, or web-search tools; llama.cpp
 accepts the function-tool shape used by shell and patch tools.
@@ -458,9 +452,9 @@ The example displays the exact endpoint, model alias, server status, endpoint
 smoke result, server-advertised `/v1/models` aliases, local Codex provider
 snippet, and editable startup options. The **Use served alias** button copies
 the model id advertised by an already-running `llama-server` into the Codex
-profile before writing config, which avoids stale aliases when you started the
+top-level model setting before writing config, which avoids stale aliases when you started the
 server manually. It starts the local server when possible and can automatically
-write the needed provider/profile sections into the local Codex config if
+write the needed provider selection sections into the local Codex config if
 `OFXGGML_CODEX_AUTO_CONFIG` is set to `1` (default).
 Use the UI button **Write Codex config** if you prefer a manual write.
 If Codex reports that the Windows admin sandbox could not be initialized, set

@@ -3,6 +3,8 @@ param(
 	[string]$Platform = "x64",
 	[string]$Example = "ofxGgmlTextExample",
 	[int]$Jobs = 1,
+	[string]$OfRoot = "",
+	[string]$CoreRoot = "",
 	[switch]$Clean,
 	[switch]$RepairOnly
 )
@@ -171,6 +173,74 @@ function Find-ProjectGenerator {
 	return ""
 }
 
+function Resolve-OpenFrameworksRoot {
+	param(
+		[string]$RequestedOfRoot,
+		[string]$DefaultOfRoot
+	)
+
+	$candidates = New-Object System.Collections.Generic.List[string]
+	if (![string]::IsNullOrWhiteSpace($RequestedOfRoot)) {
+		$candidates.Add($RequestedOfRoot)
+	}
+	if (![string]::IsNullOrWhiteSpace($env:OF_ROOT)) {
+		$candidates.Add($env:OF_ROOT)
+	}
+	$candidates.Add($DefaultOfRoot)
+
+	$desktopRoot = [Environment]::GetFolderPath("Desktop")
+	if (![string]::IsNullOrWhiteSpace($desktopRoot)) {
+		foreach ($ofRoot in Get-ChildItem -LiteralPath $desktopRoot -Directory -Filter "of_v*_release" -ErrorAction SilentlyContinue) {
+			$candidates.Add($ofRoot.FullName)
+		}
+	}
+
+	foreach ($candidate in $candidates) {
+		if ([string]::IsNullOrWhiteSpace($candidate)) {
+			continue
+		}
+		$expanded = [Environment]::ExpandEnvironmentVariables($candidate)
+		if (Test-Path -LiteralPath (Join-Path $expanded "scripts\templates\winvs\emptyExample.vcxproj") -PathType Leaf) {
+			return (Resolve-Path -LiteralPath $expanded).Path
+		}
+	}
+
+	return $DefaultOfRoot
+}
+
+function Resolve-AddonRoot {
+	param(
+		[string]$RequestedAddonRoot,
+		[string]$AddonName,
+		[string]$DefaultAddonRoot,
+		[string]$OfRoot
+	)
+
+	$candidates = New-Object System.Collections.Generic.List[string]
+	if (![string]::IsNullOrWhiteSpace($RequestedAddonRoot)) {
+		$candidates.Add($RequestedAddonRoot)
+	}
+	if ($AddonName -eq "ofxGgmlCore" -and ![string]::IsNullOrWhiteSpace($env:OFX_GGML_CORE_ROOT)) {
+		$candidates.Add($env:OFX_GGML_CORE_ROOT)
+	}
+	$candidates.Add($DefaultAddonRoot)
+	if (![string]::IsNullOrWhiteSpace($OfRoot)) {
+		$candidates.Add((Join-Path $OfRoot "addons\$AddonName"))
+	}
+
+	foreach ($candidate in $candidates) {
+		if ([string]::IsNullOrWhiteSpace($candidate)) {
+			continue
+		}
+		$expanded = [Environment]::ExpandEnvironmentVariables($candidate)
+		if (Test-Path -LiteralPath $expanded -PathType Container) {
+			return (Resolve-Path -LiteralPath $expanded).Path
+		}
+	}
+
+	return $DefaultAddonRoot
+}
+
 function Ensure-GeneratedVisualStudioProject {
 	param(
 		[string]$ExampleName,
@@ -323,7 +393,7 @@ function Repair-VisualStudioAddonItems {
 	}
 
 	$addonsRoot = Split-Path -Parent $addonRoot.Path
-	$coreRoot = Join-Path $addonsRoot "ofxGgmlCore"
+	$coreRoot = $resolvedCoreRoot
 	$addonEntries = @()
 	if (Test-Path -LiteralPath $coreRoot) {
 		$addonEntries += @{
@@ -514,7 +584,7 @@ function Get-AddonDefines {
 	$defines = New-Object System.Collections.Generic.List[string]
 	$configPaths = New-Object System.Collections.Generic.List[string]
 	$configPaths.Add((Join-Path $addonRoot "addon_config.mk"))
-	$imguiRoot = Join-Path (Split-Path -Parent $addonRoot.Path) "ofxImGui"
+	$imguiRoot = $resolvedImguiRoot
 	if ((Test-ExampleUsesAddon -ExampleDir $exampleDir -AddonName "ofxImGui") -and
 		(Test-Path -LiteralPath $imguiRoot)) {
 		$configPaths.Add((Join-Path $imguiRoot "addon_config.mk"))
@@ -541,21 +611,18 @@ function Get-AddonDefines {
 
 function Get-AddonIncludeDirectories {
 	$includeDirs = New-Object System.Collections.Generic.List[string]
-	foreach ($path in @(
-		"..\src",
-		"..\..\ofxGgmlCore\src"
-	)) {
-		$includeDirs.Add($path)
+	$includeDirs.Add("..\src")
+	if (Test-Path -LiteralPath (Join-Path $resolvedCoreRoot "src") -PathType Container) {
+		$includeDirs.Add((Get-RelativeProjectPath -ProjectDir $exampleDir -FilePath (Join-Path $resolvedCoreRoot "src")))
+	} else {
+		$includeDirs.Add("..\..\ofxGgmlCore\src")
 	}
 	if (Test-ExampleUsesAddon -ExampleDir $exampleDir -AddonName "ofxImGui") {
-		foreach ($path in @(
-			"..\..\ofxImGui\src",
-			"..\..\ofxImGui\libs\imgui",
-			"..\..\ofxImGui\libs\imgui\src",
-			"..\..\ofxImGui\libs\imgui\backends",
-			"..\..\ofxImGui\libs\imgui\extras"
-		)) {
-			$includeDirs.Add($path)
+		foreach ($path in @("src", "libs\imgui", "libs\imgui\src", "libs\imgui\backends", "libs\imgui\extras")) {
+			$fullPath = Join-Path $resolvedImguiRoot $path
+			if (Test-Path -LiteralPath $fullPath -PathType Container) {
+				$includeDirs.Add((Get-RelativeProjectPath -ProjectDir $exampleDir -FilePath $fullPath))
+			}
 		}
 	}
 	return @($includeDirs)
@@ -563,7 +630,11 @@ function Get-AddonIncludeDirectories {
 
 $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "..")
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
-$ofRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
+$defaultOfRoot = Split-Path -Parent (Split-Path -Parent $addonRoot)
+$ofRoot = Resolve-OpenFrameworksRoot -RequestedOfRoot $OfRoot -DefaultOfRoot $defaultOfRoot
+$defaultAddonsRoot = Split-Path -Parent $addonRoot.Path
+$resolvedCoreRoot = Resolve-AddonRoot -RequestedAddonRoot $CoreRoot -AddonName "ofxGgmlCore" -DefaultAddonRoot (Join-Path $defaultAddonsRoot "ofxGgmlCore") -OfRoot $ofRoot
+$resolvedImguiRoot = Resolve-AddonRoot -RequestedAddonRoot "" -AddonName "ofxImGui" -DefaultAddonRoot (Join-Path $defaultAddonsRoot "ofxImGui") -OfRoot $ofRoot
 $exampleDir = Join-Path $addonRoot $Example
 if (!(Test-Path -LiteralPath $exampleDir)) {
 	throw "Example directory not found: $exampleDir"

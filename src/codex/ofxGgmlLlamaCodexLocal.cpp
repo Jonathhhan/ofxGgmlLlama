@@ -214,15 +214,18 @@ std::string localAgentRoleToml(
 		output << "developer_instructions = \""
 			"Use the explorer role for narrow, read-only codebase questions. "
 			"Use rg first, read exact files before answering, cite paths or lines when useful, "
-			"and return concise findings. Do not edit files and avoid spawning more agents "
-			"unless explicitly asked.\"\n";
+			"clearly separate observed facts from guesses, and return concise findings with "
+			"open questions. Do not edit files, do not propose broad rewrites, and avoid "
+			"spawning more agents unless explicitly asked.\"\n";
 	} else {
 		output << "sandbox_mode = \"" << WorkerSandboxMode << "\"\n";
 		output << "developer_instructions = \""
 			"Use the worker role for bounded code changes. Read local patterns first, "
-			"follow openFrameworks addon conventions, preserve existing dirty files, "
-			"keep edits scoped, use apply_patch for manual edits, run the smallest useful "
-			"validation, and report residual risk.\"\n";
+			"identify the exact files you own before editing, follow openFrameworks addon "
+			"conventions, preserve existing dirty files, keep edits scoped, use apply_patch "
+			"for manual edits, run the smallest useful validation, and report touched files, "
+			"validation commands, and residual risk. Stop to report when a required "
+			"assumption cannot be verified locally.\"\n";
 	}
 	return output.str();
 }
@@ -308,6 +311,189 @@ bool replaceTopLevelAssignments(
 	return updated;
 }
 
+bool replaceSectionAssignments(
+	std::string & configText,
+	const std::string & sectionName,
+	const std::vector<std::pair<std::string, std::string>> & assignments) {
+	const std::string sectionHeader = "[" + sectionName + "]";
+	std::istringstream input(configText);
+	std::ostringstream output;
+	bool inTargetSection = false;
+	bool sectionFound = false;
+	bool updated = false;
+	std::string line;
+
+	const auto writeAssignments = [&]() {
+		for (const auto & assignment : assignments) {
+			output << assignment.first << " = " << assignment.second << '\n';
+		}
+	};
+
+	while (std::getline(input, line)) {
+		const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+		const bool isSectionHeader = !trimmed.empty() &&
+			trimmed.front() == '[' &&
+			trimmed.back() == ']';
+		if (inTargetSection && isSectionHeader) {
+			writeAssignments();
+			inTargetSection = false;
+		}
+		if (!inTargetSection && trimmed == sectionHeader) {
+			sectionFound = true;
+			inTargetSection = true;
+			output << line << '\n';
+			continue;
+		}
+		if (inTargetSection) {
+			const bool shouldKeep = std::none_of(assignments.begin(), assignments.end(),
+				[&](const std::pair<std::string, std::string> & assignment) {
+					const std::string prefix = assignment.first + " =";
+					return trimmed.rfind(prefix, 0) == 0;
+				});
+			if (!shouldKeep) {
+				updated = true;
+				continue;
+			}
+		}
+		output << line << '\n';
+	}
+	if (inTargetSection) {
+		writeAssignments();
+	}
+	configText = output.str();
+	return sectionFound || updated;
+}
+std::string trimTomlValueWhitespace(const std::string & value) {
+	std::size_t first = 0;
+	while (first < value.size() && std::isspace(static_cast<unsigned char>(value[first]))) {
+		++first;
+	}
+	std::size_t last = value.size();
+	while (last > first && std::isspace(static_cast<unsigned char>(value[last - 1]))) {
+		--last;
+	}
+	return value.substr(first, last - first);
+}
+std::vector<std::pair<std::string, std::string>> customSectionAssignments(
+	const std::string & configText,
+	const std::string & sectionName,
+	const std::vector<std::string> & managedKeys) {
+	const std::string sectionHeader = "[" + sectionName + "]";
+	std::istringstream input(configText);
+	std::vector<std::pair<std::string, std::string>> assignments;
+	std::map<std::string, std::size_t> assignmentIndexes;
+	bool inTargetSection = false;
+	std::string line;
+
+	while (std::getline(input, line)) {
+		const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+		const bool isSectionHeader = !trimmed.empty() &&
+			trimmed.front() == '[' &&
+			trimmed.back() == ']';
+		if (isSectionHeader) {
+			inTargetSection = trimmed == sectionHeader;
+			continue;
+		}
+		if (!inTargetSection || trimmed.empty() || trimmed.front() == '#') {
+			continue;
+		}
+
+		const auto separator = trimmed.find('=');
+		if (separator == std::string::npos) {
+			continue;
+		}
+		const auto key = ofxGgmlLlamaCodexLocal::trimCopy(trimmed.substr(0, separator));
+		if (std::find(managedKeys.begin(), managedKeys.end(), key) != managedKeys.end()) {
+			continue;
+		}
+		const auto value = trimTomlValueWhitespace(trimmed.substr(separator + 1));
+		const auto existing = assignmentIndexes.find(key);
+		if (existing != assignmentIndexes.end()) {
+			assignments[existing->second].second = value;
+		} else {
+			assignmentIndexes[key] = assignments.size();
+			assignments.push_back({ key, value });
+		}
+	}
+	return assignments;
+}
+
+std::vector<std::pair<std::string, std::string>> topLevelAssignments(
+	const std::string & configText,
+	const std::vector<std::string> & keys) {
+	std::istringstream input(configText);
+	std::vector<std::pair<std::string, std::string>> assignments;
+	std::map<std::string, std::size_t> assignmentIndexes;
+	std::string line;
+
+	while (std::getline(input, line)) {
+		const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+		const bool isSectionHeader = !trimmed.empty() &&
+			trimmed.front() == '[' &&
+			trimmed.back() == ']';
+		if (isSectionHeader) {
+			break;
+		}
+		if (trimmed.empty() || trimmed.front() == '#') {
+			continue;
+		}
+
+		const auto separator = trimmed.find('=');
+		if (separator == std::string::npos) {
+			continue;
+		}
+		const auto key = ofxGgmlLlamaCodexLocal::trimCopy(trimmed.substr(0, separator));
+		if (std::find(keys.begin(), keys.end(), key) == keys.end()) {
+			continue;
+		}
+		const auto value = trimTomlValueWhitespace(trimmed.substr(separator + 1));
+		const auto existing = assignmentIndexes.find(key);
+		if (existing != assignmentIndexes.end()) {
+			assignments[existing->second].second = value;
+		} else {
+			assignmentIndexes[key] = assignments.size();
+			assignments.push_back({ key, value });
+		}
+	}
+	return assignments;
+}
+
+void insertBeforeFirstSection(
+	std::string & configText,
+	const std::vector<std::pair<std::string, std::string>> & assignments) {
+	if (assignments.empty()) {
+		return;
+	}
+
+	std::istringstream input(configText);
+	std::ostringstream output;
+	bool inserted = false;
+	std::string line;
+
+	const auto writeAssignments = [&]() {
+		for (const auto & assignment : assignments) {
+			output << assignment.first << " = " << assignment.second << '\n';
+		}
+		output << '\n';
+	};
+
+	while (std::getline(input, line)) {
+		const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+		const bool isSectionHeader = !trimmed.empty() &&
+			trimmed.front() == '[' &&
+			trimmed.back() == ']';
+		if (!inserted && isSectionHeader) {
+			writeAssignments();
+			inserted = true;
+		}
+		output << line << '\n';
+	}
+	if (!inserted) {
+		writeAssignments();
+	}
+	configText = output.str();
+}
+
 void appendSection(std::string & configText, const std::string & sectionBody) {
 	if (!configText.empty() && configText.back() != '\n') {
 		configText.push_back('\n');
@@ -316,6 +502,28 @@ void appendSection(std::string & configText, const std::string & sectionBody) {
 	if (!sectionBody.empty() && sectionBody.back() != '\n') {
 		configText.push_back('\n');
 	}
+}
+
+void removeYamlTopLevelSection(std::string & yamlText, const std::string & sectionName) {
+	std::istringstream input(yamlText);
+	std::ostringstream output;
+	const std::string prefix = sectionName + ":";
+	bool inTargetSection = false;
+	std::string line;
+
+	while (std::getline(input, line)) {
+		const bool isTopLevel = !line.empty() &&
+			!std::isspace(static_cast<unsigned char>(line.front()));
+		if (isTopLevel) {
+			const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+			inTargetSection = trimmed == prefix ||
+				(trimmed.rfind(prefix + " ", 0) == 0);
+		}
+		if (!inTargetSection) {
+			output << line << '\n';
+		}
+	}
+	yamlText = output.str();
 }
 
 std::string escapeTomlString(const std::string & value) {
@@ -738,7 +946,6 @@ std::string ofxGgmlLlamaCodexLocal::detectCodexWireApi(const std::string & baseU
 std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 	const ofxGgmlLlamaCodexProviderConfig & config) {
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
-	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
 	const auto wireApi = config.wireApi.empty() ? "responses" : config.wireApi;
 	const auto webSearch = config.webSearch.empty() ? "disabled" : config.webSearch;
 	const auto threadMcpServerId = config.threadMcpServerId.empty()
@@ -756,21 +963,20 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 			escapeTomlString(config.modelReasoningEffort) << "\"\n";
 		output << "model_reasoning_summary = \"" <<
 			escapeTomlString(config.modelReasoningSummary) << "\"\n";
+		output << "model_verbosity = \"" <<
+			escapeTomlString(config.modelVerbosity) << "\"\n";
 		output << "hide_agent_reasoning = " << (config.hideAgentReasoning ? "true" : "false") << "\n\n";
+		if (config.writeLocalProviderToolGuards) {
+			output << "[features]\n";
+			output << "apps = false\n";
+			output << "multi_agent = true\n\n";
+		}
 	}
 	output << "[model_providers." << providerId << "]\n";
 	output << "name = \"" << escapeTomlString(config.providerName) << "\"\n";
 	output << "base_url = \"" << escapeTomlString(codexApiRootFromBaseUrl(config.baseUrl)) << "\"\n";
 	output << "wire_api = \"" << escapeTomlString(wireApi) << "\"\n";
-	output << "stream_idle_timeout_ms = " << std::max(1000, config.streamIdleTimeoutMs) << "\n\n";
-	output << "[profiles." << profile << "]\n";
-	output << "model = \"" << escapeTomlString(config.modelAlias) << "\"\n";
-	output << "model_provider = \"" << escapeTomlString(providerId) << "\"\n";
-	output << "web_search = \"" << escapeTomlString(webSearch) << "\"\n";
-	output << "model_reasoning_effort = \"" <<
-		escapeTomlString(config.modelReasoningEffort) << "\"\n";
-	output << "model_reasoning_summary = \"" <<
-		escapeTomlString(config.modelReasoningSummary) << "\"\n";
+	output << "stream_idle_timeout_ms = " << std::max(1000, config.streamIdleTimeoutMs) << "\n";
 	if (config.writeAgentSettings &&
 		(config.agentMaxConcurrentThreadsPerSession > 0 || config.agentMaxDepth > 0)) {
 		output << "\n[agents]\n";
@@ -793,12 +999,16 @@ std::string ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(
 			output << "enabled_tools = [\"spawn_codex_thread\"]\n";
 			output << "default_tools_approval_mode = \"prompt\"\n";
 			output << "startup_timeout_sec = 10\n";
-			output << "tool_timeout_sec = 120\n";
+			output << "tool_timeout_sec = 300\n";
 			output << "enabled = true\n";
+			output << "\n[mcp_servers." << threadMcpServerId << ".tools.spawn_codex_thread]\n";
+			output << "approval_mode = \"approve\"\n";
 			output << "\n[mcp_servers." << threadMcpServerId << ".env]\n";
 			output << "OFXGGML_CODEX_MODEL = \"" << escapeTomlString(config.modelAlias) << "\"\n";
 			output << "OFXGGML_CODEX_MODEL_PROVIDER = \"" << escapeTomlString(providerId) << "\"\n";
+			output << "OFXGGML_CODEX_BASE_URL = \"" << escapeTomlString(codexApiRootFromBaseUrl(config.baseUrl)) << "\"\n";
 			output << "OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = \"300000\"\n";
+			output << "OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = \"" << escapeTomlString(threadMcpCwd) << "\"\n";
 		}
 	}
 	return output.str();
@@ -817,7 +1027,6 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 		result.message = "model alias is required";
 		return result;
 	}
-
 	const auto providerId = config.providerId.empty() ? "llama_cpp" : config.providerId;
 	const auto profile = config.profile.empty() ? "ofxggml_local" : config.profile;
 	const auto threadMcpServerId = config.threadMcpServerId.empty()
@@ -825,10 +1034,57 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 		: config.threadMcpServerId;
 	const auto existing = readAllText(result.path);
 	auto updated = existing;
+	const std::vector<std::string> preservedTopLevelKeys {
+		"notify"
+	};
+	const auto preservedTopLevelAssignments = topLevelAssignments(
+		existing,
+		preservedTopLevelKeys);
+	const std::vector<std::string> featureKeys {
+		"apps",
+		"multi_agent"
+	};
+	auto featureAssignments = config.writeTopLevelSelection && config.writeLocalProviderToolGuards
+		? customSectionAssignments(existing, "features", featureKeys)
+		: std::vector<std::pair<std::string, std::string>> {};
+	if (config.writeTopLevelSelection && config.writeLocalProviderToolGuards) {
+		featureAssignments.insert(
+			featureAssignments.end(),
+			{
+				{ "apps", "false" },
+				{ "multi_agent", "true" }
+			});
+	}
+	const std::vector<std::string> threadMcpEnvKeys {
+		"OFXGGML_CODEX_MODEL",
+		"OFXGGML_CODEX_MODEL_PROVIDER",
+		"OFXGGML_CODEX_BASE_URL",
+		"OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS",
+		"OFXGGML_CODEX_THREAD_ALLOWED_ROOTS"
+	};
+	auto threadMcpEnvAssignments = config.writeThreadMcpServer
+		? customSectionAssignments(
+			existing,
+			"mcp_servers." + threadMcpServerId + ".env",
+			threadMcpEnvKeys)
+		: std::vector<std::pair<std::string, std::string>> {};
+	threadMcpEnvAssignments.insert(
+		threadMcpEnvAssignments.end(),
+		{
+			{ "OFXGGML_CODEX_MODEL", "\"" + escapeTomlString(config.modelAlias) + "\"" },
+			{ "OFXGGML_CODEX_MODEL_PROVIDER", "\"" + escapeTomlString(providerId) + "\"" },
+			{ "OFXGGML_CODEX_BASE_URL", "\"" + escapeTomlString(codexApiRootFromBaseUrl(config.baseUrl)) + "\"" },
+			{ "OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS", "\"300000\"" },
+			{ "OFXGGML_CODEX_THREAD_ALLOWED_ROOTS", "\"" + escapeTomlString(
+				config.threadMcpServerCwd.empty() ? discoverCodexThreadMcpRoot() : config.threadMcpServerCwd) + "\"" }
+		});
 	const bool removedProvider = replaceSection(updated, "model_providers." + providerId);
 	const bool removedProfile = replaceSection(updated, "profiles." + profile);
 	const bool removedThreadMcpServer = config.writeThreadMcpServer &&
 		replaceSection(updated, "mcp_servers." + threadMcpServerId);
+	const bool removedFeatures = config.writeTopLevelSelection &&
+		config.writeLocalProviderToolGuards &&
+		replaceSection(updated, "features");
 	const bool removedAgents = config.writeAgentSettings &&
 		replaceSection(updated, "agents");
 	const bool removedExplorerAgent = config.writeAgentSettings &&
@@ -846,12 +1102,25 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 			"tool_output_token_limit",
 			"model_reasoning_effort",
 			"model_reasoning_summary",
-			"hide_agent_reasoning"
+			"model_verbosity",
+			"hide_agent_reasoning",
+			"notify"
 		});
+	auto snippet = buildCodexConfigSnippet(config);
+	insertBeforeFirstSection(snippet, preservedTopLevelAssignments);
+	if (config.writeTopLevelSelection && config.writeLocalProviderToolGuards) {
+		replaceSectionAssignments(snippet, "features", featureAssignments);
+	}
+	if (config.writeThreadMcpServer) {
+		replaceSectionAssignments(
+			snippet,
+			"mcp_servers." + threadMcpServerId + ".env",
+			threadMcpEnvAssignments);
+	}
 	if (config.writeTopLevelSelection) {
-		updated.insert(0, buildCodexConfigSnippet(config) + "\n");
+		updated.insert(0, snippet + "\n");
 	} else {
-		appendSection(updated, buildCodexConfigSnippet(config));
+		appendSection(updated, snippet);
 	}
 
 	if (!writeAllText(result.path, updated)) {
@@ -869,6 +1138,7 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 	const bool replaced = removedProvider ||
 		removedProfile ||
 		removedThreadMcpServer ||
+		removedFeatures ||
 		removedAgents ||
 		removedExplorerAgent ||
 		removedWorkerAgent ||
@@ -880,6 +1150,112 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 		result.message += " and agent role files under " +
 			toString(codexAgentRoleDirectory(result.path));
 	}
+	return result;
+}
+
+std::string ofxGgmlLlamaCodexLocal::resolveHermesConfigPath() {
+	std::vector<std::filesystem::path> candidates;
+	const auto addIfSet = [&candidates](const char * name, const std::filesystem::path & relative) {
+		const auto value = envValue(name);
+		if (!value.empty()) {
+			candidates.push_back(std::filesystem::path(value) / relative);
+		}
+	};
+
+	addIfSet("HERMES_HOME", "config.yaml");
+#if defined(_WIN32)
+	addIfSet("USERPROFILE", ".hermes/config.yaml");
+	addIfSet("LOCALAPPDATA", "Hermes/config.yaml");
+	addIfSet("APPDATA", "Hermes/config.yaml");
+#endif
+	addIfSet("HOME", ".hermes/config.yaml");
+
+	for (const auto & candidate : candidates) {
+		const auto normalized = candidate.lexically_normal();
+		if (!normalized.empty()) {
+			return toString(normalized);
+		}
+	}
+	return {};
+}
+
+std::string ofxGgmlLlamaCodexLocal::discoverHermesExecutable() {
+#if defined(_WIN32)
+	const std::vector<std::filesystem::path> candidates = {
+		std::filesystem::path(getEnvOrDefault("LOCALAPPDATA", "")) / "Programs/Hermes/hermes.exe",
+		std::filesystem::path(getEnvOrDefault("ProgramFiles", "")) / "Hermes/hermes.exe",
+		std::filesystem::path(getEnvOrDefault("ProgramFiles(x86)", "")) / "Hermes/hermes.exe"
+	};
+	const auto found = findFirstExistingFile(candidates);
+	if (!found.empty()) {
+		return found;
+	}
+	const auto wherePath = trimCopy(readCommandOutput("where.exe hermes 2>NUL"));
+	std::istringstream lines(wherePath);
+	std::string line;
+	while (std::getline(lines, line)) {
+		line = trimCopy(line);
+		if (!line.empty() && fileExists(line)) {
+			return line;
+		}
+	}
+#else
+	const auto whichPath = trimCopy(readCommandOutput("command -v hermes 2>/dev/null"));
+	if (!whichPath.empty() && fileExists(whichPath)) {
+		return whichPath;
+	}
+#endif
+	return {};
+}
+
+std::string ofxGgmlLlamaCodexLocal::buildHermesConfigSnippet(
+	const ofxGgmlLlamaHermesConfig & config) {
+	std::ostringstream output;
+	output << "# Generated by ofxGgmlLlamaCodexLocal.\n";
+	output << "model:\n";
+	output << "  default: " << config.modelAlias << "\n";
+	output << "  provider: custom\n";
+	output << "  base_url: " << config.baseUrl << "\n";
+	output << "  api_key: " << config.apiKey << "\n";
+	output << "  context_length: " << std::max(1024, config.contextLength) << "\n";
+	output << "terminal:\n";
+	output << "  backend: " << (config.terminalBackend.empty() ? "local" : config.terminalBackend) << "\n";
+	return output.str();
+}
+
+ofxGgmlLlamaHermesConfigResult ofxGgmlLlamaCodexLocal::writeHermesConfig(
+	const std::string & configPath,
+	const ofxGgmlLlamaHermesConfig & config) {
+	ofxGgmlLlamaHermesConfigResult result;
+	result.path = configPath.empty() ? resolveHermesConfigPath() : configPath;
+	if (result.path.empty()) {
+		result.message = "failed to resolve Hermes config path";
+		return result;
+	}
+	if (config.modelAlias.empty()) {
+		result.message = "model alias is required";
+		return result;
+	}
+
+	const auto existing = readAllText(result.path);
+	auto updated = existing;
+	removeYamlTopLevelSection(updated, "model");
+	removeYamlTopLevelSection(updated, "terminal");
+	const auto snippet = buildHermesConfigSnippet(config);
+	if (!updated.empty() && updated.front() != '\n') {
+		updated.insert(0, "\n");
+	}
+	updated.insert(0, snippet);
+	if (!writeAllText(result.path, updated)) {
+		result.message = "failed to write Hermes config: " + result.path;
+		return result;
+	}
+
+	result.ok = true;
+	result.created = existing.empty();
+	result.message = result.created
+		? "Created Hermes config at " + result.path
+		: "Updated Hermes config at " + result.path;
 	return result;
 }
 
@@ -927,10 +1303,6 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 		settings.executable.empty() ? std::string("codex") : settings.executable,
 		"--no-alt-screen"
 	};
-	if (!settings.profile.empty()) {
-		arguments.push_back("-p");
-		arguments.push_back(settings.profile);
-	}
 	if (settings.includeLocalProviderToolGuards) {
 		const auto webSearch = settings.provider.webSearch.empty()
 			? std::string("disabled")
@@ -945,8 +1317,16 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 		arguments.push_back("computer_use");
 		arguments.push_back("--disable");
 		arguments.push_back("tool_search");
+		arguments.push_back("--disable");
+		arguments.push_back("tool_search_always_defer_mcp_tools");
+		arguments.push_back("-c");
+		arguments.push_back("mcp_servers.node_repl.enabled=false");
 		arguments.push_back("-c");
 		arguments.push_back("web_search=\"" + webSearch + "\"");
+	}
+	if (!settings.profile.empty() && !settings.includeLocalProviderToolGuards) {
+		arguments.push_back("-p");
+		arguments.push_back(settings.profile);
 	}
 	if (settings.includeLocalProviderOverrides) {
 		const auto & config = settings.provider;
@@ -971,6 +1351,8 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 		arguments.push_back("-c");
 		arguments.push_back("model_reasoning_summary=" + config.modelReasoningSummary);
 		arguments.push_back("-c");
+		arguments.push_back("model_verbosity=" + config.modelVerbosity);
+		arguments.push_back("-c");
 		arguments.push_back(std::string("hide_agent_reasoning=") + (config.hideAgentReasoning ? "true" : "false"));
 	}
 	if (settings.includeAgentOverrides && settings.provider.agentMaxConcurrentThreadsPerSession > 0) {
@@ -991,6 +1373,9 @@ std::string ofxGgmlLlamaCodexLocal::buildLaunchCommand(
 	}
 
 	std::ostringstream command;
+#if defined(_WIN32)
+	command << "& ";
+#endif
 	for (std::size_t i = 0; i < arguments.size(); ++i) {
 		if (i > 0) {
 			command << " ";
@@ -1128,6 +1513,30 @@ bool ofxGgmlLlamaCodexLocal::startLlamaServer(
 	if (!settings.specType.empty() &&
 		executableSupportsArgument(settings.serverExe, "--spec-type")) {
 		args << " --spec-type " << settings.specType;
+	}
+	if (!settings.draftModelPath.empty() &&
+		executableSupportsArgument(settings.serverExe, "--model-draft")) {
+		args << " --model-draft " << quoteArgument(settings.draftModelPath);
+	}
+	if (!settings.draftGpuLayers.empty() &&
+		executableSupportsArgument(settings.serverExe, "--n-gpu-layers-draft")) {
+		args << " --n-gpu-layers-draft " << settings.draftGpuLayers;
+	}
+	if (settings.draftMaxTokens > 0 &&
+		executableSupportsArgument(settings.serverExe, "--spec-draft-n-max")) {
+		args << " --spec-draft-n-max " << settings.draftMaxTokens;
+	}
+	if (settings.draftMinTokens > 0 &&
+		executableSupportsArgument(settings.serverExe, "--spec-draft-n-min")) {
+		args << " --spec-draft-n-min " << settings.draftMinTokens;
+	}
+	if (settings.draftPSplit >= 0.0f &&
+		executableSupportsArgument(settings.serverExe, "--draft-p-split")) {
+		args << " --draft-p-split " << settings.draftPSplit;
+	}
+	if (settings.draftPMin >= 0.0f &&
+		executableSupportsArgument(settings.serverExe, "--draft-p-min")) {
+		args << " --draft-p-min " << settings.draftPMin;
 	}
 	if (!settings.modelAlias.empty()) {
 		args << " --alias " << quoteArgument(settings.modelAlias);

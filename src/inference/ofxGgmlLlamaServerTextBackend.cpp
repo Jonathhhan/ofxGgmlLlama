@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "ofxGgmlString.h"
 #if __has_include("ofMain.h")
 #include "ofMain.h"
 #define OFXGGML_HAS_OF_HTTP_RUNTIME 1
@@ -22,37 +23,6 @@
 
 namespace {
 
-std::string trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() &&
-		std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first &&
-		std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	return value.substr(first, last - first);
-}
-
-bool endsWith(const std::string & value, const std::string & suffix) {
-	return value.size() >= suffix.size() &&
-		value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-bool startsWith(const std::string & value, const std::string & prefix) {
-	return value.size() >= prefix.size() &&
-		value.compare(0, prefix.size(), prefix) == 0;
-}
-
-std::string stripTrailingSlash(std::string value) {
-	while (!value.empty() && value.back() == '/') {
-		value.pop_back();
-	}
-	return value;
-}
-
 std::string roleLabel(ofxGgmlTextRole role) {
 	switch (role) {
 	case ofxGgmlTextRole::System: return "system";
@@ -60,58 +30,6 @@ std::string roleLabel(ofxGgmlTextRole role) {
 	case ofxGgmlTextRole::Assistant: return "assistant";
 	}
 	return "user";
-}
-
-std::string escapeJson(const std::string & value) {
-	std::string escaped;
-	escaped.reserve(value.size());
-	for (const unsigned char c : value) {
-		switch (c) {
-		case '\\': escaped += "\\\\"; break;
-		case '"': escaped += "\\\""; break;
-		case '\b': escaped += "\\b"; break;
-		case '\f': escaped += "\\f"; break;
-		case '\n': escaped += "\\n"; break;
-		case '\r': escaped += "\\r"; break;
-		case '\t': escaped += "\\t"; break;
-		default:
-			if (c < 0x20) {
-				const char * hex = "0123456789abcdef";
-				escaped += "\\u00";
-				escaped.push_back(hex[(c >> 4) & 0x0f]);
-				escaped.push_back(hex[c & 0x0f]);
-			} else {
-				escaped.push_back(static_cast<char>(c));
-			}
-			break;
-		}
-	}
-	return escaped;
-}
-
-std::string eraseDelimitedBlock(
-	std::string value,
-	const std::string & beginMarker,
-	const std::string & endMarker) {
-	std::size_t begin = value.find(beginMarker);
-	while (begin != std::string::npos) {
-		const std::size_t end = value.find(endMarker, begin + beginMarker.size());
-		const std::size_t eraseEnd = end == std::string::npos
-			? value.size()
-			: end + endMarker.size();
-		value.erase(begin, eraseEnd - begin);
-		begin = value.find(beginMarker, begin);
-	}
-	return value;
-}
-
-std::string stripReasoningBlocks(std::string value) {
-	value = eraseDelimitedBlock(value, "<think>", "</think>");
-	value = eraseDelimitedBlock(value, "<thinking>", "</thinking>");
-	value = eraseDelimitedBlock(value, "[Start thinking]", "[End thinking]");
-	value = eraseDelimitedBlock(value, "[Start thinking]", "[Stop thinking]");
-	value = eraseDelimitedBlock(value, "[Thinking]", "[/Thinking]");
-	return trimCopy(value);
 }
 
 std::string stripLeadingRoleEchoes(const std::string & value) {
@@ -125,17 +43,17 @@ std::string stripLeadingRoleEchoes(const std::string & value) {
 			line.pop_back();
 		}
 		if (!sawAssistantText) {
-			const std::string trimmed = trimCopy(line);
-			if (startsWith(trimmed, "System:") || startsWith(trimmed, "User:")) {
+			const std::string trimmed = ofxGgmlString::trimCopy(line);
+			if (ofxGgmlString::startsWith(trimmed, "System:") || ofxGgmlString::startsWith(trimmed, "User:")) {
 				continue;
 			}
-			if (startsWith(trimmed, "Assistant:")) {
-				line = trimCopy(trimmed.substr(10));
+			if (ofxGgmlString::startsWith(trimmed, "Assistant:")) {
+				line = ofxGgmlString::trimCopy(trimmed.substr(10));
 				if (line.empty()) {
 					continue;
 				}
 			}
-			if (!trimCopy(line).empty()) {
+			if (!ofxGgmlString::trimCopy(line).empty()) {
 				sawAssistantText = true;
 			}
 		}
@@ -145,11 +63,11 @@ std::string stripLeadingRoleEchoes(const std::string & value) {
 		cleaned << line;
 		wroteLine = true;
 	}
-	return trimCopy(cleaned.str());
+	return ofxGgmlString::trimCopy(cleaned.str());
 }
 
 std::string sanitizeModelVisibleText(const std::string & value) {
-	return stripLeadingRoleEchoes(stripReasoningBlocks(value));
+	return stripLeadingRoleEchoes(ofxGgmlString::stripReasoningBlocks(value));
 }
 
 class ReasoningStreamFilter {
@@ -343,7 +261,7 @@ bool processServerSentEventLine(
 	if (line.compare(0, prefix.size(), prefix) != 0) {
 		return true;
 	}
-	std::string payload = trimCopy(line.substr(prefix.size()));
+	std::string payload = ofxGgmlString::trimCopy(line.substr(prefix.size()));
 	if (payload.empty() || payload == "[DONE]") {
 		return true;
 	}
@@ -652,16 +570,16 @@ ofxGgmlTextResult ofxGgmlLlamaServerTextBackend::generate(
 
 std::string ofxGgmlLlamaServerTextBackend::normalizeServerUrl(
 	const std::string & serverUrl) {
-	std::string normalized = trimCopy(serverUrl);
+	std::string normalized = ofxGgmlString::trimCopy(serverUrl);
 	if (normalized.empty()) {
 		normalized = "http://127.0.0.1:8080";
 	}
-	if (endsWith(normalized, "/v1/chat/completions") ||
-		endsWith(normalized, "/chat/completions")) {
+	if (ofxGgmlString::endsWith(normalized, "/v1/chat/completions") ||
+		ofxGgmlString::endsWith(normalized, "/chat/completions")) {
 		return normalized;
 	}
-	normalized = stripTrailingSlash(normalized);
-	if (endsWith(normalized, "/v1")) {
+	normalized = ofxGgmlString::stripTrailingSlash(normalized);
+	if (ofxGgmlString::endsWith(normalized, "/v1")) {
 		return normalized + "/chat/completions";
 	}
 	return normalized + "/v1/chat/completions";
@@ -681,7 +599,7 @@ std::string ofxGgmlLlamaServerTextBackend::composePrompt(
 			prompt << message.content << "\n";
 		}
 	}
-	return trimCopy(prompt.str());
+	return ofxGgmlString::trimCopy(prompt.str());
 }
 
 std::string ofxGgmlLlamaServerTextBackend::buildRequestBody(
@@ -691,7 +609,7 @@ std::string ofxGgmlLlamaServerTextBackend::buildRequestBody(
 	std::ostringstream body;
 	body << "{";
 	if (!serverModel.empty()) {
-		body << "\"model\":\"" << escapeJson(serverModel) << "\",";
+		body << "\"model\":\"" << ofxGgmlString::escapeJson(serverModel) << "\",";
 	}
 	body << "\"messages\":[";
 	bool needsComma = false;
@@ -703,7 +621,7 @@ std::string ofxGgmlLlamaServerTextBackend::buildRequestBody(
 			body << ",";
 		}
 		body << "{\"role\":\"" << role << "\",\"content\":\"" <<
-			escapeJson(content) << "\"}";
+			ofxGgmlString::escapeJson(content) << "\"}";
 		needsComma = true;
 	};
 	appendMessage("system", request.systemPrompt);
@@ -732,7 +650,7 @@ std::string ofxGgmlLlamaServerTextBackend::buildRequestBody(
 			if (i > 0) {
 				body << ",";
 			}
-			body << "\"" << escapeJson(request.settings.stopSequences[i]) << "\"";
+			body << "\"" << ofxGgmlString::escapeJson(request.settings.stopSequences[i]) << "\"";
 		}
 		body << "]";
 	}
@@ -744,7 +662,7 @@ std::string ofxGgmlLlamaServerTextBackend::extractTextFromResponse(
 	const std::string & responseBody) {
 	for (const std::string & key : { "content", "text", "response" }) {
 		const std::string value = extractJsonStringField(responseBody, key);
-		if (!trimCopy(value).empty()) {
+		if (!ofxGgmlString::trimCopy(value).empty()) {
 			return value;
 		}
 	}

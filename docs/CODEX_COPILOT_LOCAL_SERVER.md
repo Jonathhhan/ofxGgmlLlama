@@ -24,7 +24,7 @@ For an openFrameworks-facing walkthrough, generate
 scripts\run-example.bat codex -Build
 ```
 
-The example displays the endpoint, model alias, Codex provider/profile snippet,
+The example displays the endpoint, model alias, Codex provider selection snippet,
 and validation commands without editing local Codex config.
 
 ## Recommended addon path
@@ -153,10 +153,14 @@ scripts\start-llama-server.bat `
 ```
 
 The Codex example and `scripts\run-example.bat codex` also expose presets:
-`memory`, `qwen27b-3090`, `hermes-codex-shared`, `fast`, `balanced`,
-`quality`, `fullctx`, `fullctx-q5`, `fullctx-q4`, `long`, and `concurrent`.
+`memory`, `qwen27b-3090`, `unsloth-glm-24gb`, `hermes-codex-shared`, `fast`,
+`balanced`, `quality`, `fullctx`, `fullctx-q5`, `fullctx-q4`, `long`, and
+`concurrent`.
 The default `qwen27b-3090` preset uses `ctx=65536`, `parallel=1`,
 `batch=1024`, `ubatch=256`, and `q4_0` KV cache for 24 GB GPUs.
+`unsloth-glm-24gb` follows Unsloth's GLM-4.7-Flash Codex recipe for a single
+24 GB GPU: `ctx=131072`, `batch=4096`, `ubatch=1024`, `q8_0` KV cache,
+Flash Attention, CUDA graphs, and `temp=1.0`, `top_p=0.95`, `min_p=0.01`.
 `hermes-codex-shared` keeps those conservative batch and KV cache settings but
 uses `parallel=2` and two agent slots so Hermes Agent and Codex can share one
 loaded model. `fast` lowers the Codex context to `32768`,
@@ -171,10 +175,11 @@ The default GPU setting is `-GpuLayers all`, matching llama.cpp's literal
 CUDA graphs stay enabled by default; use `-NoCudaGraphs` only to work around
 runtime-specific graph issues.
 
-The addon wrapper intentionally exposes a conservative common subset of
-`llama-server` flags. Use the direct upstream command when you need advanced
-flags such as KV cache quantization, `--kv-unified`, speculative decoding, or
-unusual sampling defaults for a coding-agent session.
+The addon wrapper intentionally exposes the common Codex `llama-server` flags,
+including KV cache quantization, `--kv-unified`, and `-SpecType`. For models
+with built-in MTP heads, use `-SpecType draft-mtp` to reach llama.cpp's
+`--spec-type draft-mtp` path without a separate draft model. Use the direct
+upstream command only when you need flags outside this wrapper's surface.
 
 ## Wire Codex, Hermes Agent, OpenCode, or Copilot
 
@@ -209,10 +214,10 @@ shared-endpoint setup. Sharing the endpoint keeps one model resident in memory;
 Hermes, Codex, and OpenCode still keep separate conversation state and tool
 permissions.
 
-For Codex, this alias is not just display text. The profile `model` value must
-match the llama-server alias. In `ofxGgmlLlamaCodexLocalExample`, that alias is
+For Codex, this alias is not just display text. The configured `model` value
+must match the llama-server alias. In `ofxGgmlLlamaCodexLocalExample`, that alias is
 the editable `ServerModel` field. If you start the server with
-`-ServerModel local/qwen2.5-coder-1.5b`, the Codex profile must use
+`-ServerModel local/qwen2.5-coder-1.5b`, the Codex config must use
 `model = "local/qwen2.5-coder-1.5b"`.
 
 The alias is also not proof of which model file is loaded. A server can load a
@@ -227,32 +232,30 @@ For Codex, the local config shape is (and is typically resolved from
 ```toml
 model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 65536
 model_auto_compact_token_limit = 50000
 tool_output_token_limit = 8000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
+model_verbosity = "low"
 hide_agent_reasoning = true
+
+[features]
+apps = false
+multi_agent = true
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
 base_url = "http://127.0.0.1:8001/v1"
 wire_api = "responses"
 stream_idle_timeout_ms = 10000000
-
-[profiles.ofxggml_local]
-model = "local/Qwen3.6-27B-Q4_0"
-model_provider = "llama_cpp"
-web_search = "disabled"
-model_reasoning_effort = "medium"
-model_reasoning_summary = "none"
 ```
 
-Keep `web_search = "disabled"` for direct llama.cpp local serving unless you
-explicitly route Codex through a provider/profile that supports hosted web
-search. The scripts expose this as `-WebSearch` and
-`OFXGGML_CODEX_WEB_SEARCH`.
+`web_search = "live"` is the default so local Codex runs can use hosted web
+search when the active Codex provider supports it. Set
+`OFXGGML_CODEX_WEB_SEARCH=disabled` or pass `-WebSearch disabled` for fully
+offline runs.
 
 The example auto-config writer also refreshes `%CODEX_HOME%\agents\explorer.toml`
 and `%CODEX_HOME%\agents\worker.toml` (or the matching `%USERPROFILE%\.codex`
@@ -284,15 +287,17 @@ The example config lives at
 Use the custom provider explicitly when launching Codex:
 
 ```powershell
-codex --no-alt-screen -p ofxggml_local `
-    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search `
-    -c web_search='"disabled"' `
+codex --no-alt-screen `
+    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search --disable tool_search_always_defer_mcp_tools `
+    -c mcp_servers.node_repl.enabled=false `
+    -c web_search='"live"' `
     -c model_provider=llama_cpp `
     -c model_context_window=65536 `
     -c model_auto_compact_token_limit=50000 `
     -c tool_output_token_limit=8000 `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
+    -c model_verbosity=low `
     -c hide_agent_reasoning=true `
     --model local/Qwen3.6-27B-Q4_0
 ```
@@ -320,25 +325,6 @@ The disable flags are intentional for direct `llama-server` use. Codex can load
 Responses tools whose type is not `function` such as web search, image
 generation, browser, and app namespace tools; llama.cpp rejects those tool
 definitions. Shell and patch tools remain available as function tools.
-
-### Ollama context note
-
-Ollama can be useful as a quick OpenAI-compatible endpoint, but do not treat
-Codex's `model_context_window` as proof that Ollama is actually serving that
-much prompt context. Ollama's own docs describe `num_ctx` as the runtime context
-window parameter, and the stock default is small for autonomous coding loops.
-Create a Codex-facing tag with an explicit context window before using the
-`ollama` or `hybrid-ollama` provider modes:
-
-```powershell
-ollama create hermes3-codex-32k -f ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example
-scripts\run-example.bat codex -CodexProvider ollama -ServerModel hermes3-codex-32k:latest
-```
-
-That example Modelfile sets `PARAMETER num_ctx 32768`, matching the included
-`codex-config.ollama.example.toml` context window. The example's Ollama provider
-defaults use this `hermes3-codex-32k:latest` tag instead of the stock
-`hermes3:latest` model.
 
 ### Claude Code hybrid routing
 
@@ -377,7 +363,7 @@ scripts\plan-local-codex.bat -Endpoint http://127.0.0.1:8001/v1 -Model local/Qwe
 ```
 
 The planner does not edit Codex config or start Codex. It reports the resolved
-Codex executable, config file, endpoint health, provider/profile readiness, and
+Codex executable, config file, endpoint health, provider selection readiness, and
 the exact launch command that should be used. When the endpoint is down, JSON
 output also includes `StartServerCommand`, `ManualServerCommand`,
 `DetachedNoHealthCheckCommand`, `StatusCommand`, `WaitCommand`, and

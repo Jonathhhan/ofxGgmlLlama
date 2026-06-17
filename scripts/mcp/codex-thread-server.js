@@ -4,6 +4,10 @@
 const { spawn } = require("node:child_process");
 const path = require("node:path");
 
+const defaultCodexModel = "local/Qwen3.6-27B-Q4_0";
+const defaultCodexModelProvider = "llama_cpp";
+const defaultCodexBaseUrl = "http://127.0.0.1:8001/v1";
+
 const serverInfo = {
   name: "ofxggml-codex-thread-spawner",
   version: "0.1.0",
@@ -46,49 +50,113 @@ function parseMessages() {
     }
     const body = buffer.slice(bodyStart, bodyEnd).toString("utf8");
     buffer = buffer.slice(bodyEnd);
-    handleMessage(JSON.parse(body)).catch((error) => {
-      errorResponse(null, -32603, error.message || String(error));
+    const message = JSON.parse(body);
+    handleMessage(message).catch((error) => {
+      errorResponse(typeof message.id !== "undefined" ? message.id : null, -32603, error.message || String(error));
     });
   }
 }
 
 function toolList() {
-  return {
-    tools: [
-      {
-        name: "spawn_codex_thread",
-        description:
-          "Start a separate Codex app-server thread and submit one prompt to it. Use for explicit sidecar or subagent work.",
-        inputSchema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            prompt: {
-              type: "string",
-              description: "Initial prompt to send to the spawned Codex thread.",
-            },
-            cwd: {
-              type: "string",
-              description: "Optional working directory for the spawned turn.",
-            },
-            model: {
-              type: "string",
-              description: "Optional Codex model override.",
-            },
-            model_provider: {
-              type: "string",
-              description: "Optional Codex model provider override.",
-            },
-            dry_run: {
-              type: "boolean",
-              description: "Return the planned app-server calls without launching Codex.",
-            },
-          },
-          required: ["prompt"],
+  const spawnCodexThreadTool = {
+    name: "spawn_codex_thread",
+    description:
+      "Start a separate Codex app-server thread and submit one prompt to it. Use for explicit sidecar or subagent work.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        prompt: {
+          type: "string",
+          description: "Initial prompt to send to the spawned Codex thread.",
+        },
+        cwd: {
+          type: "string",
+          description: "Optional working directory for the spawned turn.",
+        },
+        model: {
+          type: "string",
+          description: "Optional Codex model override.",
+        },
+        model_provider: {
+          type: "string",
+          description: "Optional Codex model provider override.",
+        },
+        dry_run: {
+          type: "boolean",
+          description: "Return the planned app-server calls without launching Codex.",
         },
       },
-    ],
+      required: ["prompt"],
+    },
   };
+  spawnCodexThreadTool.type = "function";
+  spawnCodexThreadTool.function = {
+    name: spawnCodexThreadTool.name,
+    description: spawnCodexThreadTool.description,
+    parameters: spawnCodexThreadTool.inputSchema,
+  };
+  return {
+    tools: [spawnCodexThreadTool],
+  };
+}
+
+function splitPathList(value) {
+  if (typeof value !== "string" || !value.trim()) {
+    return [];
+  }
+  return value.split(path.delimiter).map((entry) => entry.trim()).filter(Boolean);
+}
+
+function normalizePath(value) {
+  return path.resolve(value).toLowerCase();
+}
+
+function isPathInside(candidate, root) {
+  const relative = path.relative(root, candidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function allowedCwdRoots() {
+  const roots = [process.cwd()];
+  roots.push(...splitPathList(process.env.OFXGGML_CODEX_THREAD_ALLOWED_ROOTS));
+  if (process.env.OFXGGML_CODEX_ADDON_ROOT) {
+    roots.push(process.env.OFXGGML_CODEX_ADDON_ROOT);
+  }
+  const normalized = [];
+  const seen = new Set();
+  for (const root of roots) {
+    const resolved = path.resolve(root);
+    const key = normalizePath(resolved);
+    if (!seen.has(key)) {
+      seen.add(key);
+      normalized.push(resolved);
+    }
+  }
+  return normalized;
+}
+
+function resolveSpawnCwd(value) {
+  const requested = typeof value === "string" && value.trim()
+    ? path.resolve(value.trim())
+    : process.cwd();
+  const candidate = normalizePath(requested);
+  const roots = allowedCwdRoots();
+  const allowed = roots.some((root) => isPathInside(candidate, normalizePath(root)));
+  if (!allowed) {
+    throw new Error(`cwd is outside the allowed Codex thread roots: ${requested}`);
+  }
+  return { cwd: requested, allowedRoots: roots };
+}
+
+function resolveProvider(value) {
+  const provider = typeof value === "string" && value.trim()
+    ? value.trim()
+    : (process.env.OFXGGML_CODEX_MODEL_PROVIDER || defaultCodexModelProvider);
+  if (provider !== defaultCodexModelProvider) {
+    throw new Error(`spawn_codex_thread only supports ${defaultCodexModelProvider}; received ${provider}`);
+  }
+  return provider;
 }
 
 function callCodexThreadSpawner(args) {
@@ -97,23 +165,26 @@ function callCodexThreadSpawner(args) {
     throw new Error("prompt is required");
   }
 
-  const cwd = typeof args.cwd === "string" && args.cwd.trim()
-    ? path.resolve(args.cwd.trim())
-    : process.cwd();
-  const defaultModel = process.env.OFXGGML_CODEX_MODEL || "local/Qwen3.6-27B-Q4_0";
+  const cwdInfo = resolveSpawnCwd(args.cwd);
+  const cwd = cwdInfo.cwd;
   const model = typeof args.model === "string" && args.model.trim()
     ? args.model.trim()
-    : defaultModel;
-  const modelProvider = typeof args.model_provider === "string"
-    ? args.model_provider.trim()
-    : (process.env.OFXGGML_CODEX_MODEL_PROVIDER || "llama_cpp");
+    : (process.env.OFXGGML_CODEX_MODEL || defaultCodexModel);
+  const modelProvider = resolveProvider(args.model_provider);
+  const baseUrl = process.env.OFXGGML_CODEX_BASE_URL || defaultCodexBaseUrl;
   const dryRun = Boolean(args.dry_run);
   const plan = {
     transport: "codex app-server stdio",
+    local_provider: {
+      model,
+      modelProvider,
+      baseUrl,
+      allowedCwdRoots: cwdInfo.allowedRoots,
+    },
     thread_start: {
       cwd,
       ...(model ? { model } : {}),
-      ...(modelProvider ? { modelProvider } : {}),
+      modelProvider,
       approvalPolicy: "never",
       sandbox: "workspace-write",
       ephemeral: true,
@@ -132,7 +203,6 @@ function callCodexThreadSpawner(args) {
 
   return spawnCodexThread(plan);
 }
-
 function sendCodex(proc, method, params) {
   const id = nextCodexId++;
   proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, id, params })}\n`);

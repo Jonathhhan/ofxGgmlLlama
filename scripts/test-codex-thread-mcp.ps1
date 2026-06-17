@@ -16,6 +16,7 @@ $ErrorActionPreference = "Stop"
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $serverScript = Join-Path $scriptRoot "mcp\codex-thread-server.js"
+$expectedBaseUrl = if ($env:OFXGGML_CODEX_BASE_URL) { $env:OFXGGML_CODEX_BASE_URL } else { "http://127.0.0.1:8001/v1" }
 
 function New-McpMessage {
 	param([object]$Message)
@@ -77,6 +78,34 @@ function Send-McpMessage {
 	$bytes = [System.Text.Encoding]::UTF8.GetBytes($text)
 	$Process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
 	$Process.StandardInput.BaseStream.Flush()
+}
+
+function Assert-McpToolError {
+	param(
+		[System.Diagnostics.Process]$Process,
+		[int]$Id,
+		[hashtable]$Arguments,
+		[string]$Pattern
+	)
+	Send-McpMessage $Process @{
+		jsonrpc = "2.0"
+		id = $Id
+		method = "tools/call"
+		params = @{
+			name = "spawn_codex_thread"
+			arguments = $Arguments
+		}
+	}
+	$response = Read-McpMessage $Process.StandardOutput.BaseStream
+	if (!$response.error) {
+		throw "MCP tools/call $Id unexpectedly succeeded."
+	}
+	if ([int]$response.id -ne $Id) {
+		throw "MCP tools/call $Id did not preserve the JSON-RPC id."
+	}
+	if ([string]$response.error.message -notmatch $Pattern) {
+		throw "MCP tools/call $Id error did not match ${Pattern}: $($response.error.message)"
+	}
 }
 
 if (!(Test-Path -LiteralPath $serverScript -PathType Leaf)) {
@@ -156,6 +185,32 @@ try {
 	if ("spawn_codex_thread" -notin $toolNames) {
 		throw "MCP tools/list did not expose spawn_codex_thread."
 	}
+	$spawnTool = @($tools.result.tools | Where-Object { $_.name -eq "spawn_codex_thread" })[0]
+	if (!$spawnTool -or [string]$spawnTool.type -ne "function") {
+		throw "MCP tools/list did not expose spawn_codex_thread as an OpenAI-compatible function tool."
+	}
+	if (!$spawnTool.function -or [string]$spawnTool.function.name -ne "spawn_codex_thread") {
+		throw "MCP tools/list did not expose a matching function envelope for spawn_codex_thread."
+	}
+	if (!$spawnTool.function.parameters -or [string]$spawnTool.function.parameters.type -ne "object") {
+		throw "MCP tools/list did not expose function parameters for spawn_codex_thread."
+	}
+
+	Assert-McpToolError -Process $process -Id 20 -Arguments @{
+		cwd = $addonRoot.Path
+		dry_run = $true
+	} -Pattern "prompt is required"
+	Assert-McpToolError -Process $process -Id 21 -Arguments @{
+		prompt = "Reject this invalid cwd."
+		cwd = [System.IO.Path]::GetPathRoot($addonRoot.Path)
+		dry_run = $true
+	} -Pattern "outside the allowed Codex thread roots"
+	Assert-McpToolError -Process $process -Id 22 -Arguments @{
+		prompt = "Reject this cloud provider."
+		cwd = $addonRoot.Path
+		model_provider = "openai"
+		dry_run = $true
+	} -Pattern "only supports llama_cpp"
 
 	$toolArguments = @{
 		prompt = if ($RealSpawn) { $Prompt } else { "Summarize the local Codex plan." }
@@ -189,6 +244,19 @@ try {
 	} else {
 		if ($text -notmatch "codex app-server stdio" -or $text -notmatch "Summarize the local Codex plan") {
 			throw "MCP dry-run did not describe the planned Codex app-server thread."
+		}
+		$plan = $text | ConvertFrom-Json
+		if (!$plan.local_provider -or $plan.local_provider.modelProvider -ne "llama_cpp") {
+			throw "MCP dry-run did not expose the llama_cpp local provider contract."
+		}
+		if ($plan.local_provider.model -ne $Model) {
+			throw "MCP dry-run did not use the expected local model: $($plan.local_provider.model)"
+		}
+		if ($plan.local_provider.baseUrl -ne $expectedBaseUrl) {
+			throw "MCP dry-run did not expose the expected llama.cpp base URL."
+		}
+		if (@($plan.local_provider.allowedCwdRoots).Count -lt 1 -or $plan.thread_start.cwd -ne $addonRoot.Path) {
+			throw "MCP dry-run did not constrain the spawned cwd to the addon root."
 		}
 	}
 

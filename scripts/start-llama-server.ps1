@@ -16,6 +16,12 @@ param(
 	[string]$KvCacheKeyType = "",
 	[string]$KvCacheValueType = "",
 	[string]$SpecType = "",
+	[string]$DraftModel = "",
+	[string]$DraftGpuLayers = "",
+	[int]$DraftMaxTokens = 0,
+	[int]$DraftMinTokens = 0,
+	[string]$DraftPSplit = "",
+	[string]$DraftPMin = "",
 	[string]$Temperature = "",
 	[string]$TopP = "",
 	[string]$MinP = "",
@@ -285,6 +291,30 @@ if (![string]::IsNullOrWhiteSpace($SpecType)) {
 	$arguments += "--spec-type"
 	$arguments += $SpecType
 }
+if (![string]::IsNullOrWhiteSpace($DraftModel)) {
+	$arguments += "--model-draft"
+	$arguments += $DraftModel
+}
+if (![string]::IsNullOrWhiteSpace($DraftGpuLayers)) {
+	$arguments += "--n-gpu-layers-draft"
+	$arguments += $DraftGpuLayers
+}
+if ($DraftMaxTokens -gt 0) {
+	$arguments += "--spec-draft-n-max"
+	$arguments += $DraftMaxTokens.ToString()
+}
+if ($DraftMinTokens -gt 0) {
+	$arguments += "--spec-draft-n-min"
+	$arguments += $DraftMinTokens.ToString()
+}
+if (![string]::IsNullOrWhiteSpace($DraftPSplit)) {
+	$arguments += "--draft-p-split"
+	$arguments += $DraftPSplit
+}
+if (![string]::IsNullOrWhiteSpace($DraftPMin)) {
+	$arguments += "--draft-p-min"
+	$arguments += $DraftPMin
+}
 if (![string]::IsNullOrWhiteSpace($Alias)) {
 	$arguments += "--alias"
 	$arguments += $Alias
@@ -374,6 +404,9 @@ Write-Host "  cacheReuse: $(if ($CacheReuse -gt 0) { $CacheReuse } else { 'defau
 Write-Host "  ctk:       $(if (![string]::IsNullOrWhiteSpace($KvCacheKeyType)) { $KvCacheKeyType } else { 'default' })"
 Write-Host "  ctv:       $(if (![string]::IsNullOrWhiteSpace($KvCacheValueType)) { $KvCacheValueType } else { 'default' })"
 Write-Host "  specType:  $(if (![string]::IsNullOrWhiteSpace($SpecType)) { $SpecType } else { 'default' })"
+Write-Host "  draft:     $(if (![string]::IsNullOrWhiteSpace($DraftModel)) { $DraftModel } else { 'none' })"
+Write-Host "  draftNgl:  $(if (![string]::IsNullOrWhiteSpace($DraftGpuLayers)) { $DraftGpuLayers } else { 'auto' })"
+Write-Host "  draftMax:  $(if ($DraftMaxTokens -gt 0) { $DraftMaxTokens } else { 'default' })"
 if (![string]::IsNullOrWhiteSpace($Temperature)) {
 	Write-Host "  temp:      $Temperature"
 }

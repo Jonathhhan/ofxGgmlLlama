@@ -147,10 +147,13 @@ $codexArgs = @(
 		-AgentMaxDepth 3
 )
 Assert-True ($codexArgs -contains "--disable") "Codex launch args include tool guard switches"
+Assert-True ($codexArgs -contains "tool_search_always_defer_mcp_tools") "Codex launch args disable deferred MCP tool-search placeholders"
+Assert-True ($codexArgs -contains "mcp_servers.node_repl.enabled=false") "Codex launch args disable desktop MCP namespace tools"
 Assert-True ($codexArgs -contains "web_search=`"live`"") "Codex launch args allow web search override"
 Assert-True ($codexArgs -contains "model_provider=llama_cpp") "Codex launch args include provider override"
 Assert-True ($codexArgs -contains "model_providers.llama_cpp.base_url=`"http://127.0.0.1:9001/v1`"") "Codex launch args include endpoint override"
 Assert-True ($codexArgs -contains "model_context_window=40960") "Codex launch args include context window"
+Assert-True ($codexArgs -contains "model_verbosity=low") "Codex launch args keep concise local model output"
 Assert-True ($codexArgs -contains "agents.max_threads=2") "Codex launch args include agent thread cap"
 Assert-True ($codexArgs -contains "agents.max_depth=3") "Codex launch args include agent depth cap"
 
@@ -159,8 +162,18 @@ $codexGuardOnlyArgs = @(
 		-SkipProviderOverrides `
 		-AgentMaxConcurrentThreads 1
 )
-Assert-True ($codexGuardOnlyArgs -contains "web_search=`"disabled`"") "Codex guard-only args keep tool compatibility overrides"
+Assert-True ($codexGuardOnlyArgs -contains "web_search=`"live`"") "Codex guard-only args keep web search enabled by default"
+Assert-True ($codexGuardOnlyArgs -contains "mcp_servers.node_repl.enabled=false") "Codex guard-only args disable desktop MCP namespace tools"
 Assert-True ($codexGuardOnlyArgs -notcontains "model_provider=llama_cpp") "Codex guard-only args omit provider override"
 Assert-True ($codexGuardOnlyArgs -contains "agents.max_threads=1") "Codex guard-only args keep agent cap"
+
+$codexIgnoreConfigArgs = @(
+	Get-OfxGgmlCodexLocalProviderArguments `
+		-SkipDesktopMcpDisable `
+		-AgentMaxConcurrentThreads 1
+)
+Assert-True ($codexIgnoreConfigArgs -contains "tool_search_always_defer_mcp_tools") "Codex ignore-config args keep feature guard switches"
+Assert-True ($codexIgnoreConfigArgs -notcontains "mcp_servers.node_repl.enabled=false") "Codex ignore-config args omit partial desktop MCP table"
+Assert-True ($codexIgnoreConfigArgs -contains "agents.max_threads=1") "Codex ignore-config args keep agent cap"
 
 Write-Step "Launch utility coverage passed"

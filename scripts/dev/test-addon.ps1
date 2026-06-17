@@ -1,6 +1,7 @@
 param(
 	[string]$Configuration = "Release",
 	[string]$BuildDir = "",
+	[string]$CoreRoot = "",
 	[switch]$Clean
 )
 
@@ -18,6 +19,18 @@ function Test-WindowsHost {
 function Convert-ToCmdArgument {
 	param([string]$Value)
 	return '"' + ($Value -replace '"', '""') + '"'
+}
+
+function Get-StableNameFragment {
+	param([string]$Text)
+	$sha1 = [System.Security.Cryptography.SHA1]::Create()
+	try {
+		$bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+		$hash = $sha1.ComputeHash($bytes)
+		return [System.BitConverter]::ToString($hash).Replace("-", "").Substring(0, 12)
+	} finally {
+		$sha1.Dispose()
+	}
 }
 
 function Invoke-CheckedNative {
@@ -71,7 +84,13 @@ $scriptRoot = Resolve-Path (Join-Path (Split-Path -Parent $MyInvocation.MyComman
 $addonRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $testsDir = Join-Path $addonRoot "tests"
 if ([string]::IsNullOrWhiteSpace($BuildDir)) {
-	$BuildDir = Join-Path ([System.IO.Path]::GetTempPath()) "ofxGgmlLlama-tests"
+	$BuildDir = Join-Path ([System.IO.Path]::GetTempPath()) ("ofxGgmlLlama-tests-" + (Get-StableNameFragment $addonRoot.Path))
+}
+$coreRootArgument = ""
+if (![string]::IsNullOrWhiteSpace($CoreRoot)) {
+	$coreRootArgument = " -DOFX_GGML_CORE_ROOT=$(Convert-ToCmdArgument $CoreRoot)"
+} elseif (![string]::IsNullOrWhiteSpace($env:OFX_GGML_CORE_ROOT)) {
+	$coreRootArgument = " -DOFX_GGML_CORE_ROOT=$(Convert-ToCmdArgument $env:OFX_GGML_CORE_ROOT)"
 }
 
 if ($Clean -and (Test-Path -LiteralPath $BuildDir)) {
@@ -85,7 +104,7 @@ if (Test-WindowsHost) {
 		throw "Visual Studio C++ build tools were not found."
 	}
 
-	$configure = "cmake -S $(Convert-ToCmdArgument $testsDir) -B $(Convert-ToCmdArgument $BuildDir) -G $(Convert-ToCmdArgument "NMake Makefiles") -DCMAKE_BUILD_TYPE=$Configuration"
+	$configure = "cmake -S $(Convert-ToCmdArgument $testsDir) -B $(Convert-ToCmdArgument $BuildDir) -G $(Convert-ToCmdArgument "NMake Makefiles") -DCMAKE_BUILD_TYPE=$Configuration$coreRootArgument"
 	$build = "cmake --build $(Convert-ToCmdArgument $BuildDir)"
 	$test = "ctest --test-dir $(Convert-ToCmdArgument $BuildDir) --output-on-failure"
 	$command = "call $(Convert-ToCmdArgument $vsDevCmd) -arch=x64 -host_arch=x64 >nul && $configure && $build && $test"
@@ -95,7 +114,13 @@ if (Test-WindowsHost) {
 } else {
 	Write-Step "Configuring ofxGgmlLlama tests"
 	Invoke-CheckedNative "cmake configure ofxGgmlLlama tests" {
-		cmake -S $testsDir -B $BuildDir -DCMAKE_BUILD_TYPE=$Configuration
+		$cmakeArgs = @("-S", $testsDir, "-B", $BuildDir, "-DCMAKE_BUILD_TYPE=$Configuration")
+		if (![string]::IsNullOrWhiteSpace($CoreRoot)) {
+			$cmakeArgs += "-DOFX_GGML_CORE_ROOT=$CoreRoot"
+		} elseif (![string]::IsNullOrWhiteSpace($env:OFX_GGML_CORE_ROOT)) {
+			$cmakeArgs += "-DOFX_GGML_CORE_ROOT=$env:OFX_GGML_CORE_ROOT"
+		}
+		cmake @cmakeArgs
 	}
 	Write-Step "Building ofxGgmlLlama tests"
 	Invoke-CheckedNative "cmake build ofxGgmlLlama tests" {

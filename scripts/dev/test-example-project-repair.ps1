@@ -28,6 +28,26 @@ function Assert-IncludeDirectory {
 	throw "$Project is missing include directory: $IncludeDirectory"
 }
 
+function Assert-IncludeDirectoryLike {
+	param(
+		[string]$Project,
+		[string]$Pattern
+	)
+	[xml]$doc = Get-Content -LiteralPath $Project -Raw
+	$namespace = New-Object System.Xml.XmlNamespaceManager($doc.NameTable)
+	$namespace.AddNamespace("msb", "http://schemas.microsoft.com/developer/msbuild/2003")
+	$nodes = @($doc.SelectNodes("//msb:AdditionalIncludeDirectories", $namespace))
+	foreach ($node in $nodes) {
+		$parts = @($node.InnerText -split ";" | Where-Object { $_ })
+		foreach ($part in $parts) {
+			if ($part -like $Pattern) {
+				return
+			}
+		}
+	}
+	throw "$Project is missing include directory matching: $Pattern"
+}
+
 function Assert-GuardedPostBuild {
 	param([string]$Project)
 	[xml]$doc = Get-Content -LiteralPath $Project -Raw
@@ -70,7 +90,7 @@ foreach ($example in $examples) {
 	}
 	$project = Join-Path $addonRoot "$example\$example.vcxproj"
 	Assert-IncludeDirectory -Project $project -IncludeDirectory "..\src"
-	Assert-IncludeDirectory -Project $project -IncludeDirectory "..\..\ofxGgmlCore\src"
+	Assert-IncludeDirectoryLike -Project $project -Pattern "*ofxGgmlCore\src"
 	Assert-ProjectDoesNotContain `
 		-Project $project `
 		-Text "..\..\ofxGgmlCore\src\inference\ofxGgmlTextGeneration.cpp" `

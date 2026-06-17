@@ -7,6 +7,7 @@
 #include <sstream>
 #include <utility>
 
+#include "ofxGgmlString.h"
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -42,20 +43,6 @@ std::string roleLabel(ofxGgmlTextRole role) {
 	return "User";
 }
 
-std::string trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() &&
-		std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first &&
-		std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	return value.substr(first, last - first);
-}
-
 std::string stripAnsiSequences(const std::string & value) {
 	std::string stripped;
 	stripped.reserve(value.size());
@@ -80,45 +67,15 @@ std::string stripAnsiSequences(const std::string & value) {
 	return stripped;
 }
 
-bool startsWith(const std::string & value, const std::string & prefix) {
-	return value.size() >= prefix.size() &&
-		value.compare(0, prefix.size(), prefix) == 0;
-}
-
 bool containsText(const std::string & value, const std::string & needle) {
 	return value.find(needle) != std::string::npos;
 }
 
-std::string eraseDelimitedBlock(
-	std::string value,
-	const std::string & beginMarker,
-	const std::string & endMarker) {
-	std::size_t begin = value.find(beginMarker);
-	while (begin != std::string::npos) {
-		const std::size_t end = value.find(endMarker, begin + beginMarker.size());
-		const std::size_t eraseEnd = end == std::string::npos
-			? value.size()
-			: end + endMarker.size();
-		value.erase(begin, eraseEnd - begin);
-		begin = value.find(beginMarker, begin);
-	}
-	return value;
-}
-
-std::string stripReasoningBlocks(std::string value) {
-	value = eraseDelimitedBlock(value, "<think>", "</think>");
-	value = eraseDelimitedBlock(value, "<thinking>", "</thinking>");
-	value = eraseDelimitedBlock(value, "[Start thinking]", "[End thinking]");
-	value = eraseDelimitedBlock(value, "[Start thinking]", "[Stop thinking]");
-	value = eraseDelimitedBlock(value, "[Thinking]", "[/Thinking]");
-	return value;
-}
-
 bool isRoleEchoLine(const std::string & line) {
-	const std::string trimmed = trimCopy(line);
-	return startsWith(trimmed, "System:") ||
-		startsWith(trimmed, "User:") ||
-		startsWith(trimmed, "Assistant:");
+	const std::string trimmed = ofxGgmlString::trimCopy(line);
+	return ofxGgmlString::startsWith(trimmed, "System:") ||
+		ofxGgmlString::startsWith(trimmed, "User:") ||
+		ofxGgmlString::startsWith(trimmed, "Assistant:");
 }
 
 bool isQuestionMarkBannerLine(const std::string & line) {
@@ -142,7 +99,7 @@ bool isQuestionMarkBannerLine(const std::string & line) {
 }
 
 bool isLlamaCliNoiseLine(const std::string & line) {
-	const std::string trimmed = trimCopy(line);
+	const std::string trimmed = ofxGgmlString::trimCopy(line);
 	if (trimmed.empty()) {
 		return false;
 	}
@@ -176,7 +133,7 @@ bool isLlamaCliNoiseLine(const std::string & line) {
 		"> "
 	};
 	for (const auto & prefix : prefixes) {
-		if (startsWith(trimmed, prefix)) {
+		if (ofxGgmlString::startsWith(trimmed, prefix)) {
 			return true;
 		}
 	}
@@ -187,7 +144,7 @@ bool isLlamaCliNoiseLine(const std::string & line) {
 }
 
 std::string sanitizeLlamaCliOutput(const std::string & output) {
-	std::istringstream lines(stripReasoningBlocks(stripAnsiSequences(output)));
+	std::istringstream lines(ofxGgmlString::stripReasoningBlocks(stripAnsiSequences(output)));
 	std::ostringstream cleaned;
 	std::string line;
 	bool wroteLine = false;
@@ -200,9 +157,9 @@ std::string sanitizeLlamaCliOutput(const std::string & output) {
 			continue;
 		}
 		if (!sawAssistantText && isRoleEchoLine(line)) {
-			const std::string trimmed = trimCopy(line);
-			if (startsWith(trimmed, "Assistant:")) {
-				const std::string assistantText = trimCopy(trimmed.substr(10));
+			const std::string trimmed = ofxGgmlString::trimCopy(line);
+			if (ofxGgmlString::startsWith(trimmed, "Assistant:")) {
+				const std::string assistantText = ofxGgmlString::trimCopy(trimmed.substr(10));
 				if (assistantText.empty()) {
 					continue;
 				}
@@ -211,7 +168,7 @@ std::string sanitizeLlamaCliOutput(const std::string & output) {
 			} else {
 				continue;
 			}
-		} else if (!trimCopy(line).empty()) {
+		} else if (!ofxGgmlString::trimCopy(line).empty()) {
 			sawAssistantText = true;
 		}
 		if (wroteLine) {
@@ -220,7 +177,7 @@ std::string sanitizeLlamaCliOutput(const std::string & output) {
 		cleaned << line;
 		wroteLine = true;
 	}
-	return trimCopy(cleaned.str());
+	return ofxGgmlString::trimCopy(cleaned.str());
 }
 
 #if defined(_WIN32)

@@ -6,60 +6,8 @@
 #include <sstream>
 #include <utility>
 
+#include "ofxGgmlString.h"
 namespace {
-
-std::string trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() &&
-		std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first &&
-		std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	return value.substr(first, last - first);
-}
-
-bool endsWith(const std::string & value, const std::string & suffix) {
-	return value.size() >= suffix.size() &&
-		value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
-}
-
-std::string stripTrailingSlash(std::string value) {
-	while (!value.empty() && value.back() == '/') {
-		value.pop_back();
-	}
-	return value;
-}
-
-std::string escapeJson(const std::string & value) {
-	std::string escaped;
-	escaped.reserve(value.size());
-	for (const unsigned char c : value) {
-		switch (c) {
-		case '\\': escaped += "\\\\"; break;
-		case '"': escaped += "\\\""; break;
-		case '\b': escaped += "\\b"; break;
-		case '\f': escaped += "\\f"; break;
-		case '\n': escaped += "\\n"; break;
-		case '\r': escaped += "\\r"; break;
-		case '\t': escaped += "\\t"; break;
-		default:
-			if (c < 0x20) {
-				const char * hex = "0123456789abcdef";
-				escaped += "\\u00";
-				escaped.push_back(hex[(c >> 4) & 0x0f]);
-				escaped.push_back(hex[c & 0x0f]);
-			} else {
-				escaped.push_back(static_cast<char>(c));
-			}
-			break;
-		}
-	}
-	return escaped;
-}
 
 std::vector<float> parseNumberArray(
 	const std::string & json,
@@ -196,16 +144,16 @@ ofxGgmlEmbeddingResult ofxGgmlLlamaServerEmbeddingBackend::embed(
 
 std::string ofxGgmlLlamaServerEmbeddingBackend::normalizeServerUrl(
 	const std::string & serverUrl) {
-	std::string normalized = trimCopy(serverUrl);
+	std::string normalized = ofxGgmlString::trimCopy(serverUrl);
 	if (normalized.empty()) {
 		normalized = "http://127.0.0.1:8081";
 	}
-	if (endsWith(normalized, "/v1/embeddings") ||
-		endsWith(normalized, "/embeddings")) {
+	if (ofxGgmlString::endsWith(normalized, "/v1/embeddings") ||
+		ofxGgmlString::endsWith(normalized, "/embeddings")) {
 		return normalized;
 	}
-	normalized = stripTrailingSlash(normalized);
-	if (endsWith(normalized, "/v1")) {
+	normalized = ofxGgmlString::stripTrailingSlash(normalized);
+	if (ofxGgmlString::endsWith(normalized, "/v1")) {
 		return normalized + "/embeddings";
 	}
 	return normalized + "/v1/embeddings";
@@ -217,7 +165,7 @@ std::string ofxGgmlLlamaServerEmbeddingBackend::buildRequestBody(
 	std::ostringstream body;
 	body << "{";
 	if (!serverModel.empty()) {
-		body << "\"model\":\"" << escapeJson(serverModel) << "\",";
+		body << "\"model\":\"" << ofxGgmlString::escapeJson(serverModel) << "\",";
 	}
 	body << "\"input\":";
 	if (!request.inputs.empty()) {
@@ -226,11 +174,11 @@ std::string ofxGgmlLlamaServerEmbeddingBackend::buildRequestBody(
 			if (i > 0) {
 				body << ",";
 			}
-			body << "\"" << escapeJson(request.inputs[i]) << "\"";
+			body << "\"" << ofxGgmlString::escapeJson(request.inputs[i]) << "\"";
 		}
 		body << "]";
 	} else {
-		body << "\"" << escapeJson(request.input) << "\"";
+		body << "\"" << ofxGgmlString::escapeJson(request.input) << "\"";
 	}
 	body << "}";
 	return body.str();

@@ -1,26 +1,23 @@
 model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
-web_search = "disabled"
+web_search = "live"
 model_context_window = 65536
 model_auto_compact_token_limit = 56000
 tool_output_token_limit = 12000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
+model_verbosity = "low"
 hide_agent_reasoning = true
+
+[features]
+apps = false
+multi_agent = true
 
 [model_providers.llama_cpp]
 name = "llama.cpp local"
 base_url = "http://127.0.0.1:8001/v1"
 wire_api = "responses"
 stream_idle_timeout_ms = 10000000
-
-[profiles.ofxggml_local]
-# Must match the llama-server alias shown as ServerModel in the example.
-model = "local/Qwen3.6-27B-Q4_0"
-model_provider = "llama_cpp"
-web_search = "disabled"
-model_reasoning_effort = "medium"
-model_reasoning_summary = "none"
 
 # Optional MCP bridge for explicit thread-spawning requests. When copying this
 # file globally, replace cwd with the absolute path to the ofxGgmlLlama addon.
@@ -31,10 +28,15 @@ cwd = "C:/path/to/ofxGgmlLlama"
 enabled_tools = ["spawn_codex_thread"]
 default_tools_approval_mode = "prompt"
 startup_timeout_sec = 10
-tool_timeout_sec = 120
+tool_timeout_sec = 300
 enabled = true
+
+[mcp_servers.ofxggml_codex_threads.tools.spawn_codex_thread]
+approval_mode = "approve"
 
 [mcp_servers.ofxggml_codex_threads.env]
 OFXGGML_CODEX_MODEL = "local/Qwen3.6-27B-Q4_0"
 OFXGGML_CODEX_MODEL_PROVIDER = "llama_cpp"
+OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = "300000"
+OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"

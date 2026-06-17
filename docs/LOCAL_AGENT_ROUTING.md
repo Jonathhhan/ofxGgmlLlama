@@ -33,7 +33,7 @@ or reusable orchestration pattern, it belongs in `ofxGgmlAgents`.
 
 | Client | Endpoint shape | Recommended path |
 | --- | --- | --- |
-| OpenAI Codex | OpenAI-compatible Responses API | Direct `llama_cpp` provider profile |
+| OpenAI Codex | OpenAI-compatible Responses API | Direct `llama_cpp` provider selection |
 | OpenCode | OpenAI-compatible Chat Completions API | Direct custom provider using `@ai-sdk/openai-compatible` |
 | GitHub Copilot or similar clients | OpenAI-compatible endpoint when supported | Direct `llama-server` URL |
 | Claude Code | Anthropic-compatible Messages API | Proxy via `ANTHROPIC_BASE_URL` |
@@ -84,9 +84,6 @@ scripts\test-local-codex.bat -DryRun -Json -SummaryOnly
 The generated Codex config should use the `llama_cpp` provider, disable web
 search and non-function Responses tools, and keep local model reasoning
 summaries disabled when the server is launched with `--reasoning off`.
-When using the Ollama route instead, create a dedicated high-context tag first;
-Codex's config window does not raise Ollama's runtime `num_ctx` by itself.
-See `ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example`.
 
 ## OpenCode Direct Route
 

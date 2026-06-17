@@ -31,3 +31,12 @@ before proposing addon-code changes.
 Model-specific UX belongs in companion addons. Shared code should move down into
 ofxGgmlCore only after it is stable, domain-neutral, dependency-light, and
 covered by focused tests.
+## Local Codex and Subagents
+
+- Use normal git branches for Codex work in this checkout; do not introduce or rely on additional git worktrees for addon tasks.
+- Local Codex provider wiring is llama.cpp-only. Do not add alternate local-provider routes, legacy local-provider scripts/docs, or `--oss` launch paths.
+- Keep local Codex configs aligned on `model_provider = "llama_cpp"`, the local OpenAI-compatible llama-server `/v1` endpoint, and the served model alias used by the example.
+- MCP-spawned Codex threads must keep their cwd inside this addon checkout or an explicitly allowed addon subpath.
+- Use subagents for explicit sidecar work, especially read-heavy exploration. Give worker agents narrow, disjoint file ownership before allowing writes.
+- Gate spawned-agent results with the local run contract when they modify files: scripts\check-local-agent-run.ps1.
+- Keep generated Codex role/config writes reviewable and opt-in; avoid silently overwriting user-edited global Codex settings.

@@ -8,7 +8,7 @@ param(
 	[int]$ModelContextWindow = $(if ($env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW) { [int]$env:OFXGGML_CODEX_MODEL_CONTEXT_WINDOW } else { 65536 }),
 	[int]$ModelAutoCompactTokenLimit = $(if ($env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_AUTO_COMPACT_TOKEN_LIMIT } else { 56000 }),
 	[int]$ToolOutputTokenLimit = $(if ($env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT) { [int]$env:OFXGGML_CODEX_TOOL_OUTPUT_TOKEN_LIMIT } else { 12000 }),
-	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
+	[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "live" }),
 	[Alias("AgentMaxAgents", "MaxAgents", "AgentMaxThreads", "MaxAgentThreads")]
 	[int]$AgentMaxConcurrentThreads = $(if ($env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_CONCURRENT_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_THREADS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_THREADS } elseif ($env:OFXGGML_CODEX_AGENT_MAX_AGENTS) { [int]$env:OFXGGML_CODEX_AGENT_MAX_AGENTS } else { 1 }),
 	[int]$AgentMaxDepth = $(if ($env:OFXGGML_CODEX_AGENT_MAX_DEPTH) { [int]$env:OFXGGML_CODEX_AGENT_MAX_DEPTH } else { 0 }),
@@ -161,38 +161,82 @@ function Remove-CodexTomlSection {
 	return ([regex]::Replace($Text, $pattern, "")).TrimEnd()
 }
 
-function Get-CodexProviderProfileToml {
+function Remove-CodexTomlTopLevelKeys {
+	param(
+		[string]$Text,
+		[string[]]$Keys
+	)
+
+	if ([string]::IsNullOrWhiteSpace($Text) -or $null -eq $Keys -or $Keys.Count -eq 0) {
+		return $Text
+	}
+	$keySet = @{}
+	foreach ($key in $Keys) {
+		if (![string]::IsNullOrWhiteSpace($key)) {
+			$keySet[$key] = $true
+		}
+	}
+	$lines = New-Object System.Collections.Generic.List[string]
+	$inTopLevel = $true
+	foreach ($line in ($Text -split "`r?`n")) {
+		$trimmed = $line.Trim()
+		if ($trimmed.StartsWith("[") -and $trimmed.EndsWith("]")) {
+			$inTopLevel = $false
+		}
+		if ($inTopLevel -and $trimmed -match "^([A-Za-z0-9_]+)\s*=" -and $keySet.ContainsKey($matches[1])) {
+			continue
+		}
+		$lines.Add($line)
+	}
+	return (($lines -join "`n").TrimEnd())
+}
+
+function Get-CodexProviderConfigToml {
 	param(
 		[string]$ApiRoot,
 		[string]$Model,
 		[string]$Profile,
-		[string]$WebSearch
+		[string]$WebSearch,
+		[int]$ModelContextWindow,
+		[int]$ModelAutoCompactTokenLimit,
+		[int]$ToolOutputTokenLimit
 	)
 
 	$lines = @(
+		"model = `"$(ConvertTo-CodexTomlString $Model)`"",
+		"model_provider = `"llama_cpp`"",
+		"web_search = `"$(ConvertTo-CodexTomlString $WebSearch)`"",
+		"model_context_window = $([Math]::Max(1024, $ModelContextWindow))",
+		"model_auto_compact_token_limit = $([Math]::Max(1024, $ModelAutoCompactTokenLimit))",
+		"tool_output_token_limit = $([Math]::Max(512, $ToolOutputTokenLimit))",
+		"model_reasoning_effort = `"medium`"",
+		"model_reasoning_summary = `"none`"",
+		"model_verbosity = `"low`"",
+		"hide_agent_reasoning = true",
+		"",
+		"[features]",
+		"apps = false",
+		"multi_agent = true",
+		"",
 		"[model_providers.llama_cpp]",
 		"name = `"llama.cpp local`"",
 		"base_url = `"$(ConvertTo-CodexTomlString $ApiRoot)`"",
 		"wire_api = `"responses`"",
-		"stream_idle_timeout_ms = 10000000",
-		"",
-		"[profiles.$Profile]",
-		"model = `"$(ConvertTo-CodexTomlString $Model)`"",
-		"model_provider = `"llama_cpp`"",
-		"web_search = `"$(ConvertTo-CodexTomlString $WebSearch)`"",
-		"model_reasoning_effort = `"medium`"",
-		"model_reasoning_summary = `"none`""
+		"stream_idle_timeout_ms = 10000000"
 	)
 	return (($lines -join "`n") + "`n")
 }
 
-function Ensure-CodexProviderProfile {
+function Ensure-CodexProviderConfig {
 	param(
 		[string]$ConfigFile,
 		[string]$ApiRoot,
 		[string]$Model,
 		[string]$Profile,
-		[string]$WebSearch
+		[string]$WebSearch,
+		[int]$ModelContextWindow,
+		[int]$ModelAutoCompactTokenLimit,
+		[int]$ToolOutputTokenLimit
 	)
 
 	$result = [ordered]@{
@@ -212,11 +256,6 @@ function Ensure-CodexProviderProfile {
 		$result.Skipped += "model alias is empty"
 		return [pscustomobject]$result
 	}
-	if ([string]::IsNullOrWhiteSpace($Profile)) {
-		$result.Skipped += "profile is empty"
-		return [pscustomobject]$result
-	}
-
 	$result.Checked = $true
 	$configDirectory = Split-Path -Parent $ConfigFile
 	if (![string]::IsNullOrWhiteSpace($configDirectory)) {
@@ -229,11 +268,27 @@ function Ensure-CodexProviderProfile {
 	}
 	$updated = Remove-CodexTomlSection -Text $existing -Section "model_providers.llama_cpp"
 	$updated = Remove-CodexTomlSection -Text $updated -Section "profiles.$Profile"
-	$snippet = Get-CodexProviderProfileToml `
+	$updated = Remove-CodexTomlSection -Text $updated -Section "features"
+	$updated = Remove-CodexTomlTopLevelKeys -Text $updated -Keys @(
+		"model",
+		"model_provider",
+		"web_search",
+		"model_context_window",
+		"model_auto_compact_token_limit",
+		"tool_output_token_limit",
+		"model_reasoning_effort",
+		"model_reasoning_summary",
+		"model_verbosity",
+		"hide_agent_reasoning"
+	)
+	$snippet = Get-CodexProviderConfigToml `
 		-ApiRoot $ApiRoot `
 		-Model $Model `
 		-Profile $Profile `
-		-WebSearch $WebSearch
+		-WebSearch $WebSearch `
+		-ModelContextWindow $ModelContextWindow `
+		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
+		-ToolOutputTokenLimit $ToolOutputTokenLimit
 	if (![string]::IsNullOrWhiteSpace($updated)) {
 		$updated = $updated.TrimEnd() + "`n`n" + $snippet
 	} else {
@@ -244,7 +299,7 @@ function Ensure-CodexProviderProfile {
 	$result.Written = $true
 	$result.ReadyForLocalAgents =
 		($after -match "\[model_providers\.llama_cpp\]") -and
-		($after -match "\[profiles\.$([regex]::Escape($Profile))\]")
+		($after -match "(?m)^model_provider\s*=\s*`"llama_cpp`"")
 	return [pscustomobject]$result
 }
 
@@ -262,9 +317,9 @@ function Get-CodexAgentRoleToml {
 		"Execution-focused local worker using llama.cpp."
 	}
 	$instructions = if ($Role -eq "explorer") {
-		"Use the explorer role for narrow, read-only codebase questions. Use rg first, read exact files before answering, cite paths or lines when useful, and return concise findings. Do not edit files and avoid spawning more agents unless explicitly asked."
+		"Use the explorer role for narrow, read-only codebase questions. Use rg first, read exact files before answering, cite paths or lines when useful, clearly separate observed facts from guesses, and return concise findings with open questions. Do not edit files, do not propose broad rewrites, and avoid spawning more agents unless explicitly asked."
 	} else {
-		"Use the worker role for bounded code changes. Read local patterns first, follow openFrameworks addon conventions, preserve existing dirty files, keep edits scoped, use apply_patch for manual edits, run the smallest useful validation, and report residual risk."
+		"Use the worker role for bounded code changes. Read local patterns first, identify the exact files you own before editing, follow openFrameworks addon conventions, preserve existing dirty files, keep edits scoped, use apply_patch for manual edits, run the smallest useful validation, and report touched files, validation commands, and residual risk. Stop to report when a required assumption cannot be verified locally."
 	}
 	$lines = @(
 		"# Generated by ofxGgmlLlama test-local-codex.ps1.",
@@ -357,15 +412,12 @@ $resolvedCodex = if ($plan.CodexExe) { [string]$plan.CodexExe } else { "codex" }
 $resolvedModel = if ($plan.Model) { [string]$plan.Model } else { $Model }
 $resolvedApiRoot = if ($plan.ApiRoot) { [string]$plan.ApiRoot } else { $Endpoint.TrimEnd("/") }
 $arguments = @(
-	"-a", "never",
 	"exec",
 	"--json",
 	"--ephemeral",
+	"--ignore-user-config",
 	"--skip-git-repo-check"
 )
-if ($plan.Config.HasProfile -or !$SkipConfigWrite) {
-	$arguments += @("-p", $CodexProfile)
-}
 $arguments += @(
 	Get-OfxGgmlCodexLocalProviderArguments `
 		-ApiRoot $resolvedApiRoot `
@@ -374,7 +426,8 @@ $arguments += @(
 		-ToolOutputTokenLimit $ToolOutputTokenLimit `
 		-WebSearch $WebSearch `
 		-AgentMaxConcurrentThreads $AgentMaxConcurrentThreads `
-		-AgentMaxDepth $AgentMaxDepth
+		-AgentMaxDepth $AgentMaxDepth `
+		-SkipDesktopMcpDisable
 )
 
 if (![string]::IsNullOrWhiteSpace($resolvedModel)) {
@@ -402,7 +455,7 @@ $configWrite = [pscustomobject]@{
 	Skipped = @("pending-smoke")
 	Provider = "llama_cpp"
 	Profile = $CodexProfile
-	ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+	ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasModelProviderSelection)
 }
 
 $baseSummary = @{
@@ -435,7 +488,7 @@ if ($DryRun) {
 		Skipped = @("dry-run")
 		Provider = "llama_cpp"
 		Profile = $CodexProfile
-		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasModelProviderSelection)
 	}
 	if ($Json) {
 		Write-CodexSmokeJson -Value $baseSummary
@@ -453,12 +506,15 @@ if ($WriteConfigOnly) {
 	if ($SkipConfigWrite) {
 		throw "-WriteConfigOnly cannot be combined with -SkipConfigWrite"
 	}
-	$configWrite = Ensure-CodexProviderProfile `
+	$configWrite = Ensure-CodexProviderConfig `
 		-ConfigFile $plan.Config.Path `
 		-ApiRoot $resolvedApiRoot `
 		-Model $resolvedModel `
 		-Profile $CodexProfile `
-		-WebSearch $WebSearch
+		-WebSearch $WebSearch `
+		-ModelContextWindow $ModelContextWindow `
+		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
+		-ToolOutputTokenLimit $ToolOutputTokenLimit
 	$baseSummary.ConfigWrite = $configWrite
 	if (!$configWrite.ReadyForLocalAgents) {
 		throw "Codex config was not ready for local agents after write: $($plan.Config.Path)"
@@ -472,18 +528,21 @@ if ($WriteConfigOnly) {
 	if ($Json) {
 		Write-CodexSmokeJson -Value $baseSummary
 	} else {
-		Write-Host "Wrote Codex local provider/profile config: $($configWrite.ConfigPath)"
+		Write-Host "Wrote Codex local provider config: $($configWrite.ConfigPath)"
 	}
 	exit 0
 }
 
 if (!$SkipConfigWrite) {
-	$configWrite = Ensure-CodexProviderProfile `
+	$configWrite = Ensure-CodexProviderConfig `
 		-ConfigFile $plan.Config.Path `
 		-ApiRoot $resolvedApiRoot `
 		-Model $resolvedModel `
 		-Profile $CodexProfile `
-		-WebSearch $WebSearch
+		-WebSearch $WebSearch `
+		-ModelContextWindow $ModelContextWindow `
+		-ModelAutoCompactTokenLimit $ModelAutoCompactTokenLimit `
+		-ToolOutputTokenLimit $ToolOutputTokenLimit
 	$baseSummary.ConfigWrite = $configWrite
 	if (!$configWrite.ReadyForLocalAgents) {
 		throw "Codex config was not ready for local agents after write: $($plan.Config.Path)"
@@ -496,10 +555,10 @@ if (!$SkipConfigWrite) {
 		Skipped = @("skip-config-write")
 		Provider = "llama_cpp"
 		Profile = $CodexProfile
-		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasProfile)
+		ReadyForLocalAgents = [bool]($plan.Config.HasProvider -and $plan.Config.HasModelProviderSelection)
 	}
 }
-$localAgentConfigBlocker = "Codex config does not define the llama_cpp provider/profile required by local agents"
+$localAgentConfigBlocker = "Codex config does not define the llama_cpp provider/selection required by local agents"
 $remainingBlockers = if ($baseSummary.ConfigWrite.ReadyForLocalAgents) {
 	@($baseSummary.PlanBlockers | Where-Object { $_ -ne $localAgentConfigBlocker })
 } else {

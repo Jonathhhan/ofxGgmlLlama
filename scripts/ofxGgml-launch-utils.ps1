@@ -341,13 +341,15 @@ function Get-OfxGgmlCodexLocalProviderArguments {
 		[int]$ModelContextWindow = 262144,
 		[int]$ModelAutoCompactTokenLimit = 220000,
 		[int]$ToolOutputTokenLimit = 12000,
-		[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "disabled" }),
+		[string]$WebSearch = $(if ($env:OFXGGML_CODEX_WEB_SEARCH) { $env:OFXGGML_CODEX_WEB_SEARCH } else { "live" }),
 		[string]$ReasoningEffort = "medium",
 		[string]$ReasoningSummary = "none",
+		[string]$ModelVerbosity = "low",
 		[bool]$HideAgentReasoning = $true,
 		[int]$AgentMaxConcurrentThreads = 0,
 		[int]$AgentMaxDepth = 0,
 		[switch]$SkipToolGuards,
+		[switch]$SkipDesktopMcpDisable,
 		[switch]$SkipProviderOverrides
 	)
 
@@ -359,8 +361,12 @@ function Get-OfxGgmlCodexLocalProviderArguments {
 			"--disable", "browser_use",
 			"--disable", "computer_use",
 			"--disable", "tool_search",
+			"--disable", "tool_search_always_defer_mcp_tools",
 			"-c", "web_search=`"$WebSearch`""
 		)
+		if (!$SkipDesktopMcpDisable) {
+			$arguments += @("-c", "mcp_servers.node_repl.enabled=false")
+		}
 	}
 	if (!$SkipProviderOverrides) {
 		$arguments += @(
@@ -374,6 +380,7 @@ function Get-OfxGgmlCodexLocalProviderArguments {
 			"-c", "tool_output_token_limit=$ToolOutputTokenLimit",
 			"-c", "model_reasoning_effort=$ReasoningEffort",
 			"-c", "model_reasoning_summary=$ReasoningSummary",
+			"-c", "model_verbosity=$ModelVerbosity",
 			"-c", "hide_agent_reasoning=$($HideAgentReasoning.ToString().ToLowerInvariant())"
 		)
 	}
@@ -409,6 +416,12 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		[string]$KvCacheKeyType = "",
 		[string]$KvCacheValueType = "",
 		[string]$SpecType = "",
+		[string]$DraftModel = "",
+		[string]$DraftGpuLayers = "",
+		[Nullable[int]]$DraftMaxTokens = $null,
+		[Nullable[int]]$DraftMinTokens = $null,
+		[string]$DraftPSplit = "",
+		[string]$DraftPMin = "",
 		[string]$Temperature = "",
 		[string]$TopP = "",
 		[string]$MinP = "",
@@ -494,6 +507,30 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		$args += "-SpecType"
 		$args += $SpecType
 	}
+	if (![string]::IsNullOrWhiteSpace($DraftModel)) {
+		$args += "-DraftModel"
+		$args += $DraftModel
+	}
+	if (![string]::IsNullOrWhiteSpace($DraftGpuLayers)) {
+		$args += "-DraftGpuLayers"
+		$args += $DraftGpuLayers
+	}
+	if ($null -ne $DraftMaxTokens) {
+		$args += "-DraftMaxTokens"
+		$args += $DraftMaxTokens
+	}
+	if ($null -ne $DraftMinTokens) {
+		$args += "-DraftMinTokens"
+		$args += $DraftMinTokens
+	}
+	if (![string]::IsNullOrWhiteSpace($DraftPSplit)) {
+		$args += "-DraftPSplit"
+		$args += $DraftPSplit
+	}
+	if (![string]::IsNullOrWhiteSpace($DraftPMin)) {
+		$args += "-DraftPMin"
+		$args += $DraftPMin
+	}
 	if (![string]::IsNullOrWhiteSpace($Temperature)) {
 		$args += "-Temperature"
 		$args += $Temperature
@@ -537,122 +574,4 @@ function Start-OfxGgmlBundledLlamaServerIfNeeded {
 		$args += "-Embeddings"
 	}
 	& (Join-Path $ScriptRoot "start-llama-server.ps1") @args
-}
-
-# ── Ollama backend helpers ──
-
-function Find-OfxGgmlOllama {
-    $candidates = @(
-        (Join-Path $env:LOCALAPPDATA "Programs\Ollama\ollama.exe"),
-        (Join-Path $env:ProgramFiles "Ollama\ollama.exe")
-    )
-    $cmd = Get-Command "ollama" -ErrorAction SilentlyContinue
-    if ($cmd) { $candidates.Insert(0, $cmd.Source) }
-    return Resolve-OfxGgmlFirstFile $candidates
-}
-
-function Test-OfxGgmlOllamaRunning {
-    param([string]$Host = "127.0.0.1", [int]$Port = 11434)
-    return (Test-OfxGgmlLocalServerUrl "http://$Host`:$Port")
-}
-
-function Get-OfxGgmlOllamaEndpoint {
-    param([string]$Host = "127.0.0.1", [int]$Port = 11434)
-    return "http://$Host`:$Port/v1"
-}
-
-function Start-OfxGgmlOllamaIfNeeded {
-    param(
-        [string]$Model = "qwen2.5-coder:7b",
-        [string]$HostName = "127.0.0.1",
-        [int]$Port = 11434,
-        [switch]$Pull,
-        [switch]$ForceNew,
-        [switch]$NoAutoServer
-    )
-
-    if ($NoAutoServer -or (!$ForceNew -and (Test-OfxGgmlOllamaRunning -Host $HostName -Port $Port))) {
-        return
-    }
-
-    $ollamaExe = Find-OfxGgmlOllama
-    if (!$ollamaExe) {
-        Write-Warning "Ollama not found. Run scripts\install-ollama.bat first."
-        return
-    }
-
-    Write-OfxGgmlStep "Starting Ollama service..."
-    Start-Process -FilePath $ollamaExe -ArgumentList "serve" -WindowStyle Hidden
-
-    # Wait for service
-    $timeout = 30
-    $started = $false
-    for ($i = 0; $i -lt $timeout; $i++) {
-        Start-Sleep -Seconds 1
-        if (Test-OfxGgmlOllamaRunning -Host $HostName -Port $Port) {
-            $started = $true
-            break
-        }
-    }
-    if (!$started) {
-        Write-Warning "Ollama service did not start within ${timeout}s"
-        return
-    }
-
-    # Pull model if needed
-    $needsPull = $Pull
-    if (!$needsPull) {
-        try {
-            $out = & $ollamaExe list 2>&1 | Out-String
-            if ($out -notmatch [regex]::Escape($Model)) {
-                $needsPull = $true
-            }
-        } catch {}
-    }
-
-    if ($needsPull) {
-        Write-OfxGgmlStep "Pulling model: $Model"
-        & $ollamaExe pull $Model 2>&1 | Out-Host
-    }
-
-    $endpoint = Get-OfxGgmlOllamaEndpoint -Host $HostName -Port $Port
-    Write-OfxGgmlStep "Ollama ready: $endpoint (model: $Model)"
-}
-
-# ── Backend selector: pick best available local backend ──
-
-function Get-OfxGgmlLocalBackend {
-    param(
-        [string]$Preferred = "",  # "ollama", "llama-server", or "" for auto
-        [string]$ServerUrl = ""
-    )
-
-    $ollamaExe = Find-OfxGgmlOllama
-    $ollamaRunning = Test-OfxGgmlOllamaRunning
-    $llamaRunning = if ($ServerUrl) { Test-OfxGgmlLocalServerUrl $ServerUrl } else { $false }
-
-    switch ($Preferred) {
-        "ollama" {
-            if ($ollamaRunning) {
-                return [ordered]@{ Type = "ollama"; Endpoint = Get-OfxGgmlOllamaEndpoint; Path = $ollamaExe }
-            }
-            return $null
-        }
-        "llama-server" {
-            if ($llamaRunning -and $ServerUrl) {
-                return [ordered]@{ Type = "llama-server"; Endpoint = $ServerUrl }
-            }
-            return $null
-        }
-        default {
-            # Auto: prefer ollama if running, then llama-server
-            if ($ollamaRunning) {
-                return [ordered]@{ Type = "ollama"; Endpoint = Get-OfxGgmlOllamaEndpoint; Path = $ollamaExe }
-            }
-            if ($llamaRunning -and $ServerUrl) {
-                return [ordered]@{ Type = "llama-server"; Endpoint = $ServerUrl }
-            }
-            return $null
-        }
-    }
 }

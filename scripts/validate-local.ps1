@@ -1,4 +1,6 @@
-﻿param()
+param(
+	[string]$CoreRoot = ""
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -46,10 +48,48 @@ function Assert-FileNotContains {
 		throw "$Label contained unexpected pattern: $Pattern"
 	}
 }
+function Resolve-CoreRoot {
+	param(
+		[string]$RequestedCoreRoot,
+		[string]$DefaultCoreRoot
+	)
 
+	$candidates = New-Object System.Collections.Generic.List[string]
+	if (![string]::IsNullOrWhiteSpace($RequestedCoreRoot)) {
+		$candidates.Add($RequestedCoreRoot)
+	}
+	if (![string]::IsNullOrWhiteSpace($env:OFX_GGML_CORE_ROOT)) {
+		$candidates.Add($env:OFX_GGML_CORE_ROOT)
+	}
+	$candidates.Add($DefaultCoreRoot)
+
+	if ($env:OF_ROOT) {
+		$candidates.Add((Join-Path $env:OF_ROOT "addons\ofxGgmlCore"))
+	}
+
+	$desktopRoot = [Environment]::GetFolderPath("Desktop")
+	if (![string]::IsNullOrWhiteSpace($desktopRoot)) {
+		foreach ($ofRoot in Get-ChildItem -LiteralPath $desktopRoot -Directory -Filter "of_v*_release" -ErrorAction SilentlyContinue) {
+			$candidates.Add((Join-Path $ofRoot.FullName "addons\ofxGgmlCore"))
+		}
+	}
+
+	foreach ($candidate in $candidates) {
+		if ([string]::IsNullOrWhiteSpace($candidate)) {
+			continue
+		}
+		$expanded = [Environment]::ExpandEnvironmentVariables($candidate)
+		if (Test-Path -LiteralPath $expanded -PathType Container) {
+			return (Resolve-Path -LiteralPath $expanded).Path
+		}
+	}
+
+	return $DefaultCoreRoot
+}
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $addonRoot = Split-Path -Parent $scriptRoot
 $addonsRoot = Split-Path -Parent $addonRoot
+$resolvedCoreRoot = Resolve-CoreRoot -RequestedCoreRoot $CoreRoot -DefaultCoreRoot (Join-Path $addonsRoot "ofxGgmlCore")
 
 Write-Step "Checking addon skeleton"
 Assert-Path (Join-Path $addonRoot "addon_config.mk") "addon config"
@@ -76,7 +116,7 @@ Assert-Path (Join-Path $addonRoot "tests\CMakeLists.txt") "test CMakeLists"
 Assert-Path (Join-Path $addonRoot "tests\test_main.cpp") "test source"
 
 Write-Step "Checking dependency layout"
-Assert-Path (Join-Path $addonsRoot "ofxGgmlCore") "sibling ofxGgmlCore addon" -Directory
+Assert-Path $resolvedCoreRoot "ofxGgmlCore addon" -Directory
 
 Write-Step "Checking example layout"
 foreach ($example in @("ofxGgmlTextExample", "ofxGgmlChatExample", "ofxGgmlEmbeddingExample", "ofxGgmlLlamaCodexLocalExample")) {
@@ -114,23 +154,26 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-c
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[model_providers\.llama_cpp\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'name = "llama.cpp local"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'base_url = "http://127.0.0.1:8001/v1"' "Codex local example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") 'model = "hermes3-codex-32k:latest"' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") 'model_provider = "local_ollama"' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") '\[model_providers\.local_ollama\]' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") 'base_url = "http://127.0.0.1:11434/v1"' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") '\[profiles\.ofxggml_ollama\]' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.ollama.example.toml") 'ollama-codex.Modelfile.example' "Codex Ollama example config"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\ollama-codex.Modelfile.example") 'PARAMETER num_ctx 32768' "Codex Ollama Modelfile example"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'web_search = "disabled"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'web_search = "live"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[features\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'multi_agent = true' "Codex local example config"
+Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'tool_search_always_defer_mcp_tools = false' "Codex local example config"
+Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[profiles\.ofxggml_local\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "scripts\ofxGgml-launch-utils.ps1") 'OFXGGML_CODEX_WEB_SEARCH' "Codex local launch utility"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'OFXGGML_CODEX_WEB_SEARCH' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'model_context_window = 65536' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'tool_output_token_limit = 12000' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'model_verbosity = "low"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_codex_threads\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'spawn_codex_thread' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'tool_timeout_sec = 300' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_codex_threads\.tools\.spawn_codex_thread\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'approval_mode = "approve"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_codex_threads\.env\]' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_MODEL = "local/Qwen3.6-27B-Q4_0"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = "300000"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_threads = 1' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[agents\]' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_depth = 1' "Codex local example config"
@@ -169,10 +212,6 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'GPU layers all' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'DefaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0"' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'Hybrid: local agents' "Codex local example UI"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'Ollama Hermes' "Codex local example UI"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'Hybrid: Ollama agents' "Codex local example UI"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'local_ollama' "Codex local example UI"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'DefaultCodexOllamaModelAlias = "hermes3-codex-32k:latest"' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'OpenAI model' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'model layers' "Codex local example GPU layer display"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'gpuLayersAll' "Codex local example server settings"
@@ -182,7 +221,6 @@ Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") 'executableHelpOutput' "Codex local server launcher help cache"
 Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") '-MaxAgents' "Codex local server docs"
 Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") '-GpuLayers all' "Codex local server docs"
-Assert-FileContains (Join-Path $addonRoot "docs\CODEX_COPILOT_LOCAL_SERVER.md") 'Ollama context note' "Codex local server docs"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.h") "ofxImGui::Gui" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "ImGui::Begin" "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "syncCodexConfig" "Codex local launch config"
@@ -208,7 +246,7 @@ Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "fu
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Get-ServedModelEvidence" "Codex local planner shared model preflight helper"
 Assert-FileNotContains (Join-Path $addonRoot "scripts\plan-local-codex.ps1") "function Normalize-Text" "Codex local planner shared path helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Get-OfxGgmlCodexLocalProviderArguments" "Codex local launch command helper"
-Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Ensure-CodexProviderProfile" "Codex local smoke config writer"
+Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "Ensure-CodexProviderConfig" "Codex local smoke config writer"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "ReadyForLocalAgents" "Codex local smoke config writer"
 Assert-FileContains (Join-Path $addonRoot "scripts\test-local-codex.ps1") "WriteConfigOnly" "Codex local smoke config writer"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "spawn_codex_thread" "Codex thread MCP server"
@@ -226,11 +264,12 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "model_provider" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "writeAgentRoleFiles" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "llama_cpp" "Codex local launch command"
-Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "localLaunchMode && !autoConfig" "Codex local launch command"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "includeLocalProviderOverrides = localLaunchMode" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "writeCodexConfig" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "providerIdForMode" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "web_search" "Codex local config writer"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "launchUiProcess" "Codex UI launch"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "launchDetachedProcess" "Codex local command launch"
 Assert-FileContains (Join-Path $addonRoot "src\codex\ofxGgmlLlamaCodexLocal.cpp") "ShellExecuteW" "Codex UI launch"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") "--oss" "Codex local launch command"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") 'Copy server command' "Codex local example README"
@@ -327,7 +366,7 @@ if ($LASTEXITCODE -ne 0) {
 if (!$codexPlan.PSObject.Properties["Config"] -or !$codexPlan.Config.PSObject.Properties["ReadyForLocalAgents"]) {
 	throw "Local Codex plan did not expose local-agent config readiness"
 }
-if (!$codexPlan.Blockers -contains "Codex config does not define the llama_cpp provider/profile required by local agents") {
+if (!$codexPlan.Blockers -contains "Codex config does not define the llama_cpp provider/selection required by local agents") {
 	throw "Local Codex plan did not block unsafe local-agent launch when config is missing"
 }
 if (!$codexPlan.PSObject.Properties["ServedModels"] -or !$codexPlan.PSObject.Properties["LocalLlamaServer"]) {
@@ -357,11 +396,11 @@ if (!$codexPlan.PSObject.Properties["RecommendedActions"]) {
 if (!$codexPlan.PSObject.Properties["ConfigWriteCommand"] -or $codexPlan.ConfigWriteCommand -notlike "*-WriteConfigOnly*") {
 	throw "Local Codex plan did not expose a config-only write command for local agents"
 }
-if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*") {
+if ($codexPlan.LaunchCommand -notlike "*web_search=*" -or $codexPlan.LaunchCommand -notlike "*model_verbosity=low*" -or $codexPlan.LaunchCommand -notlike "*--disable apps*" -or $codexPlan.LaunchCommand -notlike "*mcp_servers.node_repl.enabled=false*" -or $codexPlan.LaunchCommand -notlike "*tool_search_always_defer_mcp_tools*") {
 	throw "Local Codex plan did not include llama-server tool compatibility overrides"
 }
-if ($codexPlan.LaunchCommand -notlike "*-p ofxggml_local*" -or $codexPlan.LaunchCommand -like "*model_provider=llama_cpp*") {
-	throw "Local Codex plan did not use the generated profile as the manual launch contract"
+if ($codexPlan.LaunchCommand -like "*-p ofxggml_local*" -or $codexPlan.LaunchCommand -like "*model_provider=llama_cpp*") {
+	throw "Local Codex plan should rely on current top-level config rather than legacy inline profile/provider overrides"
 }
 if ($codexPlan.LaunchCommand -notlike "*agents.max_threads=1*" -or $codexPlan.LaunchCommand -like "*agents.max_depth=1*") {
 	throw "Local Codex plan did not include local agent settings"
@@ -402,14 +441,17 @@ if ($LASTEXITCODE -ne 0) {
 if ($codexSmoke.Command -notlike "*codex*exec*" -or $codexSmoke.Command -notlike "*LOCAL_CODEX_OK*") {
 	throw "Local Codex smoke did not build the expected codex exec marker command"
 }
-if ($codexSmoke.Command -notlike "*-p ofxggml_local*") {
-	throw "Local Codex smoke did not select the generated local profile"
+if ($codexSmoke.Command -like "*-p ofxggml_local*") {
+	throw "Local Codex smoke should not select the generated local profile while ignoring user config"
 }
 if ($codexSmoke.Command -notlike "*--output-last-message*") {
 	throw "Local Codex smoke did not request final-message capture"
 }
-if ($codexSmoke.Command -notlike "*model_provider=llama_cpp*" -or $codexSmoke.Command -notlike "*web_search=*" -or $codexSmoke.Command -notlike "*--disable apps*") {
+if ($codexSmoke.Command -notlike "*model_provider=llama_cpp*" -or $codexSmoke.Command -notlike "*web_search=*" -or $codexSmoke.Command -notlike "*model_verbosity=low*" -or $codexSmoke.Command -notlike "*--ignore-user-config*" -or $codexSmoke.Command -notlike "*--disable apps*" -or $codexSmoke.Command -notlike "*tool_search_always_defer_mcp_tools*") {
 	throw "Local Codex smoke did not include llama-server tool compatibility overrides"
+}
+if ($codexSmoke.Command -like "*mcp_servers.node_repl.enabled=false*") {
+	throw "Local Codex smoke should not create a partial desktop MCP server table while ignoring user config"
 }
 if ($codexSmoke.Command -notlike "*agents.max_threads=1*" -or $codexSmoke.Command -like "*agents.max_depth=1*") {
 	throw "Local Codex smoke did not include local agent settings"
@@ -418,7 +460,7 @@ if (!$codexSmoke.PSObject.Properties["ServedModels"] -or !$codexSmoke.PSObject.P
 	throw "Local Codex smoke did not include preflight model/server evidence"
 }
 if (!$codexSmoke.PSObject.Properties["ConfigWrite"] -or !$codexSmoke.ConfigWrite.PSObject.Properties["ReadyForLocalAgents"]) {
-	throw "Local Codex smoke did not include provider/profile config evidence for local agents"
+	throw "Local Codex smoke did not include provider selection config evidence for local agents"
 }
 
 Write-Step "Checking Codex thread MCP smoke contract"
@@ -485,7 +527,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Step "Running headless tests"
-& (Join-Path $scriptRoot "dev\test-addon.ps1")
+& (Join-Path $scriptRoot "dev\test-addon.ps1") -CoreRoot $resolvedCoreRoot
 if ($LASTEXITCODE -ne 0) {
 	throw "Headless tests failed with exit code $LASTEXITCODE"
 }

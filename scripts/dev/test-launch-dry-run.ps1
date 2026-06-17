@@ -395,7 +395,7 @@ $codexOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
-		SpecType = "ngram-cache"
+		SpecType = "draft-mtp"
 		Configuration = $Configuration
 		Platform = $Platform
 	}
@@ -405,7 +405,7 @@ Assert-Contains $codexOutput "Using Codex sandbox: workspace-write" "Codex local
 Assert-Contains $codexOutput "Using Codex model alias: dry-codex-model" "Codex local dry-run"
 Assert-Contains $codexOutput "Using text model: $modelPath" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex preset: Qwen 27B RTX 3090" "Codex local dry-run"
-Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=1024 ubatch=256 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=q4_0 ctv=q4_0 spec=ngram-cache flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
+Assert-Contains $codexOutput "Using Codex server options: ngl=77 ctx=32768 parallel=1 batch=1024 ubatch=256 threads=auto batchThreads=auto httpThreads=auto cacheReuse=256 ctk=q4_0 ctv=q4_0 spec=draft-mtp draft=none draft_ngl=auto draft_n=default flashAttn=on temp=1.1 top_p=0.91 min_p=0.03 reasoning=off thinkBudget=0 cudaGraph=on skipChatParsing=off" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex config defaults: model_context_window=65536 auto_compact=56000 tool_output=12000" "Codex local dry-run"
 Assert-Contains $codexOutput "Using Codex agent settings: max_threads=1 max_depth=auto wait_ms=2500/30000/180000" "Codex local dry-run"
 Assert-Contains $codexOutput "Executable:" "Codex local dry-run"
@@ -449,44 +449,6 @@ Assert-Contains $codexHybridOutput "Using Codex model alias: $expectedHybridAlia
 Assert-Contains $codexHybridOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid dry-run"
 Assert-Contains $codexHybridOutput "Auto server: off" "Codex hybrid dry-run"
 Assert-NotContains $codexHybridOutput "Starting bundled server" "Codex hybrid dry-run"
-
-$codexOllamaOutput = Invoke-DryRun `
-	-Label "Codex Ollama Hermes dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "ollama"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexOllamaOutput "Using Codex provider: ollama" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex sandbox: workspace-write" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Using Codex model alias: hermes3-codex-32k:latest" "Codex Ollama dry-run"
-Assert-Contains $codexOllamaOutput "Auto server: off" "Codex Ollama dry-run"
-Assert-NotContains $codexOllamaOutput "Using text model:" "Codex Ollama dry-run"
-Assert-NotContains $codexOllamaOutput "Starting bundled server" "Codex Ollama dry-run"
-
-$codexHybridOllamaOutput = Invoke-DryRun `
-	-Label "Codex hybrid Ollama agents dry-run" `
-	-Script (Join-Path $scriptRoot "run-example.ps1") `
-	-Parameters @{
-		Example = "codex"
-		DryRun = $true
-		CodexProvider = "hybrid-ollama"
-		OpenAiModel = "gpt-5"
-		Configuration = $Configuration
-		Platform = $Platform
-	}
-Assert-Contains $codexHybridOllamaOutput "Using Codex provider: hybrid-ollama" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex sandbox: default config" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex local endpoint: http://127.0.0.1:11434/v1" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex model alias: hermes3-codex-32k:latest" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Using Codex OpenAI model: gpt-5" "Codex hybrid Ollama dry-run"
-Assert-Contains $codexHybridOllamaOutput "Auto server: off" "Codex hybrid Ollama dry-run"
-Assert-NotContains $codexHybridOllamaOutput "Using text model:" "Codex hybrid Ollama dry-run"
-Assert-NotContains $codexHybridOllamaOutput "Starting bundled server" "Codex hybrid Ollama dry-run"
 
 $codexDefaultAliasOutput = Invoke-DryRun `
 	-Label "Codex local default alias dry-run" `
@@ -573,6 +535,25 @@ Assert-Contains $codexFastPresetOutput "Using Codex preset: Fast coding" "Codex 
 Assert-Contains $codexFastPresetOutput "ctx=32768 parallel=1 batch=4096 ubatch=1024" "Codex local fast preset dry-run"
 Assert-Contains $codexFastPresetOutput "cacheReuse=256" "Codex local fast preset dry-run"
 Assert-Contains $codexFastPresetOutput "model_context_window=32768 auto_compact=24000 tool_output=5000" "Codex local fast preset dry-run"
+
+$codexUnslothGlmPresetOutput = Invoke-DryRun `
+	-Label "Codex local Unsloth GLM 24GB preset dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexPreset = "unsloth-glm-24gb"
+		ServerUrl = "http://127.0.0.1:9001/v1"
+		Model = $modelPath
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexUnslothGlmPresetOutput "Using Codex preset: Unsloth GLM 24GB" "Codex local Unsloth GLM 24GB preset dry-run"
+Assert-Contains $codexUnslothGlmPresetOutput "ctx=131072 parallel=1 batch=4096 ubatch=1024" "Codex local Unsloth GLM 24GB preset dry-run"
+Assert-Contains $codexUnslothGlmPresetOutput "cacheReuse=512 ctk=q8_0 ctv=q8_0" "Codex local Unsloth GLM 24GB preset dry-run"
+Assert-Contains $codexUnslothGlmPresetOutput "temp=1.0 top_p=0.95 min_p=0.01" "Codex local Unsloth GLM 24GB preset dry-run"
+Assert-Contains $codexUnslothGlmPresetOutput "model_context_window=131072 auto_compact=110000 tool_output=12000" "Codex local Unsloth GLM 24GB preset dry-run"
+Assert-Contains $codexUnslothGlmPresetOutput "Using Codex agent settings: max_threads=1" "Codex local Unsloth GLM 24GB preset dry-run"
 
 $codexHermesSharedPresetOutput = Invoke-DryRun `
 	-Label "Codex local Hermes shared preset dry-run" `
@@ -693,7 +674,7 @@ $serverOutput = Invoke-DryRun `
 		Temperature = "1.1"
 		TopP = "0.91"
 		MinP = "0.03"
-		SpecType = "ngram-cache"
+		SpecType = "draft-mtp"
 		NoCudaGraphs = $true
 	}
 Assert-Contains $serverOutput "exe:       $serverExe" "Server dry-run"
@@ -706,9 +687,9 @@ Assert-Contains $serverOutput "temp:      1.1" "Server dry-run"
 Assert-Contains $serverOutput "top_p:     0.91" "Server dry-run"
 Assert-Contains $serverOutput "min_p:     0.03" "Server dry-run"
 Assert-Contains $serverOutput "cudaGraph: off" "Server dry-run"
-Assert-Contains $serverOutput "specType:  ngram-cache" "Server dry-run"
+Assert-Contains $serverOutput "specType:  draft-mtp" "Server dry-run"
 Assert-Contains $serverOutput "--kv-unified" "Server dry-run"
-Assert-Contains $serverOutput "--spec-type ngram-cache" "Server dry-run"
+Assert-Contains $serverOutput "--spec-type draft-mtp" "Server dry-run"
 Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
 
