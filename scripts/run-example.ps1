@@ -8,7 +8,7 @@ param(
 	[string]$LlamaCli = $env:OFXGGML_LLAMA_CLI,
 	[string]$Model = "",
 	[string]$CodexPreset = "",
-	[ValidateSet("local", "openai", "hybrid")]
+	[ValidateSet("local", "openai", "hybrid", "openai-hermes")]
 	[string]$CodexProvider = "",
 	[string]$OpenAiModel = "",
 	[string]$CodexSandbox = "",
@@ -476,14 +476,17 @@ if ($isCodex) {
 	} else {
 		"local"
 	}
-	if ($resolvedCodexProvider -notin @("local", "openai", "hybrid")) {
-		throw "Unknown Codex provider '$resolvedCodexProvider'. Use local, openai, or hybrid."
+	if ($resolvedCodexProvider -notin @("local", "openai", "hybrid", "openai-hermes")) {
+		throw "Unknown Codex provider '$resolvedCodexProvider'. Use local, openai, hybrid, or openai-hermes."
 	}
 	$useLlamaCppCodexProvider = $resolvedCodexProvider -eq "local" -or
+		$resolvedCodexProvider -eq "hybrid" -or
+		$resolvedCodexProvider -eq "openai-hermes"
+	$useLocalCodexProvider = $resolvedCodexProvider -eq "local" -or
 		$resolvedCodexProvider -eq "hybrid"
-	$useLocalCodexProvider = $useLlamaCppCodexProvider
 	$useOpenAiCodexLaunch = $resolvedCodexProvider -eq "openai" -or
-		$resolvedCodexProvider -eq "hybrid"
+		$resolvedCodexProvider -eq "hybrid" -or
+		$resolvedCodexProvider -eq "openai-hermes"
 	if ([string]::IsNullOrWhiteSpace($CodexSandbox)) {
 		$CodexSandbox = if ($env:OFXGGML_CODEX_SANDBOX) { $env:OFXGGML_CODEX_SANDBOX } else { Get-OfxGgmlCodexDefaultSandbox $resolvedCodexProvider }
 	}
@@ -702,6 +705,8 @@ if ($isCodex) {
 	Write-OfxGgmlStep "Using Codex provider: $resolvedCodexProvider"
 	if ($useLocalCodexProvider) {
 		Write-OfxGgmlStep "Using Codex local endpoint: $ServerUrl"
+	} elseif ($resolvedCodexProvider -eq "openai-hermes") {
+		Write-OfxGgmlStep "Using local Hermes endpoint: $ServerUrl"
 	}
 	if (![string]::IsNullOrWhiteSpace($ServerModel)) {
 		Write-OfxGgmlStep "Using Codex model alias: $ServerModel"

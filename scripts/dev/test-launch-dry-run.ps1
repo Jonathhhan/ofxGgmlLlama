@@ -430,6 +430,27 @@ Assert-NotContains $codexOpenAiOutput "Using Codex local endpoint:" "Codex OpenA
 Assert-Contains $codexOpenAiOutput "Auto server: off" "Codex OpenAI dry-run"
 Assert-NotContains $codexOpenAiOutput "Starting bundled server" "Codex OpenAI dry-run"
 
+$codexOpenAiHermesOutput = Invoke-DryRun `
+	-Label "Codex OpenAI local Hermes dry-run" `
+	-Script (Join-Path $scriptRoot "run-example.ps1") `
+	-Parameters @{
+		Example = "codex"
+		DryRun = $true
+		CodexProvider = "openai-hermes"
+		OpenAiModel = "gpt-5"
+		Configuration = $Configuration
+		Platform = $Platform
+	}
+Assert-Contains $codexOpenAiHermesOutput "Using Codex provider: openai-hermes" "Codex OpenAI local Hermes dry-run"
+Assert-Contains $codexOpenAiHermesOutput "Using Codex sandbox: default config" "Codex OpenAI local Hermes dry-run"
+Assert-Contains $codexOpenAiHermesOutput "Using local Hermes endpoint: http://127.0.0.1:8001/v1" "Codex OpenAI local Hermes dry-run"
+$expectedOpenAiHermesAlias = Get-LocalAliasFromOutput $codexOpenAiHermesOutput
+Assert-Contains $codexOpenAiHermesOutput "Using Codex model alias: $expectedOpenAiHermesAlias" "Codex OpenAI local Hermes dry-run"
+Assert-Contains $codexOpenAiHermesOutput "Using Codex OpenAI model: gpt-5" "Codex OpenAI local Hermes dry-run"
+Assert-Contains $codexOpenAiHermesOutput "Auto server: off" "Codex OpenAI local Hermes dry-run"
+Assert-NotContains $codexOpenAiHermesOutput "Using Codex local endpoint:" "Codex OpenAI local Hermes dry-run"
+Assert-NotContains $codexOpenAiHermesOutput "Starting bundled server" "Codex OpenAI local Hermes dry-run"
+
 $codexHybridOutput = Invoke-DryRun `
 	-Label "Codex hybrid local agents dry-run" `
 	-Script (Join-Path $scriptRoot "run-example.ps1") `

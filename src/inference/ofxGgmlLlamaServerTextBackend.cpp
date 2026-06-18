@@ -185,6 +185,94 @@ private:
 	bool insideReasoning = false;
 };
 
+int hexValue(char c) {
+	if (c >= '0' && c <= '9') {
+		return c - '0';
+	}
+	if (c >= 'a' && c <= 'f') {
+		return c - 'a' + 10;
+	}
+	if (c >= 'A' && c <= 'F') {
+		return c - 'A' + 10;
+	}
+	return -1;
+}
+
+bool readJsonHexCodeUnit(
+	const std::string & value,
+	std::size_t & index,
+	unsigned int & codeUnit) {
+	if (index + 4 > value.size()) {
+		return false;
+	}
+	unsigned int decoded = 0;
+	for (int i = 0; i < 4; ++i) {
+		const int digit = hexValue(value[index + i]);
+		if (digit < 0) {
+			return false;
+		}
+		decoded = (decoded << 4) | static_cast<unsigned int>(digit);
+	}
+	index += 4;
+	codeUnit = decoded;
+	return true;
+}
+
+void appendUtf8(unsigned int codePoint, std::string & out) {
+	if (codePoint <= 0x7f) {
+		out.push_back(static_cast<char>(codePoint));
+	} else if (codePoint <= 0x7ff) {
+		out.push_back(static_cast<char>(0xc0 | (codePoint >> 6)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+	} else if (codePoint <= 0xffff) {
+		out.push_back(static_cast<char>(0xe0 | (codePoint >> 12)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+	} else if (codePoint <= 0x10ffff) {
+		out.push_back(static_cast<char>(0xf0 | (codePoint >> 18)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 12) & 0x3f)));
+		out.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3f)));
+		out.push_back(static_cast<char>(0x80 | (codePoint & 0x3f)));
+	}
+}
+
+bool appendDecodedJsonUnicodeEscape(
+	const std::string & value,
+	std::size_t & index,
+	std::string & out) {
+	unsigned int codeUnit = 0;
+	if (!readJsonHexCodeUnit(value, index, codeUnit)) {
+		return false;
+	}
+
+	if (codeUnit >= 0xd800 && codeUnit <= 0xdbff) {
+		const std::size_t lowSurrogateStart = index;
+		if (index + 6 > value.size() || value[index] != '\\' || value[index + 1] != 'u') {
+			return false;
+		}
+		index += 2;
+		unsigned int lowSurrogate = 0;
+		if (!readJsonHexCodeUnit(value, index, lowSurrogate) ||
+			lowSurrogate < 0xdc00 ||
+			lowSurrogate > 0xdfff) {
+			index = lowSurrogateStart;
+			return false;
+		}
+		const unsigned int codePoint = 0x10000 +
+			((codeUnit - 0xd800) << 10) +
+			(lowSurrogate - 0xdc00);
+		appendUtf8(codePoint, out);
+		return true;
+	}
+
+	if (codeUnit >= 0xdc00 && codeUnit <= 0xdfff) {
+		return false;
+	}
+
+	appendUtf8(codeUnit, out);
+	return true;
+}
+
 bool appendDecodedJsonChar(const std::string & value, std::size_t & index, std::string & out) {
 	if (index >= value.size()) {
 		return false;
@@ -207,11 +295,7 @@ bool appendDecodedJsonChar(const std::string & value, std::size_t & index, std::
 	case 'n': out.push_back('\n'); return true;
 	case 'r': out.push_back('\r'); return true;
 	case 't': out.push_back('\t'); return true;
-	case 'u':
-		if (index + 4 <= value.size()) {
-			index += 4;
-		}
-		return true;
+	case 'u': return appendDecodedJsonUnicodeEscape(value, index, out);
 	default:
 		out.push_back(escaped);
 		return true;

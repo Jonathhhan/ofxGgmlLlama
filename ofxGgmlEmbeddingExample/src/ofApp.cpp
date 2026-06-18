@@ -369,7 +369,6 @@ void ofApp::setup() {
 	if (modelPath.empty()) {
 		modelPath = discoverEmbeddingModel();
 	}
-	configureGenerator();
 
 	inputA = "openFrameworks local inference";
 	inputB = "interactive creative coding with local AI";
@@ -448,7 +447,6 @@ void ofApp::draw() {
 			if (ImGui::InputText("Server URL", &serverUrlEdit)) {
 				std::lock_guard<std::mutex> lock(stateMutex);
 				settings.serverUrl = normalizeEnvText(serverUrlEdit);
-				configureGenerator();
 			}
 			ImGui::SetNextItemWidth(-1.0f);
 			if (ImGui::InputText("Server model", &serverModelEdit)) {
@@ -665,6 +663,9 @@ void ofApp::runEmbeddingWorker() {
 	ofxGgmlEmbeddingRequest request;
 	request.inputs = { requestInputA, requestInputB };
 	request.settings = requestSettings;
+	ofxGgmlEmbeddingGenerator generator;
+	generator.setBackend(std::make_shared<ofxGgmlLlamaServerEmbeddingBackend>(
+		requestSettings.serverUrl));
 
 	ofLogNotice("example-emb")
 		<< "input A\n" << requestInputA
@@ -729,11 +730,6 @@ void ofApp::runEmbeddingWorker() {
 		status = "embedding error";
 	}
 	running = false;
-}
-
-void ofApp::configureGenerator() {
-	generator.setBackend(
-		std::make_shared<ofxGgmlLlamaServerEmbeddingBackend>(settings.serverUrl));
 }
 
 std::string ofApp::normalizeEnvText(const std::string & text) {

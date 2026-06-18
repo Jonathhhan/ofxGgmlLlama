@@ -19,13 +19,11 @@ public:
 private:
 	void startEmbedding();
 	void runEmbeddingWorker();
-	void configureGenerator();
 
 	static std::string envValue(const char * name);
 	static std::string normalizeEnvText(const std::string & text);
 	static std::string embeddingPreview(const std::vector<float> & values);
 
-	ofxGgmlEmbeddingGenerator generator;
 	ofxGgmlEmbeddingSettings settings;
 	ofxImGui::Gui gui;
 

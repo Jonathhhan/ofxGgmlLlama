@@ -182,8 +182,8 @@ Use this provider shape:
 model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
 web_search = "live"
-model_context_window = 262144
-model_auto_compact_token_limit = 220000
+model_context_window = 65536
+model_auto_compact_token_limit = 56000
 tool_output_token_limit = 12000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
@@ -232,8 +232,9 @@ those files with `config_file`; Codex loads `agents/explorer.toml` and
 Those role files set `model_provider = "llama_cpp"`, so local agents require
 the `[model_providers.llama_cpp]` provider and top-level
 `model_provider = "llama_cpp"` selection to be present in the same Codex config
-directory. Keep **Auto-write Codex config** enabled, or press **Write config**
-before launching. The example blocks
+directory. The config display and **Copy config** action are read-only. Keep
+**Auto-write Codex config** enabled, or press **Write config** before launching
+when you want the example to refresh your Codex config. The example blocks
 auto-configured launches when that write fails so you do not open Codex with
 agent role files pointing at an undefined provider.
 The example's **Launch Codex** button uses the same custom-provider contract:
@@ -248,7 +249,12 @@ command includes the local provider overrides directly. With auto-write enabled,
 **Copy launch command** writes the config first; use **Copy config** or
 **Write config** first when auto-write is disabled.
 
+Use the `fullctx`, `fullctx-q5`, or `fullctx-q4` presets when you intentionally
+want larger context windows such as `262144` tokens.
+
 ## Configure Hermes Agent
+
+### Direct Hermes endpoint
 
 Start the local server once, then configure Hermes Agent as a custom
 OpenAI-compatible endpoint:
@@ -271,37 +277,44 @@ Hermes to an already-running server. This shares the loaded model weights with
 Codex and OpenCode, but each client keeps its own conversation state, tool
 permissions, and memory.
 
-```powershell
-codex --no-alt-screen `
-    --disable apps --disable image_generation --disable browser_use --disable computer_use --disable tool_search --disable tool_search_always_defer_mcp_tools `
-    -c mcp_servers.node_repl.enabled=false `
-    -c web_search='"live"' `
-    -c model_provider=llama_cpp `
-    -c model_providers.llama_cpp.base_url='"http://127.0.0.1:8001/v1"' `
-    -c model_providers.llama_cpp.wire_api='"responses"' `
-    -c model_context_window=262144 `
-    -c model_auto_compact_token_limit=220000 `
-    -c tool_output_token_limit=12000 `
-    -c model_reasoning_effort=medium `
-    -c model_reasoning_summary=none `
-    -c model_verbosity=low `
-    -c hide_agent_reasoning=true `
-    --model local/Qwen3.6-27B-Q4_0
-```
+Use **Copy Hermes config** for a read-only clipboard preview, or **Write Hermes
+config** when you want the example to update your Hermes config. The write path
+replaces Hermes' top-level `model` and `terminal` sections and preserves other
+top-level sections.
 
 The agent thread cap and depth default to auto, so `agents.max_threads` and `agents.max_depth` are omitted unless you set positive overrides. The helper scripts accept `-AgentMaxThreads`, `-MaxAgentThreads`, `-MaxAgents`, or `-AgentMaxAgents` for an explicit thread cap, and `-AgentMaxDepth` for an explicit depth cap. They keep `-WebSearch live` by default and accept `-WebSearch disabled` for offline runs.
 
-### MCP thread spawning
+### MCP sidecar tools
 
-The example also includes a local MCP server at
-`scripts/mcp/codex-thread-server.js`. Add the
-`[mcp_servers.ofxggml_codex_threads]` block from
-`codex-config.example.toml` to your Codex config, replacing `cwd` with the
-absolute path to the `ofxGgmlLlama` addon. When Codex loads that server, the
-`spawn_codex_thread` tool starts `codex app-server`, creates a separate Codex
-thread, and submits the requested prompt to it. Use this only for explicit
-sidecar work; regular Codex subagents still use the built-in `/agent` workflow
-and the `agents.max_threads` / `agents.max_depth` settings above.
+The example also includes local MCP servers for explicit sidecar work. Add the
+`[mcp_servers.ofxggml_codex_threads]` or
+`[mcp_servers.ofxggml_hermes_agent]` block from
+`codex-config.example.toml` to your Codex config, replacing `cwd` and the
+allowed-root env values with the absolute path to the `ofxGgmlLlama` addon.
+When Codex loads the Codex thread server at
+`scripts/mcp/codex-thread-server.js`, the `spawn_codex_thread` tool starts
+`codex app-server`, creates a separate Codex thread, and submits the requested
+prompt to it. When Codex loads the Hermes server at
+`scripts/mcp/hermes-agent-server.js`, the `run_hermes_agent` tool runs
+`hermes -z` once and returns Hermes Agent's final response.
+
+The Hermes bridge is intentionally conservative for Codex-triggered sidecars:
+it requires explicit cwd roots, limits Hermes toolsets to
+`OFXGGML_HERMES_SAFE_TOOLSETS`, caps captured output, and does not pass
+`--accept-hooks` unless the tool call or `OFXGGML_HERMES_ALLOW_HOOKS` opts in.
+The companion `preflight_hermes_agent` tool reports the resolved Hermes command,
+model/provider, cwd roots, safe toolsets, and optional `/v1/models` endpoint
+check before a real sidecar run.
+
+Use these MCP bridges only for explicit sidecar work; regular Codex subagents
+still use the built-in `/agent` workflow and the `agents.max_threads` /
+`agents.max_depth` settings above. Keep the split explicit:
+`hermes-config.example.yaml` is the Hermes endpoint config, while the
+`[mcp_servers.ofxggml_hermes_agent]` block in `codex-config.example.toml` is the
+Codex-side bridge for asking Hermes to run.
+If the Hermes sidecar edits files, validate its output with
+`scripts\check-local-agent-run.ps1` and use `scripts\validate-local.ps1` before
+handoff.
 
 The Codex executable path is detected automatically from `OFXGGML_CODEX_EXE`,
 Codex Desktop's `%LOCALAPPDATA%\OpenAI\Codex\bin\codex.exe`, or `where codex`.
@@ -315,7 +328,10 @@ your normal Codex config, skips the local provider overrides, skips local
 agent-role file writes, and does not start `llama-server`.
 `Hybrid: local agents` keeps the local `llama_cpp` provider and explorer/worker
 agent role files for cheap agent work, while the main Codex launch uses the
-OpenAI model field for expensive reasoning.
+OpenAI model field for expensive reasoning. `OpenAI + local Hermes` keeps the
+main Codex launch on the selected OpenAI profile, starts or targets the local
+`llama-server` only for Hermes Agent's custom endpoint, and still skips local
+Codex agent-role writes.
 
 Sandbox defaults are part of the provider-mode contract. `Local llama.cpp` and
 `OpenAI profile` and the hybrid mode leave the main launch sandbox unset unless you
@@ -328,6 +344,7 @@ From the helper script:
 ```powershell
 scripts\run-example.bat codex -CodexProvider openai -ServerModel gpt-5
 scripts\run-example.bat codex -CodexProvider hybrid -OpenAiModel gpt-5
+scripts\run-example.bat codex -CodexProvider openai-hermes -OpenAiModel gpt-5
 ```
 
 The environment equivalent is:
@@ -335,6 +352,7 @@ The environment equivalent is:
 ```powershell
 $env:OFXGGML_CODEX_PROVIDER = "openai"
 $env:OFXGGML_CODEX_PROVIDER = "hybrid"
+$env:OFXGGML_CODEX_PROVIDER = "openai-hermes"
 $env:OFXGGML_CODEX_OPENAI_MODEL = "gpt-5"
 ```
 

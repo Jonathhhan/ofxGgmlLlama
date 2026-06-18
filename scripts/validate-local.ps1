@@ -135,6 +135,8 @@ Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\ex
 Assert-Path (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-agents\worker.toml") "Codex local worker agent config"
 Assert-Path (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "Codex thread MCP server"
 Assert-Path (Join-Path $addonRoot "scripts\test-codex-thread-mcp.ps1") "Codex thread MCP smoke"
+Assert-Path (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "Hermes agent MCP server"
+Assert-Path (Join-Path $addonRoot "scripts\test-hermes-agent-mcp.ps1") "Hermes agent MCP smoke"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "llama-server" "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "OpenCode" "Codex local example README"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\README.md") "wire_api" "Codex local example README"
@@ -174,6 +176,23 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-c
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = "300000"' "Codex local example config"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_hermes_agent\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'run_hermes_agent' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'preflight_hermes_agent' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_hermes_agent\.tools\.run_hermes_agent\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_hermes_agent\.tools\.preflight_hermes_agent\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[mcp_servers\.ofxggml_hermes_agent\.env\]' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_MODEL = "local/Qwen3.6-27B-Q4_0"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_PROVIDER = "custom"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_BASE_URL = "http://127.0.0.1:8001/v1"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_ENDPOINT_ALLOWLIST = "http://127.0.0.1:8001/v1,http://localhost:8001/v1"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_TOOLSETS = "web,skills"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_SAFE_TOOLSETS = "web,skills,session_search,clarify,todo"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_ALLOW_HOOKS = "0"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_SAFE_MODE = "0"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_MAX_TIMEOUT_MS = "300000"' "Codex local example config"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'OFXGGML_HERMES_OUTPUT_LIMIT_BYTES = "524288"' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_threads = 1' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") '\[agents\]' "Codex local example config"
 Assert-FileNotContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\codex-config.example.toml") 'max_depth = 1' "Codex local example config"
@@ -212,6 +231,7 @@ Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofA
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'GPU layers all' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'DefaultCodexModelAlias = "local/Qwen3.6-27B-Q4_0"' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'Hybrid: local agents' "Codex local example UI"
+Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'OpenAI \+ local Hermes' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'OpenAI model' "Codex local example UI"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'model layers' "Codex local example GPU layer display"
 Assert-FileContains (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\src\ofApp.cpp") 'gpuLayersAll' "Codex local example server settings"
@@ -253,6 +273,15 @@ Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") 
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "codex app-server" "Codex thread MCP server"
 Assert-FileContains (Join-Path $addonRoot "scripts\mcp\codex-thread-server.js") "Content-Length" "Codex thread MCP server"
 & (Join-Path $scriptRoot "test-codex-thread-mcp.ps1") -SummaryOnly
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "run_hermes_agent" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "preflight_hermes_agent" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "OFXGGML_HERMES_SAFE_TOOLSETS" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "OFXGGML_HERMES_ALLOW_HOOKS" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "OFXGGML_HERMES_ENDPOINT_ALLOWLIST" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "realpathSync" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "hermes one-shot cli" "Hermes agent MCP server"
+Assert-FileContains (Join-Path $addonRoot "scripts\mcp\hermes-agent-server.js") "Content-Length" "Hermes agent MCP server"
+& (Join-Path $scriptRoot "test-hermes-agent-mcp.ps1") -SummaryOnly
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") "ofxGgml-launch-utils.ps1" "OpenCode local planner shared launcher helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") "Get-OfxGgmlServerRootUrl" "OpenCode local planner shared endpoint helper"
 Assert-FileContains (Join-Path $addonRoot "scripts\plan-local-opencode.ps1") "Get-OfxGgmlServedModelEvidence" "OpenCode local planner shared model preflight helper"
@@ -473,6 +502,18 @@ if ($codexThreadMcp.status -ne "passed" -or $codexThreadMcp.tool -ne "spawn_code
 }
 if ($codexThreadMcp.model -ne "local/Qwen3.6-27B-Q4_0" -or $codexThreadMcp.modelProvider -ne "llama_cpp") {
 	throw "Codex thread MCP dry-run did not use the Qwen27B llama_cpp defaults"
+}
+
+Write-Step "Checking Hermes agent MCP smoke contract"
+$hermesAgentMcp = & (Join-Path $scriptRoot "test-hermes-agent-mcp.ps1") -Json -SummaryOnly | ConvertFrom-Json
+if ($LASTEXITCODE -ne 0) {
+	throw "Hermes agent MCP dry-run failed with exit code $LASTEXITCODE"
+}
+if ($hermesAgentMcp.status -ne "passed" -or $hermesAgentMcp.tool -ne "run_hermes_agent" -or $hermesAgentMcp.mode -ne "dry-run") {
+	throw "Hermes agent MCP dry-run did not report the expected tool contract"
+}
+if ($hermesAgentMcp.model -ne "local/Qwen3.6-27B-Q4_0" -or $hermesAgentMcp.provider -ne "custom") {
+	throw "Hermes agent MCP dry-run did not use the Qwen27B custom provider defaults"
 }
 
 Write-Step "Checking local agent run gate"

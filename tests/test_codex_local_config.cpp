@@ -47,6 +47,12 @@ OFXGGML_TEST(codex_defaults_are_rtx3090_safe) {
 	OFXGGML_REQUIRE(server.minP == 0.03f);
 }
 
+OFXGGML_TEST(codex_env_normalization_trims_and_unquotes_values) {
+	OFXGGML_REQUIRE(ofxGgmlLlamaCodexLocal::trimCopy(" \"quoted\" ") == "\"quoted\"");
+	OFXGGML_REQUIRE(ofxGgmlLlamaCodexLocal::normalizeEnvValue(" \"quoted\" ") == "quoted");
+	OFXGGML_REQUIRE(ofxGgmlLlamaCodexLocal::normalizeEnvValue(" plain ") == "plain");
+}
+
 OFXGGML_TEST(codex_config_replaces_stale_model_aliases) {
 	const auto root = std::filesystem::temp_directory_path() /
 		"ofxGgmlLlama-codex-config-test";
@@ -254,6 +260,27 @@ OFXGGML_TEST(codex_config_snippet_includes_self_contained_provider) {
 	OFXGGML_REQUIRE(snippet.find("stream_idle_timeout_ms = 10000000") != std::string::npos);
 	OFXGGML_REQUIRE(snippet.find("[profiles.ofxggml_local]") == std::string::npos);
 	OFXGGML_REQUIRE(snippet.find("model = \"local/new-selected-model\"") != std::string::npos);
+}
+
+OFXGGML_TEST(codex_config_escapes_toml_string_values) {
+	ofxGgmlLlamaCodexProviderConfig config;
+	config.modelAlias = "local/model\nwith-tab\tand-quote\"and-backslash\\";
+	config.providerName = "llama.cpp \"local\"\nprovider";
+	config.baseUrl = "http://127.0.0.1:9001/v1";
+	config.threadMcpServerCwd = "C:\\of\\addons\\ofxGgmlLlama";
+	config.writeAgentSettings = false;
+	config.writeAgentRoleFiles = false;
+
+	const auto snippet = ofxGgmlLlamaCodexLocal::buildCodexConfigSnippet(config);
+
+	OFXGGML_REQUIRE(snippet.find(
+		"model = \"local/model\\nwith-tab\\tand-quote\\\"and-backslash\\\\\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find(
+		"name = \"llama.cpp \\\"local\\\"\\nprovider\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find(
+		"cwd = \"C:\\\\of\\\\addons\\\\ofxGgmlLlama\"") != std::string::npos);
+	OFXGGML_REQUIRE(snippet.find(
+		"OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = \"C:\\\\of\\\\addons\\\\ofxGgmlLlama\"") != std::string::npos);
 }
 
 OFXGGML_TEST(codex_launch_command_includes_local_provider_overrides) {

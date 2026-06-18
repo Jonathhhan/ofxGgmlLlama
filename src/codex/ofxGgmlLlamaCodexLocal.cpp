@@ -1,5 +1,7 @@
 #include "ofxGgmlLlamaCodexLocal.h"
 
+#include "ofxGgmlString.h"
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -245,6 +247,14 @@ bool writeAgentRoleFiles(
 	return true;
 }
 
+bool belongsToSection(
+	const std::string & trimmed,
+	const std::string & sectionHeader,
+	const std::string & childSectionPrefix) {
+	return trimmed == sectionHeader ||
+		trimmed.rfind(childSectionPrefix, 0) == 0;
+}
+
 bool replaceSection(std::string & configText, const std::string & sectionName) {
 	const std::string sectionHeader = "[" + sectionName + "]";
 	const std::string childSectionPrefix = "[" + sectionName + ".";
@@ -255,22 +265,22 @@ bool replaceSection(std::string & configText, const std::string & sectionName) {
 	std::string line;
 
 	while (std::getline(input, line)) {
-		const auto trimmed = ofxGgmlLlamaCodexLocal::trimCopy(line);
+		const auto trimmed = ofxGgmlString::trimCopy(line);
 		const bool isSectionHeader = !trimmed.empty() &&
 			trimmed.front() == '[' &&
 			trimmed.back() == ']';
 		if (inTargetSection) {
+			if (isSectionHeader && belongsToSection(trimmed, sectionHeader, childSectionPrefix)) {
+				continue;
+			}
 			if (isSectionHeader) {
-				if (trimmed.rfind(childSectionPrefix, 0) == 0) {
-					continue;
-				}
 				inTargetSection = false;
 			} else {
 				continue;
 			}
 		}
 		if (!inTargetSection &&
-			(trimmed == sectionHeader || trimmed.rfind(childSectionPrefix, 0) == 0)) {
+			belongsToSection(trimmed, sectionHeader, childSectionPrefix)) {
 			sectionFound = true;
 			inTargetSection = true;
 			continue;
@@ -529,11 +539,26 @@ void removeYamlTopLevelSection(std::string & yamlText, const std::string & secti
 std::string escapeTomlString(const std::string & value) {
 	std::string escaped;
 	escaped.reserve(value.size());
-	for (char c : value) {
-		if (c == '\\' || c == '"') {
-			escaped.push_back('\\');
+	for (const unsigned char c : value) {
+		switch (c) {
+		case '\\': escaped += "\\\\"; break;
+		case '"': escaped += "\\\""; break;
+		case '\b': escaped += "\\b"; break;
+		case '\f': escaped += "\\f"; break;
+		case '\n': escaped += "\\n"; break;
+		case '\r': escaped += "\\r"; break;
+		case '\t': escaped += "\\t"; break;
+		default:
+			if (c < 0x20) {
+				const char * hex = "0123456789abcdef";
+				escaped += "\\u00";
+				escaped.push_back(hex[(c >> 4) & 0x0f]);
+				escaped.push_back(hex[c & 0x0f]);
+			} else {
+				escaped.push_back(static_cast<char>(c));
+			}
+			break;
 		}
-		escaped.push_back(c);
 	}
 	return escaped;
 }
@@ -569,15 +594,11 @@ void addUniqueModelId(std::vector<std::string> & models, const std::string & val
 }
 
 std::string ofxGgmlLlamaCodexLocal::trimCopy(const std::string & value) {
-	std::size_t first = 0;
-	while (first < value.size() && std::isspace(static_cast<unsigned char>(value[first]))) {
-		++first;
-	}
-	std::size_t last = value.size();
-	while (last > first && std::isspace(static_cast<unsigned char>(value[last - 1]))) {
-		--last;
-	}
-	std::string normalized = value.substr(first, last - first);
+	return ofxGgmlString::trimCopy(value);
+}
+
+std::string ofxGgmlLlamaCodexLocal::normalizeEnvValue(const std::string & value) {
+	std::string normalized = ofxGgmlString::trimCopy(value);
 	if (normalized.size() >= 2 && normalized.front() == '"' && normalized.back() == '"') {
 		normalized = normalized.substr(1, normalized.size() - 2);
 	}
@@ -610,7 +631,7 @@ std::string ofxGgmlLlamaCodexLocal::envValue(const char * name) {
 std::string ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 	const char * name,
 	const std::string & fallback) {
-	const auto value = envValue(name);
+	const auto value = normalizeEnvValue(envValue(name));
 	return value.empty() ? fallback : value;
 }
 
@@ -679,14 +700,14 @@ std::string ofxGgmlLlamaCodexLocal::modelAliasFromPath(const std::string & model
 }
 
 std::string ofxGgmlLlamaCodexLocal::resolveCodexConfigPath() {
-	const auto explicitPath = envValue("OFXGGML_CODEX_CONFIG_PATH");
+	const auto explicitPath = normalizeEnvValue(envValue("OFXGGML_CODEX_CONFIG_PATH"));
 	if (!explicitPath.empty()) {
 		return toString(std::filesystem::absolute(std::filesystem::path(trimCopy(explicitPath))).lexically_normal());
 	}
 
 	std::vector<std::filesystem::path> candidates;
 	const auto addIfSet = [&](const char * envVar, const std::filesystem::path & suffix) {
-		const auto value = envValue(envVar);
+		const auto value = normalizeEnvValue(envValue(envVar));
 		if (!value.empty()) {
 			candidates.emplace_back(std::filesystem::path(value) / suffix);
 		}
@@ -711,7 +732,7 @@ std::string ofxGgmlLlamaCodexLocal::resolveCodexConfigPath() {
 }
 
 std::string ofxGgmlLlamaCodexLocal::discoverCodexExecutable() {
-	const auto explicitCodexExe = trimCopy(envValue("OFXGGML_CODEX_EXE"));
+	const auto explicitCodexExe = normalizeEnvValue(envValue("OFXGGML_CODEX_EXE"));
 	if (!explicitCodexExe.empty() && fileExists(explicitCodexExe)) {
 		return explicitCodexExe;
 	}
@@ -719,7 +740,7 @@ std::string ofxGgmlLlamaCodexLocal::discoverCodexExecutable() {
 #if defined(_WIN32)
 	std::vector<std::filesystem::path> candidates;
 	const auto addIfSet = [&](const char * envVar, const std::filesystem::path & suffix) {
-		const auto value = envValue(envVar);
+		const auto value = normalizeEnvValue(envValue(envVar));
 		if (!value.empty()) {
 			candidates.emplace_back(std::filesystem::path(value) / suffix);
 		}
@@ -1156,7 +1177,7 @@ ofxGgmlLlamaCodexConfigResult ofxGgmlLlamaCodexLocal::writeCodexConfig(
 std::string ofxGgmlLlamaCodexLocal::resolveHermesConfigPath() {
 	std::vector<std::filesystem::path> candidates;
 	const auto addIfSet = [&candidates](const char * name, const std::filesystem::path & relative) {
-		const auto value = envValue(name);
+		const auto value = ofxGgmlLlamaCodexLocal::normalizeEnvValue(envValue(name));
 		if (!value.empty()) {
 			candidates.push_back(std::filesystem::path(value) / relative);
 		}

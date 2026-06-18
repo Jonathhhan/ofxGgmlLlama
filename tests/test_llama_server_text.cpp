@@ -87,6 +87,20 @@ OFXGGML_TEST(llama_server_extracts_common_response_shapes) {
 			"{\"response\":\"fallback\"}") == "fallback");
 }
 
+OFXGGML_TEST(llama_server_decodes_json_string_escapes) {
+	OFXGGML_REQUIRE(
+		ofxGgmlLlamaServerTextBackend::extractTextFromResponse(
+			"{\"choices\":[{\"message\":{\"content\":\"line\\nsmile \\u263a\"}}]}") ==
+		std::string("line\nsmile \xe2\x98\xba"));
+	OFXGGML_REQUIRE(
+		ofxGgmlLlamaServerTextBackend::extractTextFromResponse(
+			"{\"choices\":[{\"message\":{\"content\":\"emoji \\ud83d\\ude00\"}}]}") ==
+		std::string("emoji \xf0\x9f\x98\x80"));
+	OFXGGML_REQUIRE(
+		ofxGgmlLlamaServerTextBackend::extractTextFromResponse(
+			"{\"choices\":[{\"message\":{\"content\":\"bad \\ud83d text\"}}]}").empty());
+}
+
 OFXGGML_TEST(llama_server_backend_runs_injected_runner) {
 	ofxGgmlTextServerRequest capturedRequest;
 	ofxGgmlLlamaServerTextBackend backend(

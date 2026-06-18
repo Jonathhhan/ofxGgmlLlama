@@ -83,7 +83,8 @@ const std::vector<const char *> & codexProviderModes() {
 	static const std::vector<const char *> modes {
 		"Local llama.cpp",
 		"OpenAI profile",
-		"Hybrid: local agents"
+		"Hybrid: local agents",
+		"OpenAI + local Hermes"
 	};
 	return modes;
 }
@@ -97,11 +98,15 @@ bool usesLocalCodexProvider(int mode) {
 }
 
 bool usesOpenAiCodexLaunch(int mode) {
-	return mode == 1 || mode == 2;
+	return mode == 1 || mode == 2 || mode == 3;
 }
 
 bool usesLlamaCppCodexProvider(int mode) {
-	return mode == 0 || mode == 2;
+	return mode == 0 || mode == 2 || mode == 3;
+}
+
+bool usesLocalHermesEndpoint(int mode) {
+	return mode == 0 || mode == 2 || mode == 3;
 }
 
 std::string defaultBaseUrlForProviderMode(int mode) {
@@ -143,6 +148,9 @@ int codexProviderModeFromValue(const std::string & value) {
 	}
 	if (lower == "hybrid" || lower == "mixed" || lower == "local-agents") {
 		return 2;
+	}
+	if (lower == "openai-hermes" || lower == "cloud-hermes" || lower == "local-hermes") {
+		return 3;
 	}
 	return 0;
 }
@@ -581,7 +589,8 @@ void ofApp::draw() {
 		const bool localProviderMode = usesLocalCodexProvider(codexProviderMode);
 		const bool llamaCppProviderMode = usesLlamaCppCodexProvider(codexProviderMode);
 		const bool openAiLaunchMode = usesOpenAiCodexLaunch(codexProviderMode);
-		ImGui::BeginDisabled(!localProviderMode);
+		const bool localHermesEndpointMode = usesLocalHermesEndpoint(codexProviderMode);
+		ImGui::BeginDisabled(!localHermesEndpointMode);
 		if (ImGui::InputText("Codex base URL", &baseUrl)) {
 			serverUrl = ofxGgmlLlamaCodexLocal::serverRootFromBaseUrl(baseUrl);
 			rebuildLines();
@@ -595,7 +604,7 @@ void ofApp::draw() {
 			rebuildLines();
 		}
 		ImGui::SameLine();
-		ImGui::BeginDisabled(servedModelAliases.empty() || !localProviderMode);
+		ImGui::BeginDisabled(servedModelAliases.empty() || !localHermesEndpointMode);
 		adoptServedAliasRequested = ImGui::Button("Use served alias");
 		ImGui::EndDisabled();
 		ImGui::EndDisabled();
@@ -808,7 +817,7 @@ void ofApp::draw() {
 
 		ImGui::Separator();
 		const bool blockServerActions = running || !llamaCppProviderMode || !serverPreflightIssues.empty();
-		const bool blockSmoke = running || !localProviderMode || modelAlias.empty() || baseUrl.empty();
+		const bool blockSmoke = running || !localHermesEndpointMode || modelAlias.empty() || baseUrl.empty();
 		const bool blockConfigWrite = running || !localProviderMode || modelAlias.empty() || configPath.empty();
 		const bool blockLaunch = running || !launchPreflightIssues.empty();
 		ImGui::BeginDisabled(blockServerActions);
@@ -834,11 +843,11 @@ void ofApp::draw() {
 		copyConfigRequested = ImGui::Button("Copy config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!localProviderMode || modelAlias.empty() || baseUrl.empty());
+		ImGui::BeginDisabled(!localHermesEndpointMode || modelAlias.empty() || baseUrl.empty());
 		copyHermesConfigRequested = ImGui::Button("Copy Hermes config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
-		ImGui::BeginDisabled(!localProviderMode || modelAlias.empty() || baseUrl.empty());
+		ImGui::BeginDisabled(!localHermesEndpointMode || modelAlias.empty() || baseUrl.empty());
 		writeHermesConfigRequested = ImGui::Button("Write Hermes config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
@@ -852,10 +861,6 @@ void ofApp::draw() {
 		}
 		if (copyHermesConfigRequested) {
 			copyTextToClipboard("Hermes custom endpoint snippet", buildHermesConfigSnippetText());
-		}
-		if (writeHermesConfigRequested) {
-			syncHermesConfig();
-			refreshRuntimeDiscovery();
 		}
 		if (copyServerCommandRequested) {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
@@ -894,6 +899,10 @@ void ofApp::draw() {
 	}
 	if (writeConfigRequested) {
 		requestWriteConfig();
+	}
+	if (writeHermesConfigRequested) {
+		syncHermesConfig();
+		refreshRuntimeDiscovery();
 	}
 	if (startRequested) {
 		requestStartServer(false);
@@ -1395,13 +1404,14 @@ std::vector<std::string> ofApp::collectPreflightIssues(
 	std::vector<std::string> issues;
 	const bool localProviderMode = usesLocalCodexProvider(codexProviderMode);
 	const bool llamaCppProviderMode = usesLlamaCppCodexProvider(codexProviderMode);
-	if (localProviderMode && baseUrl.empty()) {
+	const bool localHermesEndpointMode = usesLocalHermesEndpoint(codexProviderMode);
+	if (localHermesEndpointMode && baseUrl.empty()) {
 		issues.push_back("Codex base URL is empty");
 	}
-	if (localProviderMode && serverUrl.empty()) {
+	if (localHermesEndpointMode && serverUrl.empty()) {
 		issues.push_back("llama-server root is empty");
 	}
-	if (localProviderMode && modelAlias.empty()) {
+	if (localHermesEndpointMode && modelAlias.empty()) {
 		issues.push_back("model alias is empty");
 	}
 	if (llamaCppProviderMode && requireLocalServer) {
@@ -1450,6 +1460,9 @@ std::string ofApp::formatPreflightSummary(const std::vector<std::string> & issue
 		if (usesLocalCodexProvider(codexProviderMode) && usesOpenAiCodexLaunch(codexProviderMode)) {
 			return "preflight: ready for hybrid OpenAI launch with local agents";
 		}
+		if (usesLocalHermesEndpoint(codexProviderMode) && usesOpenAiCodexLaunch(codexProviderMode)) {
+			return "preflight: ready for OpenAI Codex launch with local Hermes endpoint";
+		}
 		return "preflight: ready for OpenAI Codex launch";
 	}
 	return "preflight: " + joinIssues(issues);
@@ -1463,7 +1476,7 @@ std::string ofApp::buildCodexConfigSnippetText() const {
 }
 
 std::string ofApp::buildHermesConfigSnippetText() const {
-	if (!usesLocalCodexProvider(codexProviderMode)) {
+	if (!usesLocalHermesEndpoint(codexProviderMode)) {
 		return "";
 	}
 	const auto effectiveModelAlias = modelAlias.empty()
@@ -1606,6 +1619,7 @@ void ofApp::rebuildLines() {
 	const bool localProviderMode = usesLocalCodexProvider(codexProviderMode);
 	const bool llamaCppProviderMode = usesLlamaCppCodexProvider(codexProviderMode);
 	const bool openAiLaunchMode = usesOpenAiCodexLaunch(codexProviderMode);
+	const bool localHermesEndpointMode = usesLocalHermesEndpoint(codexProviderMode);
 	if (localProviderMode) {
 		std::istringstream snippet(buildCodexConfigSnippetText());
 		std::string line;
@@ -1616,6 +1630,9 @@ void ofApp::rebuildLines() {
 	if (openAiLaunchMode && localProviderMode) {
 		lines.push_back("Hybrid mode: cheap explorer/worker agents use local llama.cpp.");
 		lines.push_back("OpenAI handles the main Codex launch and expensive reasoning.");
+	} else if (openAiLaunchMode && localHermesEndpointMode) {
+		lines.push_back("OpenAI + local Hermes mode: Codex uses the selected OpenAI profile.");
+		lines.push_back("Hermes Agent can use the local llama.cpp endpoint as an explicit sidecar.");
 	} else if (openAiLaunchMode) {
 		lines.push_back("OpenAI profile mode: Codex uses the selected profile from your existing config.");
 		lines.push_back("Local llama-server provider overrides and local agent role file writes are skipped.");
@@ -1645,15 +1662,19 @@ void ofApp::rebuildLines() {
 			" draft_n=" + (draftMaxTokens > 0 ? std::to_string(draftMaxTokens) : std::string("default")) +
 			" cudaGraph=" + std::string(noCudaGraphs ? "off" : "on"));
 	}
-	if (localProviderMode && !servedModelAliases.empty()) {
+	if (localHermesEndpointMode && !servedModelAliases.empty()) {
 		lines.push_back("Server advertises: " + joinAliases(servedModelAliases));
 	}
-	if (localProviderMode) {
+	if (localHermesEndpointMode) {
+		const auto hermesModel = modelAlias.empty() ? defaultModelForProviderMode(codexProviderMode) : modelAlias;
+		const auto endpointUse = localProviderMode
+			? "This reuses the same loaded model as local Codex"
+			: "This local model is separate from the OpenAI Codex launch";
 		appendWrapped(
 			lines,
 			"Hermes shared endpoint: use Custom Endpoint with base_url " + baseUrl +
-				" and model " + (modelAlias.empty() ? defaultModelForProviderMode(codexProviderMode) : modelAlias) +
-				". This reuses the same loaded model as Codex; conversation memory remains client-local.",
+				" and model " + hermesModel +
+				". " + endpointUse + "; conversation memory remains client-local.",
 			96);
 	}
 	lines.push_back(formatPreflightSummary(collectPreflightIssues(false, true)));

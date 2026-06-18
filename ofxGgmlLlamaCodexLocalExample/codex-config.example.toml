@@ -40,3 +40,41 @@ OFXGGML_CODEX_MODEL_PROVIDER = "llama_cpp"
 OFXGGML_CODEX_BASE_URL = "http://127.0.0.1:8001/v1"
 OFXGGML_CODEX_THREAD_SPAWN_TIMEOUT_MS = "300000"
 OFXGGML_CODEX_THREAD_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"
+
+# Optional MCP bridge for explicit Hermes Agent sidecar requests. This exposes
+# Hermes one-shot mode as a Codex tool; it does not replace built-in Codex
+# subagents. Replace cwd and OFXGGML_HERMES_ALLOWED_ROOTS with the absolute path
+# to the ofxGgmlLlama addon. Enable this block only when you intentionally want
+# Codex to launch Hermes sidecar runs inside the configured roots.
+[mcp_servers.ofxggml_hermes_agent]
+command = "node"
+args = ["scripts/mcp/hermes-agent-server.js"]
+cwd = "C:/path/to/ofxGgmlLlama"
+enabled_tools = ["run_hermes_agent", "preflight_hermes_agent"]
+default_tools_approval_mode = "prompt"
+startup_timeout_sec = 10
+tool_timeout_sec = 300
+enabled = true
+
+[mcp_servers.ofxggml_hermes_agent.tools.run_hermes_agent]
+# Codex may call this tool without another prompt after you approve the MCP
+# tool call. The bridge itself keeps Hermes on safe toolsets and does not pass
+# --accept-hooks unless OFXGGML_HERMES_ALLOW_HOOKS or the tool call opts in.
+approval_mode = "approve"
+
+[mcp_servers.ofxggml_hermes_agent.tools.preflight_hermes_agent]
+approval_mode = "approve"
+
+[mcp_servers.ofxggml_hermes_agent.env]
+OFXGGML_HERMES_MODEL = "local/Qwen3.6-27B-Q4_0"
+OFXGGML_HERMES_PROVIDER = "custom"
+OFXGGML_HERMES_BASE_URL = "http://127.0.0.1:8001/v1"
+OFXGGML_HERMES_ENDPOINT_ALLOWLIST = "http://127.0.0.1:8001/v1,http://localhost:8001/v1"
+OFXGGML_HERMES_TIMEOUT_MS = "300000"
+OFXGGML_HERMES_MAX_TIMEOUT_MS = "300000"
+OFXGGML_HERMES_ALLOWED_ROOTS = "C:/path/to/ofxGgmlLlama"
+OFXGGML_HERMES_TOOLSETS = "web,skills"
+OFXGGML_HERMES_SAFE_TOOLSETS = "web,skills,session_search,clarify,todo"
+OFXGGML_HERMES_ALLOW_HOOKS = "0"
+OFXGGML_HERMES_SAFE_MODE = "0"
+OFXGGML_HERMES_OUTPUT_LIMIT_BYTES = "524288"

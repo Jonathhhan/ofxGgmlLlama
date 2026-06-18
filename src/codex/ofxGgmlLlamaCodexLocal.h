@@ -127,6 +127,7 @@ struct ofxGgmlLlamaHermesConfigResult {
 class ofxGgmlLlamaCodexLocal {
 public:
 	static std::string trimCopy(const std::string & value);
+	static std::string normalizeEnvValue(const std::string & value);
 	static std::string trimTrailingSlash(std::string value);
 	static std::string envValue(const char * name);
 	static std::string getEnvOrDefault(const char * name, const std::string & fallback);

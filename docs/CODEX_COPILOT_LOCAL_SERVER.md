@@ -24,8 +24,10 @@ For an openFrameworks-facing walkthrough, generate
 scripts\run-example.bat codex -Build
 ```
 
-The example displays the endpoint, model alias, Codex provider selection snippet,
-and validation commands without editing local Codex config.
+The example displays the endpoint, model alias, Codex provider selection
+snippet, and validation commands read-only. **Write config**, **Launch Codex**,
+and **Copy launch command** with auto-write enabled may refresh the selected
+Codex config.
 
 ## Recommended addon path
 
@@ -200,10 +202,12 @@ Endpoint provider. Start the server once, then configure Hermes with the same
 base URL and model alias used by Codex:
 
 ```yaml
-model: local/Qwen3.6-27B-Q4_0
-base_url: http://127.0.0.1:8001/v1
-api_key: local-dummy-key
-context_length: 65536
+model:
+  default: local/Qwen3.6-27B-Q4_0
+  provider: custom
+  base_url: http://127.0.0.1:8001/v1
+  api_key: local-dummy-key
+  context_length: 65536
 terminal:
   backend: local
 ```
@@ -213,6 +217,18 @@ terminal:
 shared-endpoint setup. Sharing the endpoint keeps one model resident in memory;
 Hermes, Codex, and OpenCode still keep separate conversation state and tool
 permissions.
+
+Treat the Hermes integration as two separate configs. The Hermes-owned endpoint
+config belongs in `hermes-config.example.yaml` or your Hermes user config. The
+Codex-owned sidecar bridge belongs in `codex-config.example.toml`, because
+Codex is the MCP client that calls `run_hermes_agent`. The bridge runs
+`hermes -z` once, keeps its working directory inside explicitly configured
+addon roots, and is for explicit sidecar requests only. By default it limits
+Hermes to safe toolsets, caps captured output, and does not pass
+`--accept-hooks`; use `preflight_hermes_agent` to inspect the resolved command
+and optional `/v1/models` endpoint check before a real run. If a Hermes sidecar
+edits files, gate the result with `scripts\check-local-agent-run.ps1` and finish
+handoff with `scripts\validate-local.ps1`.
 
 For Codex, this alias is not just display text. The configured `model` value
 must match the llama-server alias. In `ofxGgmlLlamaCodexLocalExample`, that alias is
@@ -234,8 +250,8 @@ model = "local/Qwen3.6-27B-Q4_0"
 model_provider = "llama_cpp"
 web_search = "live"
 model_context_window = 65536
-model_auto_compact_token_limit = 50000
-tool_output_token_limit = 8000
+model_auto_compact_token_limit = 56000
+tool_output_token_limit = 12000
 model_reasoning_effort = "medium"
 model_reasoning_summary = "none"
 model_verbosity = "low"
@@ -293,8 +309,8 @@ codex --no-alt-screen `
     -c web_search='"live"' `
     -c model_provider=llama_cpp `
     -c model_context_window=65536 `
-    -c model_auto_compact_token_limit=50000 `
-    -c tool_output_token_limit=8000 `
+    -c model_auto_compact_token_limit=56000 `
+    -c tool_output_token_limit=12000 `
     -c model_reasoning_effort=medium `
     -c model_reasoning_summary=none `
     -c model_verbosity=low `
