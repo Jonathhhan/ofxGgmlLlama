@@ -303,6 +303,9 @@ try {
 	if (!$preflightPlan.hermes -or !$preflightPlan.command -or $preflightPlan.endpoint.skipped -ne $true) {
 		throw "Hermes MCP preflight did not return the expected structured result."
 	}
+	if ($preflightPlan.hermes.stdoutTruncated -ne $false -or $preflightPlan.hermes.stderrTruncated -ne $false) {
+		throw "Hermes MCP preflight did not report bounded version output state."
+	}
 	if (!$RealRun -and $preflightPlan.command.safeMode -ne $true) {
 		throw "Hermes MCP preflight did not report env-provided safe mode."
 	}

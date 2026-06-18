@@ -390,6 +390,8 @@ function checkHermesVersion(command) {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
     let settled = false;
     let proc;
     const timeoutMs = Math.min(command.timeoutMs, 10000);
@@ -405,7 +407,12 @@ function checkHermesVersion(command) {
       if (proc && !proc.killed) {
         proc.kill();
       }
-      finish({ ok: false, error: `Hermes version check timed out after ${timeoutMs}ms` });
+      finish({
+        ok: false,
+        error: `Hermes version check timed out after ${timeoutMs}ms`,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
     }, timeoutMs);
     try {
       proc = spawn(command.executable, ["--version"], {
@@ -414,17 +421,45 @@ function checkHermesVersion(command) {
         windowsHide: true,
       });
     } catch (error) {
-      finish({ ok: false, error: error.message || String(error) });
+      finish({
+        ok: false,
+        error: error.message || String(error),
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
       return;
     }
+    function appendBounded(current, chunk, streamName) {
+      const next = current + chunk.toString("utf8");
+      if (Buffer.byteLength(next, "utf8") <= command.outputLimitBytes) {
+        return next;
+      }
+      if (streamName === "stdout") {
+        stdoutTruncated = true;
+      } else {
+        stderrTruncated = true;
+      }
+      const marker = `\n[${streamName} truncated at ${command.outputLimitBytes} bytes]\n`;
+      const safePrefix = Buffer.from(next, "utf8").slice(0, command.outputLimitBytes).toString("utf8");
+      return safePrefix + marker;
+    }
     proc.stdout.on("data", (chunk) => {
-      stdout += chunk.toString("utf8");
+      if (!stdoutTruncated) {
+        stdout = appendBounded(stdout, chunk, "stdout");
+      }
     });
     proc.stderr.on("data", (chunk) => {
-      stderr += chunk.toString("utf8");
+      if (!stderrTruncated) {
+        stderr = appendBounded(stderr, chunk, "stderr");
+      }
     });
     proc.on("error", (error) => {
-      finish({ ok: false, error: error.message || String(error) });
+      finish({
+        ok: false,
+        error: error.message || String(error),
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
     });
     proc.on("exit", (code) => {
       finish({
@@ -432,6 +467,8 @@ function checkHermesVersion(command) {
         code,
         version: stdout.trim(),
         stderr: stderr.trim(),
+        stdoutTruncated,
+        stderrTruncated,
       });
     });
   });
@@ -590,7 +627,8 @@ function runHermes(command) {
         stderrTruncated = true;
       }
       const marker = `\n[${streamName} truncated at ${command.outputLimitBytes} bytes]\n`;
-      return next.slice(0, command.outputLimitBytes) + marker;
+      const safePrefix = Buffer.from(next, "utf8").slice(0, command.outputLimitBytes).toString("utf8");
+      return safePrefix + marker;
     }
 
     proc.stdout.on("data", (chunk) => {

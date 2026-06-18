@@ -353,7 +353,8 @@ foreach ($scriptName in @(
 	"dev\test-launch-dry-run.ps1",
 	"dev\test-artifact-hygiene.ps1",
 	"generate-release-readiness-score.ps1",
-	"generate-release-readiness-score.py")) {
+	"generate-release-readiness-score.py",
+	"write-llama-runtime-evidence.ps1")) {
 	Assert-Path (Join-Path $scriptRoot $scriptName) "$scriptName"
 }
 
