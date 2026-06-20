@@ -175,6 +175,45 @@ if ($RealRun) {
 	$env:OFXGGML_HERMES_TIMEOUT_MS = [string]$TimeoutMs
 	$env:OFXGGML_HERMES_SAFE_MODE = "0"
 }
+$badRootProcessInfo = [System.Diagnostics.ProcessStartInfo]::new()
+$badRootProcessInfo.FileName = $processInfo.FileName
+$badRootProcessInfo.Arguments = $processInfo.Arguments
+$badRootProcessInfo.WorkingDirectory = $processInfo.WorkingDirectory
+$badRootProcessInfo.UseShellExecute = $false
+$badRootProcessInfo.RedirectStandardInput = $true
+$badRootProcessInfo.RedirectStandardOutput = $true
+$badRootProcessInfo.RedirectStandardError = $true
+$badRootProcessInfo.CreateNoWindow = $true
+$env:OFXGGML_HERMES_ALLOWED_ROOTS = Join-Path $addonRoot.Path ".missing-hermes-root-for-test"
+$badRootProcess = [System.Diagnostics.Process]::new()
+$badRootProcess.StartInfo = $badRootProcessInfo
+[void]$badRootProcess.Start()
+$env:OFXGGML_HERMES_ALLOWED_ROOTS = $addonRoot.Path
+try {
+	Send-McpMessage $badRootProcess @{
+		jsonrpc = "2.0"
+		id = 90
+		method = "initialize"
+		params = @{
+			protocolVersion = "2024-11-05"
+			capabilities = @{}
+			clientInfo = @{ name = "ofxggml-bad-config-test"; version = "0.1.0" }
+		}
+	}
+	$badRootInitialize = Read-McpMessage $badRootProcess.StandardOutput.BaseStream
+	if (!$badRootInitialize.result.serverInfo -or $badRootInitialize.result.serverInfo.name -ne "ofxggml-hermes-agent") {
+		throw "Hermes MCP bad-root initialize did not return the expected server name."
+	}
+	Assert-McpNamedToolError -Process $badRootProcess -Id 91 -ToolName "preflight_hermes_agent" -Arguments @{
+		cwd = $addonRoot.Path
+		check_endpoint = $false
+	} -Pattern "Hermes allowed root does not exist"
+} finally {
+	if (!$badRootProcess.HasExited) {
+		$badRootProcess.Kill()
+		$badRootProcess.WaitForExit()
+	}
+}
 [void]$process.Start()
 try {
 	Send-McpMessage $process @{
@@ -243,7 +282,6 @@ try {
 		endpoint = "http://127.0.0.1:1/v1"
 		check_endpoint = $true
 	} -Pattern "outside OFXGGML_HERMES_ENDPOINT_ALLOWLIST"
-
 	Send-RawMcpBody -Process $process -Body "{not-json"
 	$parseError = Read-McpMessage $process.StandardOutput.BaseStream
 	if (!$parseError.error -or [int]$parseError.error.code -ne -32700) {
