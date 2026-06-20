@@ -11,7 +11,8 @@ param(
 	[string]$OutputPath = "",
 	[switch]$DryRun,
 	[switch]$Json,
-	[switch]$SummaryOnly
+	[switch]$SummaryOnly,
+	[switch]$Evidence
 )
 
 $ErrorActionPreference = "Stop"
@@ -263,7 +264,8 @@ $summary = @{
 	NextCommands = @(
 		"scripts\run-llama-runtime-smoke.bat -DryRun",
 		"scripts\run-llama-runtime-smoke.bat -Backend cpu -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json",
-		"scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json"
+		"scripts\run-llama-runtime-smoke.bat -Backend cuda -Json -SummaryOnly -OutputPath .llama-runtime-smoke.json",
+		"scripts\run-llama-runtime-smoke.bat -Backend cpu -Evidence"
 	)
 }
 
@@ -285,6 +287,29 @@ if ($Json) {
 	}
 	if (!$passed) {
 		Write-Host "Error:     $($summary.Summary.Error)"
+	}
+}
+
+# Chain evidence wrapper when -Evidence is requested and smoke passed
+if ($Evidence -and $passed) {
+	if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+		Write-Step "Setting output to .llama-runtime-smoke.json for evidence wrapper"
+		$OutputPath = ".llama-runtime-smoke.json"
+		Write-SmokeOutputPath -Path $OutputPath -Content (ConvertTo-SmokeJson -Value $summary)
+	}
+	$evidenceScript = Join-Path $scriptRoot "write-llama-runtime-evidence.ps1"
+	if (Test-Path -LiteralPath $evidenceScript -PathType Leaf) {
+		Write-Step "Writing Evidence Schema v1 wrapper"
+		if ($Json) {
+			& $evidenceScript -SmokePath $OutputPath -Backend $Backend 6>$null
+		} else {
+			& $evidenceScript -SmokePath $OutputPath -Backend $Backend
+		}
+		if ($LASTEXITCODE -ne 0) {
+			throw "Evidence wrapper failed with exit code $LASTEXITCODE"
+		}
+	} else {
+		Write-Warning "Evidence wrapper not found: $evidenceScript"
 	}
 }
 

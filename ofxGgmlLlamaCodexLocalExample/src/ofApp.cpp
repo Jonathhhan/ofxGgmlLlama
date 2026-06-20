@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <filesystem>
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -310,6 +311,48 @@ std::string tomlString(const std::string & value) {
 	return escaped;
 }
 
+
+std::string genericPathString(const std::filesystem::path & path) {
+	return path.lexically_normal().generic_string();
+}
+
+void addAddonRootCandidate(
+	std::vector<std::filesystem::path> & roots,
+	const std::filesystem::path & path) {
+	if (path.empty()) {
+		return;
+	}
+	std::error_code error;
+	auto current = std::filesystem::absolute(path, error).lexically_normal();
+	if (error) {
+		current = path.lexically_normal();
+	}
+	for (int depth = 0; depth < 32 && !current.empty(); ++depth) {
+		if (std::find(roots.begin(), roots.end(), current) == roots.end()) {
+			roots.push_back(current);
+		}
+		const auto parent = current.parent_path();
+		if (parent == current) {
+			break;
+		}
+		current = parent;
+	}
+}
+
+std::string discoverHermesBridgeAddonRoot() {
+	const std::filesystem::path relativeScript = "scripts/mcp/hermes-agent-server.js";
+	std::vector<std::filesystem::path> roots;
+	std::error_code error;
+	addAddonRootCandidate(roots, std::filesystem::current_path(error));
+	addAddonRootCandidate(roots, ofToDataPath("", true));
+	for (const auto & root : roots) {
+		if (std::filesystem::is_regular_file(root / relativeScript, error)) {
+			return genericPathString(root);
+		}
+	}
+	return "";
+}
+
 void appendCodexConfigOverride(
 	std::vector<std::string> & arguments,
 	const std::string & value) {
@@ -442,6 +485,7 @@ void ofApp::setup() {
 	}
 	serverExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_LLAMA_SERVER_EXE", "");
 	codexExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_CODEX_EXE", "");
+	hermesExe = ofxGgmlLlamaCodexLocal::getEnvOrDefault("OFXGGML_HERMES_EXE", "hermes");
 	codexProfile = ofxGgmlLlamaCodexLocal::getEnvOrDefault(
 		"OFXGGML_CODEX_PROFILE",
 		isLocalCodexProviderMode(codexProviderMode) ? profileForMode(codexProviderMode) : "");
@@ -548,6 +592,7 @@ void ofApp::draw() {
 	bool adoptServedAliasRequested = false;
 	bool copyConfigRequested = false;
 	bool copyHermesConfigRequested = false;
+	bool copyHermesBridgeRequested = false;
 	bool copyServerCommandRequested = false;
 	bool copyLaunchCommandRequested = false;
 	bool writeHermesConfigRequested = false;
@@ -644,6 +689,9 @@ void ofApp::draw() {
 		}
 		ImGui::EndDisabled();
 		if (ImGui::InputText("Codex executable", &codexExe)) {
+			rebuildLines();
+		}
+		if (ImGui::InputText("Hermes executable", &hermesExe)) {
 			rebuildLines();
 		}
 		if (ImGui::InputText("Codex profile", &codexProfile)) {
@@ -848,6 +896,10 @@ void ofApp::draw() {
 		ImGui::EndDisabled();
 		ImGui::SameLine();
 		ImGui::BeginDisabled(!localHermesEndpointMode || modelAlias.empty() || baseUrl.empty());
+		copyHermesBridgeRequested = ImGui::Button("Copy Hermes bridge");
+		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!localHermesEndpointMode || modelAlias.empty() || baseUrl.empty());
 		writeHermesConfigRequested = ImGui::Button("Write Hermes config");
 		ImGui::EndDisabled();
 		ImGui::SameLine();
@@ -861,6 +913,9 @@ void ofApp::draw() {
 		}
 		if (copyHermesConfigRequested) {
 			copyTextToClipboard("Hermes custom endpoint snippet", buildHermesConfigSnippetText());
+		}
+		if (copyHermesBridgeRequested) {
+			copyTextToClipboard("Codex Hermes bridge snippet", buildHermesBridgeConfigSnippetText());
 		}
 		if (copyServerCommandRequested) {
 			copyTextToClipboard("manual server command", buildManualServerCommand());
@@ -1494,6 +1549,57 @@ std::string ofApp::buildHermesConfigSnippetText() const {
 		<< "  context_length: " << modelContextWindow << "\n"
 		<< "terminal:\n"
 		<< "  backend: local\n";
+	return snippet.str();
+}
+
+std::string ofApp::buildHermesBridgeConfigSnippetText() const {
+	if (!usesLocalHermesEndpoint(codexProviderMode)) {
+		return "";
+	}
+	const auto effectiveModelAlias = modelAlias.empty()
+		? defaultModelForProviderMode(codexProviderMode)
+		: modelAlias;
+	const auto addonRoot = discoverHermesBridgeAddonRoot();
+	if (addonRoot.empty()) {
+		return "# Unable to locate scripts/mcp/hermes-agent-server.js from the current example path.\n"
+			"# Open the ofxGgmlLlama addon root and try Copy Hermes bridge again.\n";
+	}
+	const auto apiRoot = ofxGgmlLlamaCodexLocal::codexApiRootFromBaseUrl(baseUrl);
+	const auto localHostApiRoot = "http://localhost:" +
+		std::to_string(ofxGgmlLlamaCodexLocal::serverPortFromUrl(serverUrl, 8001)) +
+		"/v1";
+
+	std::ostringstream snippet;
+	snippet
+		<< "# Optional Codex MCP bridge for explicit Hermes Agent sidecar requests.\n"
+		<< "# Review before copying into your Codex config; this lets Codex launch hermes -z inside the allowed root.\n"
+		<< "[mcp_servers.ofxggml_hermes_agent]\n"
+		<< "command = \"node\"\n"
+		<< "args = [\"scripts/mcp/hermes-agent-server.js\"]\n"
+		<< "cwd = " << tomlString(addonRoot) << "\n"
+		<< "enabled_tools = [\"run_hermes_agent\", \"preflight_hermes_agent\"]\n"
+		<< "default_tools_approval_mode = \"prompt\"\n"
+		<< "startup_timeout_sec = 10\n"
+		<< "tool_timeout_sec = 300\n"
+		<< "enabled = true\n\n"
+		<< "[mcp_servers.ofxggml_hermes_agent.tools.run_hermes_agent]\n"
+		<< "approval_mode = \"approve\"\n\n"
+		<< "[mcp_servers.ofxggml_hermes_agent.tools.preflight_hermes_agent]\n"
+		<< "approval_mode = \"approve\"\n\n"
+		<< "[mcp_servers.ofxggml_hermes_agent.env]\n"
+		<< "OFXGGML_HERMES_EXE = " << tomlString(hermesExe.empty() ? std::string("hermes") : hermesExe) << "\n"
+		<< "OFXGGML_HERMES_MODEL = " << tomlString(effectiveModelAlias) << "\n"
+		<< "OFXGGML_HERMES_PROVIDER = \"custom\"\n"
+		<< "OFXGGML_HERMES_BASE_URL = " << tomlString(apiRoot) << "\n"
+		<< "OFXGGML_HERMES_ENDPOINT_ALLOWLIST = " << tomlString(apiRoot + "," + localHostApiRoot) << "\n"
+		<< "OFXGGML_HERMES_TIMEOUT_MS = \"300000\"\n"
+		<< "OFXGGML_HERMES_MAX_TIMEOUT_MS = \"300000\"\n"
+		<< "OFXGGML_HERMES_ALLOWED_ROOTS = " << tomlString(addonRoot) << "\n"
+		<< "OFXGGML_HERMES_TOOLSETS = \"web,skills\"\n"
+		<< "OFXGGML_HERMES_SAFE_TOOLSETS = \"web,skills,session_search,clarify,todo\"\n"
+		<< "OFXGGML_HERMES_ALLOW_HOOKS = \"0\"\n"
+		<< "OFXGGML_HERMES_SAFE_MODE = \"0\"\n"
+		<< "OFXGGML_HERMES_OUTPUT_LIMIT_BYTES = \"524288\"\n";
 	return snippet.str();
 }
 

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ofMain.h"
 #include "ofxGgmlLlama.h"
@@ -46,6 +46,7 @@ private:
     std::string formatPreflightSummary(const std::vector<std::string> & issues) const;
     std::string buildCodexConfigSnippetText() const;
     std::string buildHermesConfigSnippetText() const;
+    std::string buildHermesBridgeConfigSnippetText() const;
     std::string buildManualServerCommand() const;
     std::string buildCodexLaunchCommand() const;
     void copyTextToClipboard(const std::string & label, const std::string & text);
@@ -68,6 +69,7 @@ private:
     std::string modelPath;
     std::string codexExe;
     std::string serverExe;
+    std::string hermesExe;
     std::string codexProfile;
     std::string codexSandbox = "";
     std::string configPath;

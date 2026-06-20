@@ -1,4 +1,4 @@
-﻿# ofxGgmlLlamaCodexLocalExample
+# ofxGgmlLlamaCodexLocalExample
 
 Root-level openFrameworks example for running local LLMs with OpenAI Codex,
 Hermes Agent, OpenCode, and other OpenAI-compatible coding clients through
@@ -241,7 +241,9 @@ The example's **Launch Codex** button uses the same custom-provider contract:
 
 Use **Copy config** when you want the generated TOML snippet on the clipboard
 without writing it, **Copy Hermes config** when you want a Hermes custom
-endpoint snippet that points to the same loaded model, **Copy server command**
+endpoint snippet that points to the same loaded model, **Copy Hermes bridge**
+when you want the reviewable Codex MCP snippet for explicit Hermes sidecar
+runs, **Copy server command**
 when you want to launch or tweak the matching `llama-server` command manually
 in a terminal, and **Copy launch command** when you want the pasteable Codex
 command for the current provider mode. In local provider mode, the copied
@@ -308,7 +310,10 @@ check before a real sidecar run.
 
 Use these MCP bridges only for explicit sidecar work; regular Codex subagents
 still use the built-in `/agent` workflow and the `agents.max_threads` /
-`agents.max_depth` settings above. Keep the split explicit:
+`agents.max_depth` settings above. In the example UI, **Copy Hermes bridge**
+generates this Codex-side block with the current endpoint, model alias, cwd, and
+allowed-root values so it can be reviewed before being copied into global Codex
+config. Keep the split explicit:
 `hermes-config.example.yaml` is the Hermes endpoint config, while the
 `[mcp_servers.ofxggml_hermes_agent]` block in `codex-config.example.toml` is the
 Codex-side bridge for asking Hermes to run.

@@ -153,6 +153,7 @@ $oldAllowedRoots = $env:OFXGGML_HERMES_ALLOWED_ROOTS
 $oldSafeToolsets = $env:OFXGGML_HERMES_SAFE_TOOLSETS
 $oldHermesToolsets = $env:OFXGGML_HERMES_TOOLSETS
 $oldAllowHooks = $env:OFXGGML_HERMES_ALLOW_HOOKS
+$oldHermesExe = $env:OFXGGML_HERMES_EXE
 $oldOutputLimit = $env:OFXGGML_HERMES_OUTPUT_LIMIT_BYTES
 $oldTimeout = $env:OFXGGML_HERMES_TIMEOUT_MS
 $oldMaxTimeout = $env:OFXGGML_HERMES_MAX_TIMEOUT_MS
@@ -162,13 +163,16 @@ $env:OFXGGML_HERMES_ALLOWED_ROOTS = $addonRoot.Path
 $env:OFXGGML_HERMES_SAFE_TOOLSETS = "web,skills,session_search,clarify,todo"
 $env:OFXGGML_HERMES_TOOLSETS = "web,skills"
 $env:OFXGGML_HERMES_ALLOW_HOOKS = "0"
+$resolvedHermes = Get-Command hermes -ErrorAction SilentlyContinue
+if ($resolvedHermes -and $resolvedHermes.Source) {
+	$env:OFXGGML_HERMES_EXE = $resolvedHermes.Source
+}
 $env:OFXGGML_HERMES_OUTPUT_LIMIT_BYTES = "8192"
 $env:OFXGGML_HERMES_MAX_TIMEOUT_MS = "120000"
 $env:OFXGGML_HERMES_ENDPOINT_ALLOWLIST = "http://127.0.0.1:8001/v1,http://localhost:8001/v1"
 $env:OFXGGML_HERMES_SAFE_MODE = "1"
 if ($RealRun) {
 	$env:OFXGGML_HERMES_TIMEOUT_MS = [string]$TimeoutMs
-	$env:OFXGGML_HERMES_ALLOW_HOOKS = "1"
 	$env:OFXGGML_HERMES_SAFE_MODE = "0"
 }
 [void]$process.Start()
@@ -271,7 +275,7 @@ try {
 	if ($timeoutPlan.command.args -contains "--accept-hooks") {
 		throw "Hermes MCP dry-run enabled --accept-hooks by default."
 	}
-	if ($timeoutPlan.command.args -notcontains "--safe-mode") {
+	if (!$RealRun -and $timeoutPlan.command.args -notcontains "--safe-mode") {
 		throw "Hermes MCP dry-run did not use env-provided --safe-mode."
 	}
 	if ($timeoutPlan.command.args -notcontains "-t" -or $timeoutPlan.command.args -notcontains "web,skills") {
@@ -318,7 +322,7 @@ try {
 		dry_run = !$RealRun
 	}
 	if ($RealRun) {
-		$toolArguments.allow_hooks = $true
+		$toolArguments.timeout_ms = $TimeoutMs
 	}
 	Send-McpMessage $process @{
 		jsonrpc = "2.0"
@@ -343,7 +347,8 @@ try {
 			throw "MCP dry-run did not describe the planned Hermes command."
 		}
 		$plan = $text | ConvertFrom-Json
-		if ($plan.command.args -notcontains "-z" -or $plan.command.args -notcontains "--provider") {
+		$promptArgumentIndex = [array]::IndexOf([object[]]$plan.command.args, "-z") + 1
+		if ($promptArgumentIndex -lt 1 -or $plan.command.args[$promptArgumentIndex] -ne "Summarize the Hermes sidecar plan." -or $plan.command.args -notcontains "--provider") {
 			throw "Hermes MCP dry-run did not include expected CLI arguments."
 		}
 		if ($plan.command.args -contains "--accept-hooks") {
@@ -382,6 +387,7 @@ try {
 	$env:OFXGGML_HERMES_SAFE_TOOLSETS = $oldSafeToolsets
 	$env:OFXGGML_HERMES_TOOLSETS = $oldHermesToolsets
 	$env:OFXGGML_HERMES_ALLOW_HOOKS = $oldAllowHooks
+	$env:OFXGGML_HERMES_EXE = $oldHermesExe
 	$env:OFXGGML_HERMES_OUTPUT_LIMIT_BYTES = $oldOutputLimit
 	$env:OFXGGML_HERMES_TIMEOUT_MS = $oldTimeout
 	$env:OFXGGML_HERMES_MAX_TIMEOUT_MS = $oldMaxTimeout
