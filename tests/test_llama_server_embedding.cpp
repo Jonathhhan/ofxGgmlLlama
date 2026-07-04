@@ -51,6 +51,24 @@ OFXGGML_TEST(llama_server_embedding_extracts_vectors) {
 	OFXGGML_REQUIRE(embeddings[1][1] == 4.0f);
 }
 
+OFXGGML_TEST(llama_server_embedding_extracts_large_vectors) {
+	std::string response = "{\"data\":[{\"embedding\":[";
+	for (int i = 0; i < 2048; ++i) {
+		if (i > 0) {
+			response += ", ";
+		}
+		response += std::to_string(i);
+	}
+	response += "]}]}";
+
+	const auto embeddings =
+		ofxGgmlLlamaServerEmbeddingBackend::extractEmbeddingsFromResponse(response);
+
+	OFXGGML_REQUIRE(embeddings.size() == 1);
+	OFXGGML_REQUIRE(embeddings[0].size() == 2048);
+	OFXGGML_REQUIRE(embeddings[0][0] == 0.0f);
+	OFXGGML_REQUIRE(embeddings[0][2047] == 2047.0f);
+}
 OFXGGML_TEST(llama_server_embedding_backend_runs_injected_runner) {
 	ofxGgmlTextServerRequest capturedRequest;
 	ofxGgmlLlamaServerEmbeddingBackend backend(

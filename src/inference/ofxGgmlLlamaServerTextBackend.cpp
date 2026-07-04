@@ -1,11 +1,12 @@
 #include "ofxGgmlLlamaServerTextBackend.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cctype>
 #include <sstream>
+#include <string_view>
 #include <utility>
-#include <vector>
 
 #include "ofxGgmlString.h"
 #if __has_include("ofMain.h")
@@ -70,6 +71,22 @@ std::string sanitizeModelVisibleText(const std::string & value) {
 	return stripLeadingRoleEchoes(ofxGgmlString::stripReasoningBlocks(value));
 }
 
+std::string_view trimView(std::string_view value) {
+	while (!value.empty() &&
+		std::isspace(static_cast<unsigned char>(value.front()))) {
+		value.remove_prefix(1);
+	}
+	while (!value.empty() &&
+		std::isspace(static_cast<unsigned char>(value.back()))) {
+		value.remove_suffix(1);
+	}
+	return value;
+}
+
+bool isBlank(std::string_view value) {
+	return trimView(value).empty();
+}
+
 class ReasoningStreamFilter {
 public:
 	std::string push(const std::string & chunk) {
@@ -116,36 +133,35 @@ private:
 	struct MarkerMatch {
 		bool found = false;
 		std::size_t position = std::string::npos;
-		std::string marker;
+		std::string_view marker;
 	};
 
-	static const std::vector<std::string> & beginMarkers() {
-		static const std::vector<std::string> markers = {
+	static constexpr std::array<std::string_view, 4> beginMarkers() {
+		return {
 			"<think>",
 			"<thinking>",
 			"[Start thinking]",
 			"[Thinking]"
 		};
-		return markers;
 	}
 
-	static const std::vector<std::string> & endMarkers() {
-		static const std::vector<std::string> markers = {
+	static constexpr std::array<std::string_view, 5> endMarkers() {
+		return {
 			"</think>",
 			"</thinking>",
 			"[End thinking]",
 			"[Stop thinking]",
 			"[/Thinking]"
 		};
-		return markers;
 	}
 
+	template <std::size_t Count>
 	static MarkerMatch findEarliest(
 		const std::string & value,
-		const std::vector<std::string> & markers) {
+		const std::array<std::string_view, Count> & markers) {
 		MarkerMatch result;
 		for (const auto & marker : markers) {
-			const std::size_t position = value.find(marker);
+			const std::size_t position = value.find(marker.data(), 0, marker.size());
 			if (position != std::string::npos &&
 				(!result.found || position < result.position)) {
 				result.found = true;
@@ -156,7 +172,9 @@ private:
 		return result;
 	}
 
-	static std::size_t maxMarkerSize(const std::vector<std::string> & markers) {
+	template <std::size_t Count>
+	static constexpr std::size_t maxMarkerSize(
+		const std::array<std::string_view, Count> & markers) {
 		std::size_t size = 0;
 		for (const auto & marker : markers) {
 			size = std::max(size, marker.size());
@@ -325,6 +343,7 @@ std::string extractJsonStringField(const std::string & json, const std::string &
 		}
 		++valueStart;
 		std::string decoded;
+		decoded.reserve(json.size() - valueStart);
 		while (valueStart < json.size()) {
 			if (json[valueStart] == '"') {
 				return decoded;
@@ -371,6 +390,7 @@ struct CurlStreamState {
 	std::function<bool()> shouldCancel;
 	bool parseServerSentEvents = false;
 	std::string pending;
+	std::size_t pendingOffset = 0;
 };
 
 bool cancelCurlRequest(CurlStreamState & state) {
@@ -419,18 +439,28 @@ std::size_t writeCurlResponse(
 	}
 	state->pending.append(data, bytes);
 	while (true) {
-		const std::size_t newline = state->pending.find('\n');
+		const std::size_t newline = state->pending.find('\n', state->pendingOffset);
 		if (newline == std::string::npos) {
 			break;
 		}
-		std::string line = state->pending.substr(0, newline);
-		state->pending.erase(0, newline + 1);
+		std::string line = state->pending.substr(
+			state->pendingOffset,
+			newline - state->pendingOffset);
+		state->pendingOffset = newline + 1;
 		if (!line.empty() && line.back() == '\r') {
 			line.pop_back();
 		}
 		if (!processServerSentEventLine(line, *state->response, state->onChunk)) {
 			return 0;
 		}
+	}
+	if (state->pendingOffset == state->pending.size()) {
+		state->pending.clear();
+		state->pendingOffset = 0;
+	} else if (state->pendingOffset > 4096 &&
+		state->pendingOffset > state->pending.size() / 2) {
+		state->pending.erase(0, state->pendingOffset);
+		state->pendingOffset = 0;
 	}
 	return bytes;
 }
@@ -483,8 +513,11 @@ ofxGgmlTextServerResponse runCurlRequest(
 	if (code != CURLE_OK && !result.cancelled) {
 		result.error = curl_easy_strerror(code);
 	}
-	if (request.stream && !state.pending.empty() && !result.cancelled) {
-		processServerSentEventLine(state.pending, result, request.onChunk);
+	if (request.stream && state.pendingOffset < state.pending.size() && !result.cancelled) {
+		processServerSentEventLine(
+			state.pending.substr(state.pendingOffset),
+			result,
+			request.onChunk);
 	}
 
 	curl_slist_free_all(headers);
@@ -746,7 +779,7 @@ std::string ofxGgmlLlamaServerTextBackend::extractTextFromResponse(
 	const std::string & responseBody) {
 	for (const std::string & key : { "content", "text", "response" }) {
 		const std::string value = extractJsonStringField(responseBody, key);
-		if (!ofxGgmlString::trimCopy(value).empty()) {
+		if (!isBlank(value)) {
 			return value;
 		}
 	}

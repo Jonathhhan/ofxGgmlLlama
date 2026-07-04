@@ -580,6 +580,122 @@ void ofApp::setup() {
 	refreshServerStatus();
 }
 
+
+void ofApp::resetDefaults() {
+    gpuLayers = defaultGpuLayers;
+    contextSize = defaultContextSize;
+    parallel = defaultParallel;
+    batchSize = defaultBatchSize;
+    ubatchSize = defaultUbatchSize;
+    threads = defaultThreads;
+    threadsBatch = defaultThreadsBatch;
+    threadsHttp = defaultThreadsHttp;
+    cacheReuse = defaultCacheReuse;
+    kvCacheKeyType = defaultKvCacheKeyType;
+    kvCacheValueType = defaultKvCacheValueType;
+    specType = defaultSpecType;
+    draftModelPath = defaultDraftModelPath;
+    draftGpuLayers = defaultDraftGpuLayers;
+    draftMaxTokens = defaultDraftMaxTokens;
+    draftMinTokens = defaultDraftMinTokens;
+    draftPSplit = defaultDraftPSplit;
+    draftPMin = defaultDraftPMin;
+    modelContextWindow = defaultModelContextWindow;
+    modelAutoCompactTokenLimit = defaultModelAutoCompactTokenLimit;
+    toolOutputTokenLimit = defaultToolOutputTokenLimit;
+    agentMaxConcurrentThreadsPerSession = defaultAgentMaxConcurrentThreadsPerSession;
+    agentMaxDepth = defaultAgentMaxDepth;
+    agentMinWaitTimeoutMs = defaultAgentMinWaitTimeoutMs;
+    agentMaxWaitTimeoutMs = defaultAgentMaxWaitTimeoutMs;
+    agentDefaultWaitTimeoutMs = defaultAgentDefaultWaitTimeoutMs;
+    reasoningEffortIndex = defaultReasoningEffortIndex;
+    startupTimeoutSeconds = defaultStartupTimeoutSeconds;
+    temperature = defaultTemperature;
+    topP = defaultTopP;
+    minP = defaultMinP;
+    gpuLayersAll = defaultGpuLayersAll;
+    noCudaGraphs = defaultNoCudaGraphs;
+    skipChatParsing = defaultSkipChatParsing;
+    autoConfig = defaultAutoConfig;
+    codexProviderMode = defaultCodexProviderMode;
+    baseUrl = defaultBaseUrl;
+    serverUrl = defaultServerUrl;
+    modelAlias = defaultModelAlias;
+    openAiModelAlias = defaultOpenAiModelAlias;
+    codexSandbox = defaultCodexSandbox;
+    codexProfile = defaultCodexProfile;
+    webSearch = defaultWebSearch;
+    wireApi = defaultWireApi;
+    modelAliasManuallyEdited = false;
+    modelContextWindowManuallyEdited = false;
+    modelAutoCompactManuallyEdited = false;
+    codexSandboxManuallyEdited = false;
+    applyInteractiveThreadBudget(true, true, true, true);
+    collectGpuInfo();
+    rebuildLines();
+}
+
+void ofApp::requestStopServer() {
+    {
+        std::lock_guard<std::mutex> lock(stateMutex);
+        if (!serverReady && !running) {
+            return;
+        }
+        running = true;
+        cancelRequested = true;
+        status = "stopping llama-server...";
+    }
+    joinWorker();
+    worker = std::thread(&ofApp::runStopServerWorker, this);
+}
+
+void ofApp::runStopServerWorker() {
+    std::string scriptPath = "scripts/stop-llama-server.ps1";
+    if (!ofxGgmlLlamaCodexLocal::fileExists(scriptPath)) {
+        auto cwd = std::filesystem::current_path();
+        for (auto dir = cwd; dir != dir.root_path();
+             dir = dir.parent_path()) {
+            auto candidate = (dir / "scripts" / "stop-llama-server.ps1").string();
+            if (ofxGgmlLlamaCodexLocal::fileExists(candidate)) {
+                scriptPath = candidate;
+                break;
+            }
+        }
+    }
+    const bool launched = ofxGgmlLlamaCodexLocal::launchDetachedProcess(
+        "powershell.exe",
+        std::string("-NoProfile -ExecutionPolicy Bypass -File ") + scriptPath);
+    std::lock_guard<std::mutex> lock(stateMutex);
+    serverReady = false;
+    endpointReady = false;
+    serverKilled = true;
+    running = false;
+    collectGpuInfo();
+    if (launched) {
+        status = "llama-server stop signal sent";
+    } else {
+        status = "llama-server stop failed (launch error)";
+    }
+    rebuildLines();
+}
+
+void ofApp::collectGpuInfo() {
+    if (!serverReady) {
+        gpuInfo = "GPU: not connected";
+        vramInfo = "VRAM: not connected";
+        return;
+    }
+    const auto activeLayers = gpuLayersAll ? modelLayerCount : static_cast<uint64_t>(std::max(gpuLayers, 0));
+    if (modelLayerCount > 0) {
+        gpuInfo = "GPU: layers=" + std::to_string(activeLayers) + '/' + std::to_string(modelLayerCount);
+    } else if (gpuLayersAll) {
+        gpuInfo = "GPU: layers=all";
+    } else {
+        gpuInfo = "GPU: layers=" + std::to_string(std::max(gpuLayers, 0));
+    }
+    vramInfo = "VRAM: " + std::to_string(std::max(parallel, 1)) + " parallel slot(s)";
+}
+
 void ofApp::draw() {
 	ofBackground(18, 20, 24);
 
@@ -718,7 +834,12 @@ void ofApp::draw() {
 		ImGui::SameLine();
 		if (ImGui::Button("Apply preset")) {
 			applyPreset(presetIndex);
+			collectGpuInfo();
 			rebuildLines();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Reset defaults")) {
+			resetDefaults();
 		}
 		if (ImGui::Checkbox("GPU layers all", &gpuLayersAll)) {
 			settingsChanged = true;
@@ -860,6 +981,7 @@ void ofApp::draw() {
 		}
 		ImGui::EndDisabled();
 		if (settingsChanged) {
+			collectGpuInfo();
 			rebuildLines();
 		}
 
@@ -877,6 +999,13 @@ void ofApp::draw() {
 		ImGui::BeginDisabled(blockSmoke);
 		smokeRequested = ImGui::Button("Smoke endpoint");
 		ImGui::EndDisabled();
+		ImGui::SameLine();
+		ImGui::BeginDisabled(!serverReady && !running);
+		bool stopRequested = ImGui::Button("Stop server");
+		ImGui::EndDisabled();
+		if (stopRequested) {
+			requestStopServer();
+		}
 		ImGui::SameLine();
 		ImGui::BeginDisabled(blockConfigWrite);
 		writeConfigRequested = ImGui::Button("Write config");
@@ -927,6 +1056,8 @@ void ofApp::draw() {
 		ImGui::Separator();
 		ImGui::Text("server: %s", serverReady ? "ready" : "not ready");
 		ImGui::Text("endpoint: %s", endpointReady ? "ready" : "not ready");
+		ImGui::Text("%s", gpuInfo.c_str());
+		ImGui::Text("%s", vramInfo.c_str());
 		ImGui::TextWrapped("wire_api: %s", wireApi.empty() ? "(not detected)" : wireApi.c_str());
 		ImGui::TextWrapped("%s", wireApiProbeStatus.c_str());
 		ImGui::TextWrapped("%s", servedModelStatus.c_str());
@@ -998,6 +1129,7 @@ void ofApp::requestStartServer(bool force) {
 		running = true;
 		cancelRequested = false;
 		serverReady = false;
+		collectGpuInfo();
 		status = force ? "starting a new llama-server..." : "checking llama-server...";
 	}
 	joinWorker();
@@ -1021,6 +1153,7 @@ void ofApp::runStartServerWorker(bool force) {
 			}
 			std::lock_guard<std::mutex> lock(stateMutex);
 			serverReady = true;
+			collectGpuInfo();
 			status = "llama-server is already ready at " + settings.serverUrl;
 			running = false;
 			return;
@@ -1057,6 +1190,7 @@ void ofApp::runStartServerWorker(bool force) {
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		serverReady = probe.ready;
+		collectGpuInfo();
 		status = probe.ready
 			? "llama-server ready for Codex at " + baseUrl
 			: "llama-server did not become ready (" + ofxGgmlLlamaCodexLocal::describeProbe(probe) + ")";
@@ -1325,6 +1459,7 @@ void ofApp::refreshServerStatus() {
 		: ofxGgmlLlamaServedModels {};
 	std::lock_guard<std::mutex> lock(stateMutex);
 	serverReady = probe.ready;
+	collectGpuInfo();
 	if (serverReady) {
 		wireApi = ofxGgmlLlamaCodexLocal::detectCodexWireApi(baseUrl);
 		wireApiProbeStatus = "wire_api auto-detected as " + wireApi;

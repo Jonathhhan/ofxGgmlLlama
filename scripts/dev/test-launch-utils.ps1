@@ -176,4 +176,36 @@ Assert-True ($codexIgnoreConfigArgs -contains "tool_search_always_defer_mcp_tool
 Assert-True ($codexIgnoreConfigArgs -notcontains "mcp_servers.node_repl.enabled=false") "Codex ignore-config args omit partial desktop MCP table"
 Assert-True ($codexIgnoreConfigArgs -contains "agents.max_threads=1") "Codex ignore-config args keep agent cap"
 
+Write-Step "Checking Codex planner launch command"
+$plannerConfigDir = Join-Path $scratchRoot "codex-plan"
+$plannerConfigPath = Join-Path $plannerConfigDir "config.toml"
+New-Item -ItemType Directory -Force -Path $plannerConfigDir | Out-Null
+Set-Content -LiteralPath $plannerConfigPath -Value @(
+	'model = "local/stale-model"',
+	'model_provider = "llama_cpp"',
+	'',
+	'[model_providers.llama_cpp]',
+	'name = "llama.cpp local"',
+	'base_url = "http://127.0.0.1:8001/v1"',
+	'wire_api = "responses"'
+) -Encoding UTF8
+$plannerJson = & (Join-Path $scriptRoot "plan-local-codex.ps1") `
+	-Endpoint "http://127.0.0.1:9001/v1" `
+	-Model "local/planner-model" `
+	-ConfigPath $plannerConfigPath `
+	-CodexExe $cliPath `
+	-TimeoutSeconds 1 `
+	-Json `
+	-SummaryOnly
+$planner = $plannerJson | ConvertFrom-Json
+Assert-True ($planner.LaunchCommand -notlike "*model_provider=llama_cpp*") "Codex planner launch command avoids provider override"
+Assert-True ($planner.LaunchCommand -notlike "*model_providers.llama_cpp.base_url=*") "Codex planner launch command avoids endpoint override"
+Assert-True ($planner.LaunchCommand -like "*model_verbosity=low*") "Codex planner launch command keeps local verbosity override"
+Assert-True ($planner.LaunchCommand -like "*--model local/planner-model*") "Codex planner launch command includes model alias"
+Assert-Equal $planner.Config.ProviderOverrideProvided $false "planner provider override marker"
+Assert-Equal $planner.Config.HasMatchingModel $false "planner stale model config state"
+Assert-Equal $planner.Config.HasMatchingBaseUrl $false "planner stale endpoint config state"
+Assert-Equal $planner.Config.HasResponsesWireApi $true "planner wire api config state"
+Assert-Equal $planner.Config.ReadyForLocalAgents $false "planner local agent config readiness"
+
 Write-Step "Launch utility coverage passed"

@@ -9,6 +9,32 @@
 #include "ofxGgmlString.h"
 namespace {
 
+std::size_t estimateNumberArraySize(
+	const std::string & json,
+	std::size_t openBracket) {
+	if (openBracket >= json.size() || json[openBracket] != '[') {
+		return 0;
+	}
+
+	std::size_t count = 0;
+	bool inNumber = false;
+	for (std::size_t index = openBracket + 1; index < json.size(); ++index) {
+		const unsigned char c = static_cast<unsigned char>(json[index]);
+		if (json[index] == ']') {
+			return count + (inNumber ? 1 : 0);
+		}
+		if (std::isspace(c) || json[index] == ',') {
+			if (inNumber) {
+				++count;
+				inNumber = false;
+			}
+			continue;
+		}
+		inNumber = true;
+	}
+	return count + (inNumber ? 1 : 0);
+}
+
 std::vector<float> parseNumberArray(
 	const std::string & json,
 	std::size_t openBracket) {
@@ -16,6 +42,7 @@ std::vector<float> parseNumberArray(
 	if (openBracket >= json.size() || json[openBracket] != '[') {
 		return values;
 	}
+	values.reserve(estimateNumberArraySize(json, openBracket));
 
 	std::size_t index = openBracket + 1;
 	while (index < json.size()) {
