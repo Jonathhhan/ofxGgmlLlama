@@ -3,11 +3,14 @@
 #include "imgui_stdlib.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <cctype>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <sstream>
+#include <thread>
 #include <utility>
 
 #if defined(_WIN32)
@@ -230,6 +233,137 @@ std::string discoverLlamaCli() {
 	return findFirstFile(candidates);
 }
 
+std::string discoverLlamaServer() {
+#if defined(_WIN32)
+	const std::vector<std::string> executableNames = { "llama-server.exe" };
+#else
+	const std::vector<std::string> executableNames = { "llama-server" };
+#endif
+	const std::vector<std::filesystem::path> relativeDirectories = {
+		"", "bin", "data/bin", "tools", "libs/llama/bin",
+		"libs/llama.cpp/build/bin", "libs/llama.cpp/build/bin/Release",
+		"libs/llama.cpp/build/bin/Debug"
+	};
+
+	std::vector<std::filesystem::path> candidates;
+	for (const auto & root : searchRoots()) {
+		for (const auto & relative : relativeDirectories) {
+			for (const auto & name : executableNames) {
+				candidates.push_back(root / relative / name);
+			}
+		}
+	}
+	return findFirstFile(candidates);
+}
+
+bool isLocalServerUrl(const std::string & serverUrl) {
+	return serverUrl.find("127.0.0.1") != std::string::npos ||
+		serverUrl.find("localhost") != std::string::npos ||
+		serverUrl.find("::1") != std::string::npos;
+}
+
+std::string trimTrailingSlash(std::string value) {
+	while (!value.empty() && value.back() == '/') {
+		value.pop_back();
+	}
+	return value;
+}
+
+int serverPortFromUrl(const std::string & serverUrl, int fallbackPort = 8080) {
+	const std::string normalized = trimTrailingSlash(serverUrl);
+	const std::size_t scheme = normalized.find("://");
+	const std::size_t hostStart = scheme == std::string::npos ? 0 : scheme + 3;
+	const std::size_t colon = normalized.find(':', hostStart);
+	if (colon == std::string::npos) {
+		return fallbackPort;
+	}
+	const std::size_t portStart = colon + 1;
+	std::size_t portEnd = normalized.find('/', portStart);
+	if (portEnd == std::string::npos) {
+		portEnd = normalized.size();
+	}
+	try {
+		return std::stoi(normalized.substr(portStart, portEnd - portStart));
+	} catch (...) {
+		return fallbackPort;
+	}
+}
+
+bool isLlamaServerReady(const std::string & serverUrl) {
+	ofHttpRequest request(trimTrailingSlash(serverUrl) + "/health", "llama-server-health");
+	request.method = ofHttpRequest::GET;
+	request.timeoutSeconds = 1;
+	ofURLFileLoader loader;
+	const ofHttpResponse response = loader.handleRequest(request);
+	return response.status >= 200 && response.status < 300;
+}
+
+bool waitForLlamaServerReady(
+	const std::string & serverUrl,
+	int timeoutSeconds,
+	const std::function<bool()> & shouldCancel) {
+	const auto deadline = std::chrono::steady_clock::now() +
+		std::chrono::seconds(std::max(1, timeoutSeconds));
+	while (std::chrono::steady_clock::now() < deadline) {
+		if (shouldCancel && shouldCancel()) {
+			return false;
+		}
+		if (isLlamaServerReady(serverUrl)) {
+			return true;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(500));
+	}
+	return isLlamaServerReady(serverUrl);
+}
+
+std::string quoteShellPath(const std::string & value) {
+	return "\"" + value + "\"";
+}
+
+bool startBundledLlamaServer(
+	const std::string & serverExe,
+	const std::string & modelPath,
+	const std::string & serverUrl,
+	int gpuLayers,
+	int contextSize) {
+	if (serverExe.empty() || modelPath.empty()) {
+		return false;
+	}
+	const int port = serverPortFromUrl(serverUrl);
+#if defined(_WIN32)
+	const std::filesystem::path exePath(serverExe);
+	std::wstring command = L"\"" + exePath.wstring() + L"\" -m \"" +
+		std::filesystem::path(modelPath).wstring() +
+		L"\" --host 127.0.0.1 --port " + std::to_wstring(port) +
+		L" -ngl " + std::to_wstring(std::max(0, gpuLayers)) +
+		L" -c " + std::to_wstring(std::max(512, contextSize));
+	STARTUPINFOW startupInfo {};
+	startupInfo.cb = sizeof(startupInfo);
+	startupInfo.dwFlags = STARTF_USESHOWWINDOW;
+	startupInfo.wShowWindow = SW_HIDE;
+	PROCESS_INFORMATION processInfo {};
+	std::wstring workingDirectory = exePath.parent_path().wstring();
+	const BOOL started = CreateProcessW(
+		nullptr, command.data(), nullptr, nullptr, FALSE,
+		CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr,
+		workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+		&startupInfo, &processInfo);
+	if (started) {
+		CloseHandle(processInfo.hThread);
+		CloseHandle(processInfo.hProcess);
+	}
+	return started == TRUE;
+#else
+	const std::string command = quoteShellPath(serverExe) +
+		" -m " + quoteShellPath(modelPath) +
+		" --host 127.0.0.1 --port " + std::to_string(port) +
+		" -ngl " + std::to_string(std::max(0, gpuLayers)) +
+		" -c " + std::to_string(std::max(512, contextSize)) +
+		" >/dev/null 2>&1 &";
+	return std::system(command.c_str()) == 0;
+#endif
+}
+
 std::string discoverTextModel() {
 	const auto models = findFilesByExtension(
 		searchRoots(),
@@ -290,6 +424,12 @@ void ofApp::setup() {
 	const std::string backend = normalizeEnvPath(envValue("OFXGGML_TEXT_BACKEND"));
 	if (backend == "cli") {
 		settings.useServerBackend = false;
+		allowCliFallback = false;
+	} else if (backend == "server") {
+		settings.useServerBackend = true;
+		allowCliFallback = false;
+	} else {
+		allowCliFallback = true;
 	}
 	configureGenerator();
 	{
@@ -561,17 +701,47 @@ void ofApp::runPromptWorker() {
 	ofxGgmlTextGenerationSettings requestSettings;
 	std::string requestModelPath;
 	std::string requestPrompt;
+	bool allowCliFallbackSnapshot = false;
 	{
 		std::lock_guard<std::mutex> lock(stateMutex);
 		requestSettings = settings;
 		requestModelPath = modelPath;
 		requestPrompt = prompt;
+		allowCliFallbackSnapshot = allowCliFallback;
 	}
 
 	if (requestSettings.useServerBackend) {
 		if (requestSettings.serverUrl.empty()) {
 			fail("No llama-server URL configured. Set OFXGGML_TEXT_SERVER_URL.");
 			return;
+		}
+		if (isLocalServerUrl(requestSettings.serverUrl) &&
+			!isLlamaServerReady(requestSettings.serverUrl)) {
+			const std::string serverExe = discoverLlamaServer();
+			if (!serverExe.empty() && !requestModelPath.empty() && fileExists(requestModelPath)) {
+				{
+					std::lock_guard<std::mutex> lock(stateMutex);
+					status = "starting bundled llama-server...";
+					rebuildLinesLocked();
+				}
+				ofLogNotice("example-text")
+					<< "starting llama-server\n"
+					<< "exe: " << serverExe << "\n"
+					<< "model: " << requestModelPath << "\n"
+					<< "url: " << requestSettings.serverUrl;
+				if (startBundledLlamaServer(
+					serverExe, requestModelPath, requestSettings.serverUrl,
+					requestSettings.gpuLayers, requestSettings.contextSize)) {
+					{
+						std::lock_guard<std::mutex> lock(stateMutex);
+						status = "waiting for llama-server...";
+						rebuildLinesLocked();
+					}
+					waitForLlamaServerReady(
+						requestSettings.serverUrl, 60,
+						[this]() { return cancelRequested.load(); });
+				}
+			}
 		}
 	} else {
 		if (requestSettings.executablePath.empty()) {
@@ -634,6 +804,31 @@ void ofApp::runPromptWorker() {
 
 	ofLogNotice("example-text") << "prompt\n" << request.prompt;
 	auto result = generator.generate(request, onTextChunk);
+	if (!result &&
+		requestSettings.useServerBackend &&
+		allowCliFallbackSnapshot &&
+		!requestSettings.executablePath.empty() &&
+		fileExists(requestSettings.executablePath) &&
+		!requestModelPath.empty() &&
+		fileExists(requestModelPath) &&
+		!cancelRequested) {
+		ofLogWarning("example-text")
+			<< "llama-server request failed; retrying with llama.cpp CLI\n"
+			<< result.error;
+		{
+			std::lock_guard<std::mutex> lock(stateMutex);
+			output.clear();
+			status = "server unavailable; retrying via llama.cpp CLI...";
+			rebuildLinesLocked();
+		}
+		auto cliSettings = requestSettings;
+		cliSettings.useServerBackend = false;
+		cliSettings.stream = false;
+		request.settings = cliSettings;
+		ofxGgmlTextGenerator fallbackGenerator;
+		fallbackGenerator.setBackend(std::make_shared<ofxGgmlLlamaCliTextBackend>());
+		result = fallbackGenerator.generate(request, cancelOnlyChunk);
+	}
 	if (result) {
 		ofLogNotice("example-text") << "output\n" << result.text;
 	} else {

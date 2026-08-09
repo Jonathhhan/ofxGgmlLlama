@@ -44,4 +44,5 @@ private:
 	std::atomic_bool cancelRequested { false };
 	int selectedModelIndex = -1;
 	bool running = false;
+	bool allowCliFallback = true;
 };

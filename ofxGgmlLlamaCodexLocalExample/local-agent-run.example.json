@@ -4,6 +4,7 @@
                          "src/codex",
                          "src/inference",
                          "src",
+                         "ofxGgmlTextExample",
                          "ofxGgmlEmbeddingExample",
                          "ofxGgmlLlamaCodexLocalExample",
                          "scripts",

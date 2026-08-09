@@ -75,6 +75,12 @@ provider-selection config sections to `%USERPROFILE%\.codex\config.toml` when
 starts the bundled server when needed for text, chat, and embedding examples and
 waits until it is ready before opening the example.
 
+When the Text or Chat example is opened directly, pressing Run/Send also starts
+a discovered bundled `llama-server` for the selected local GGUF when the local
+endpoint is down. In automatic backend mode, a failed server request retries
+through a discovered `llama-cli`; explicitly setting `OFXGGML_TEXT_BACKEND` to
+`server` or `cli` disables that fallback.
+
 The lane-owned runtime smoke uses the bundled `llama-cli` directly. The dry-run
 is model-free and reports discovery state. With a GGUF model available, the real
 smoke runs a tiny deterministic prompt and emits timing/text metadata without
