@@ -199,6 +199,8 @@ function Get-CMakeConfigureArgs {
 		"-S", $SourceDir,
 		"-B", $BuildDir,
 		"-DLLAMA_BUILD_SERVER=ON",
+		"-DLLAMA_BUILD_UI=OFF",
+		"-DLLAMA_USE_PREBUILT_UI=OFF",
 		"-DLLAMA_BUILD_TESTS=OFF",
 		"-DLLAMA_BUILD_EXAMPLES=ON",
 		"-DLLAMA_CURL=OFF",
