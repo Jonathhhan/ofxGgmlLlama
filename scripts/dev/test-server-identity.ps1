@@ -102,7 +102,8 @@ try {
 			-Port $matchingPort `
 			-Alias "expected-alias" *>&1 | ForEach-Object { [string]$_ })
 		if (!$? -or ($matchingOutput -join "`n") -notmatch "identity verified" -or
-			($matchingOutput -join "`n") -notmatch "Reusing the existing matching server") {
+			($matchingOutput -join "`n") -notmatch "Reusing the existing matching server" -or
+			($matchingOutput -join "`n") -notmatch "OFXGGML_LLAMA_SERVER_READY=1") {
 			throw "Matching llama-server identity was not reused.`n$($matchingOutput -join [Environment]::NewLine)"
 		}
 	} finally {
@@ -127,7 +128,8 @@ try {
 		}
 		if (!$mismatchFailed -or ($mismatchOutput -join "`n") -notmatch "different model" -or
 			($mismatchOutput -join "`n") -notmatch "other-alias" -or
-			($mismatchOutput -join "`n") -notmatch "expected-alias") {
+			($mismatchOutput -join "`n") -notmatch "expected-alias" -or
+			($mismatchOutput -join "`n") -match "OFXGGML_LLAMA_SERVER_READY=1") {
 			throw "Mismatched llama-server identity was not rejected with both identities.`n$($mismatchOutput -join [Environment]::NewLine)"
 		}
 	} finally {

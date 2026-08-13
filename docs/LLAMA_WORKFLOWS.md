@@ -57,7 +57,10 @@ model, and generated artifacts are required.
 after `/v1/models` confirms the requested alias. A port occupied by a different
 model is rejected with the actual and expected identities instead of silently
 routing a text, embedding, vision, RAG, video, or agent request to the wrong
-runtime. Companion addons should delegate this check to the Llama launcher.
+runtime. After either a verified reuse or a newly started server passes its
+health check, the launcher emits `OFXGGML_LLAMA_SERVER_READY=1`. Companion
+addons should use that stable marker and delegate identity checks to the Llama
+launcher instead of parsing human-readable status text.
 
 The lane-owned runtime smoke is a headless `llama-cli` check. It discovers the
 bundled CLI and GGUF model, runs a short deterministic prompt with CPU or CUDA

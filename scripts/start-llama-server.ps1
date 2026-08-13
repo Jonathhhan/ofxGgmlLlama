@@ -247,6 +247,7 @@ if (!$NoHealthCheck -and !$DryRun) {
 		Write-Host ""
 		Write-Host "Reusing the existing matching server. Pass -ForceNew to replace matching addon server processes."
 		Write-Host "Use $serverUrlEnvName=$serverUrl"
+		Write-Output "OFXGGML_LLAMA_SERVER_READY=1"
 		return
 	}
 }
@@ -503,6 +504,7 @@ if ($Detached) {
 		}
 		if ($health.Ready) {
 			Write-Host "llama-server is ready at $serverUrl"
+			Write-Output "OFXGGML_LLAMA_SERVER_READY=1"
 		} else {
 			$detail = if ($health.Reachable) {
 				"HTTP $($health.StatusCode) $($health.Message)"
