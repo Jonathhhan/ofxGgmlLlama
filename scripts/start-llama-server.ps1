@@ -1,5 +1,6 @@
 param(
 	[string]$ModelPath = $(if ($env:OFXGGML_TEXT_MODEL) { $env:OFXGGML_TEXT_MODEL } else { "" }),
+	[string]$MmprojPath = $(if ($env:LLAMA_ARG_MMPROJ) { $env:LLAMA_ARG_MMPROJ } else { "" }),
 	[string]$ServerExe = $(if ($env:OFXGGML_LLAMA_SERVER) { $env:OFXGGML_LLAMA_SERVER } else { "" }),
 	[string]$HostName = "127.0.0.1",
 	[int]$Port = 8080,
@@ -63,6 +64,20 @@ function Get-ServerUrl {
 function Get-HealthUrl {
 	param([string]$ServerUrl)
 	return "$ServerUrl/health"
+}
+
+function Get-LlamaServerLogTail {
+	param([string]$Directory, [int]$LineCount = 12)
+	if ([string]::IsNullOrWhiteSpace($Directory)) {
+		return ""
+	}
+	$logPath = Join-Path $Directory "llama-server.log"
+	if (!(Test-Path -LiteralPath $logPath -PathType Leaf)) {
+		return ""
+	}
+	$tail = ((Get-Content -LiteralPath $logPath -Tail $LineCount -ErrorAction SilentlyContinue) -join " ").Trim()
+	$ansiPattern = "$([char]27)\[[0-?]*[ -/]*[@-~]"
+	return ($tail -replace $ansiPattern, "").Trim()
 }
 
 function Test-LlamaServer {
@@ -228,6 +243,12 @@ if (!(Test-Path -LiteralPath $ModelPath -PathType Leaf)) {
 	throw "Model file was not found: $ModelPath"
 }
 $ModelPath = (Resolve-Path -LiteralPath $ModelPath).Path
+if (![string]::IsNullOrWhiteSpace($MmprojPath)) {
+	if (!(Test-Path -LiteralPath $MmprojPath -PathType Leaf)) {
+		throw "Multimodal projector file was not found: $MmprojPath"
+	}
+	$MmprojPath = (Resolve-Path -LiteralPath $MmprojPath).Path
+}
 $ServerExe = (Resolve-Path -LiteralPath $ServerExe).Path
 if ([string]::IsNullOrWhiteSpace($Alias)) {
 	$Alias = Get-OfxGgmlLocalModelAlias -ModelPath $ModelPath
@@ -284,6 +305,10 @@ $arguments = @(
 	"-c", ([Math]::Max(0, $ContextSize)).ToString(),
 	"--kv-unified"
 )
+if (![string]::IsNullOrWhiteSpace($MmprojPath)) {
+	$arguments += "--mmproj"
+	$arguments += $MmprojPath
+}
 if ($Parallel -gt 0) {
 	$arguments += "--parallel"
 	$arguments += ([Math]::Max(1, $Parallel)).ToString()
@@ -419,6 +444,9 @@ if (![string]::IsNullOrWhiteSpace($LogDir)) {
 Write-Host "Starting llama-server"
 Write-Host "  exe:       $ServerExe"
 Write-Host "  model:     $ModelPath"
+if (![string]::IsNullOrWhiteSpace($MmprojPath)) {
+	Write-Host "  mmproj:    $MmprojPath"
+}
 Write-Host "  url:       $serverUrl"
 Write-Host "  backend:   llama.cpp auto"
 if (![string]::IsNullOrWhiteSpace($Alias)) {
@@ -506,14 +534,9 @@ if ($Detached) {
 		Write-Host "Waiting up to $StartupTimeoutSeconds seconds for llama-server readiness..."
 		$deadline = (Get-Date).AddSeconds([Math]::Max(1, $StartupTimeoutSeconds))
 		do {
+			$process.Refresh()
 			if ($process.HasExited) {
-				$stderrTail = ""
-				if (![string]::IsNullOrWhiteSpace($LogDir)) {
-					$logPath = Join-Path $LogDir "llama-server.log"
-					if (Test-Path -LiteralPath $logPath -PathType Leaf) {
-						$stderrTail = ((Get-Content -LiteralPath $logPath -Tail 8 -ErrorAction SilentlyContinue) -join " ").Trim()
-					}
-				}
+				$stderrTail = Get-LlamaServerLogTail -Directory $LogDir -LineCount 8
 				$detail = if (![string]::IsNullOrWhiteSpace($stderrTail)) { " $stderrTail" } else { "" }
 				throw "llama-server exited before readiness with code $($process.ExitCode).$detail"
 			}
@@ -534,6 +557,10 @@ if ($Detached) {
 				"HTTP $($health.StatusCode) $($health.Message)"
 			} else {
 				$health.Message
+			}
+			$logTail = Get-LlamaServerLogTail -Directory $LogDir
+			if (![string]::IsNullOrWhiteSpace($logTail)) {
+				$detail += " Log tail: $logTail"
 			}
 			throw "llama-server did not become ready at $serverUrl within $StartupTimeoutSeconds seconds. $detail"
 		}

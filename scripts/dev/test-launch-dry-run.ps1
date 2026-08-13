@@ -687,6 +687,7 @@ $serverOutput = Invoke-DryRun `
 		DryRun = $true
 		ServerExe = $serverExe
 		ModelPath = $modelPath
+		MmprojPath = $modelPath
 		HostName = "127.0.0.1"
 		Port = 9082
 		Alias = "dry-server-alias"
@@ -700,6 +701,7 @@ $serverOutput = Invoke-DryRun `
 	}
 Assert-Contains $serverOutput "exe:       $serverExe" "Server dry-run"
 Assert-Contains $serverOutput "model:     $modelPath" "Server dry-run"
+Assert-Contains $serverOutput "mmproj:    $modelPath" "Server multimodal projector dry-run"
 Assert-Contains $serverOutput "url:       http://127.0.0.1:9082" "Server dry-run"
 Assert-Contains $serverOutput "alias:     dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "ngl:       77" "Server dry-run"
@@ -710,6 +712,7 @@ Assert-Contains $serverOutput "min_p:     0.03" "Server dry-run"
 Assert-Contains $serverOutput "cudaGraph: off" "Server dry-run"
 Assert-Contains $serverOutput "specType:  draft-mtp" "Server dry-run"
 Assert-Contains $serverOutput "--kv-unified" "Server dry-run"
+Assert-Contains $serverOutput '--mmproj "' "Server multimodal projector argument dry-run"
 Assert-Contains $serverOutput "--spec-type draft-mtp" "Server dry-run"
 Assert-Contains $serverOutput "--alias dry-server-alias" "Server dry-run"
 Assert-Contains $serverOutput "--no-cuda-graphs" "Server dry-run"
