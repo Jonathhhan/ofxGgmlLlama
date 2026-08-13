@@ -110,7 +110,9 @@ and GLM's recommended `temp=1.0`, `top_p=0.95`, `min_p=0.01` sampling.
 
 If an older local `llama-server` process is stuck on the Codex port and the
 example stays at "not ready", use the GUI's `Force new` button or launch with
-`-ForceNewServer` so the addon-owned stale server is stopped before restart.
+`-ForceNewServer` so the addon-owned stale server on the selected port is
+stopped before restart. Other ports using the same bundled executable are not
+stopped.
 The script planner also flags multiple `llama-server.exe` processes targeting
 the Codex port because stale processes can leave Codex talking to a different
 server than the one you just configured.

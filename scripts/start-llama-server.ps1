@@ -148,16 +148,40 @@ function Get-ProcessPath {
 	}
 }
 
+function Get-ProcessCommandLine {
+	param([System.Diagnostics.Process]$Process)
+	try {
+		$procPath = "/proc/$($Process.Id)/cmdline"
+		if (Test-Path -LiteralPath $procPath -PathType Leaf) {
+			$bytes = [IO.File]::ReadAllBytes($procPath)
+			return ([Text.Encoding]::UTF8.GetString($bytes) -replace "`0", " ").Trim()
+		}
+		return ((& ps -p $Process.Id -o command= 2>$null) | Out-String).Trim()
+	} catch {
+		return ""
+	}
+}
+
 function Stop-MatchingLlamaServer {
-	param([string]$ServerExePath)
+	param([string]$ServerExePath, [int]$Port)
 	$targetPath = (Resolve-Path -LiteralPath $ServerExePath).Path
-	$targets = @(Get-Process -Name "llama-server" -ErrorAction SilentlyContinue |
-		Where-Object {
+	if (Test-OfxGgmlWindowsHost) {
+		$netstatLines = @(& netstat.exe -ano -p tcp 2>$null)
+		$ownerIds = @(Get-OfxGgmlNetstatPortOwnerProcessIds -NetstatLines $netstatLines -Port $Port)
+		if ($ownerIds.Count -eq 0) {
+			return 0
+		}
+		$candidates = @(Get-Process -Id $ownerIds -ErrorAction SilentlyContinue)
+	} else {
+		$candidates = @(Get-Process -Name "llama-server" -ErrorAction SilentlyContinue | Where-Object {
+			Test-OfxGgmlCommandLinePort -CommandLine (Get-ProcessCommandLine $_) -Port $Port
+		})
+	}
+	$targets = @($candidates | Where-Object {
 			$processPath = Get-ProcessPath $_
 			![string]::IsNullOrWhiteSpace($processPath) -and
 				$processPath.Equals($targetPath, [System.StringComparison]::OrdinalIgnoreCase)
-		} |
-		Sort-Object Id)
+	} | Sort-Object Id)
 	if ($targets.Count -eq 0) {
 		return 0
 	}
@@ -209,16 +233,16 @@ if ([string]::IsNullOrWhiteSpace($Alias)) {
 	$Alias = Get-OfxGgmlLocalModelAlias -ModelPath $ModelPath
 }
 
-if ($ForceNew -and !$DryRun) {
-	$stopped = Stop-MatchingLlamaServer -ServerExePath $ServerExe
-	if ($stopped -gt 0) {
-		Write-Host "Stopped $stopped existing llama-server process(es) for $ServerExe"
-		Start-Sleep -Milliseconds 750
-	}
-}
-
 if ($Embeddings -and !$PSBoundParameters.ContainsKey("Port")) {
 	$Port = 8081
+}
+
+if ($ForceNew -and !$DryRun) {
+	$stopped = Stop-MatchingLlamaServer -ServerExePath $ServerExe -Port $Port
+	if ($stopped -gt 0) {
+		Write-Host "Stopped $stopped existing llama-server process(es) for $ServerExe on port $Port"
+		Start-Sleep -Milliseconds 750
+	}
 }
 
 $serverUrl = Get-ServerUrl $HostName $Port

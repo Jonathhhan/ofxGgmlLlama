@@ -62,6 +62,11 @@ health check, the launcher emits `OFXGGML_LLAMA_SERVER_READY=1`. Companion
 addons should use that stable marker and delegate identity checks to the Llama
 launcher instead of parsing human-readable status text.
 
+`-ForceNew` is port-scoped: it stops only the process from the selected bundled
+`llama-server` executable associated with the requested port. Other text,
+embedding, RAG, Vision, Video, or agent servers using the same binary on
+different ports remain running.
+
 The lane-owned runtime smoke is a headless `llama-cli` check. It discovers the
 bundled CLI and GGUF model, runs a short deterministic prompt with CPU or CUDA
 GPU-layer settings, and reports parseable timing/text metadata. It does not

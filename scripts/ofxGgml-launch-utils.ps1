@@ -219,6 +219,45 @@ function Get-OfxGgmlServerEndpoint {
 	}
 }
 
+function Test-OfxGgmlCommandLinePort {
+	param(
+		[string]$CommandLine,
+		[int]$Port
+	)
+
+	if ([string]::IsNullOrWhiteSpace($CommandLine) -or $Port -lt 1 -or $Port -gt 65535) {
+		return $false
+	}
+	$portText = [regex]::Escape($Port.ToString())
+	$pattern = '(?i)(?:^|\s)--port(?:\s+|=)["'']?' + $portText + '["'']?(?=\s|$)'
+	return $CommandLine -match $pattern
+}
+
+function Get-OfxGgmlNetstatPortOwnerProcessIds {
+	param(
+		[string[]]$NetstatLines,
+		[int]$Port
+	)
+
+	if ($Port -lt 1 -or $Port -gt 65535) {
+		return @()
+	}
+	$portSuffix = ":$Port"
+	$processIds = foreach ($line in $NetstatLines) {
+		$fields = @(([string]$line).Trim() -split '\s+')
+		if ($fields.Count -lt 5 -or $fields[0] -ine "TCP" -or
+			!$fields[1].EndsWith($portSuffix, [System.StringComparison]::Ordinal) -or
+			!$fields[2].EndsWith(":0", [System.StringComparison]::Ordinal)) {
+			continue
+		}
+		$processId = 0
+		if ([int]::TryParse($fields[-1], [ref]$processId) -and $processId -gt 0) {
+			$processId
+		}
+	}
+	return @($processIds | Sort-Object -Unique)
+}
+
 function Test-OfxGgmlUrl {
 	param(
 		[string]$Url,

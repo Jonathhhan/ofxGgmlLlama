@@ -107,6 +107,27 @@ Write-Step "Checking server endpoint parsing"
 $endpoint = Get-OfxGgmlServerEndpoint "http://localhost:9090/v1"
 Assert-Equal $endpoint.HostName "localhost" "endpoint host"
 Assert-Equal $endpoint.Port 9090 "endpoint port"
+Assert-True (Test-OfxGgmlCommandLinePort 'llama-server.exe -m model.gguf --port 8080 -ngl 99' 8080) "separate server port argument"
+Assert-True (Test-OfxGgmlCommandLinePort 'llama-server --port=8081 -m model.gguf' 8081) "equals server port argument"
+Assert-True (Test-OfxGgmlCommandLinePort 'llama-server --port "8082"' 8082) "quoted server port argument"
+Assert-Equal (Test-OfxGgmlCommandLinePort 'llama-server --port 80801' 8080) $false "server port prefix mismatch"
+Assert-Equal (Test-OfxGgmlCommandLinePort 'llama-server --port 8081' 8080) $false "different server port"
+$netstatOwners = @(Get-OfxGgmlNetstatPortOwnerProcessIds -Port 8080 -NetstatLines @(
+	'  TCP    127.0.0.1:8080       0.0.0.0:0       LISTENING       101',
+	'  TCP    [::]:8080            [::]:0          ABHOREN         102',
+	'  TCP    127.0.0.1:80801      0.0.0.0:0       LISTENING       103',
+	'  UDP    127.0.0.1:8080       *:*                             104',
+	'  TCP    127.0.0.1:8080       127.0.0.1:9000   ESTABLISHED     101'
+))
+Assert-Equal $netstatOwners.Count 2 "netstat port owner count"
+Assert-Equal $netstatOwners[0] 101 "netstat first unique owner"
+Assert-Equal $netstatOwners[1] 102 "netstat IPv6 owner"
+Assert-Equal `
+	@(Get-OfxGgmlNetstatPortOwnerProcessIds -Port 9000 -NetstatLines @(
+		'  TCP    127.0.0.1:9000       127.0.0.1:8080   ESTABLISHED     105'
+	)).Count `
+	0 `
+	"netstat established connection exclusion"
 
 Assert-True (Test-OfxGgmlLocalServerUrl "https://example.com") "remote server URL should not be probed as local"
 

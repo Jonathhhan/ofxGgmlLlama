@@ -354,6 +354,7 @@ foreach ($scriptName in @(
 	"dev\test-addon.ps1",
 	"dev\test-launch-utils.ps1",
 	"dev\test-server-identity.ps1",
+	"dev\test-force-new-port-scope.ps1",
 	"dev\test-release-checklist.ps1",
 	"dev\test-launch-dry-run.ps1",
 	"dev\test-artifact-hygiene.ps1",
@@ -379,6 +380,12 @@ Write-Step "Checking server identity reuse"
 & (Join-Path $scriptRoot "dev\test-server-identity.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Server identity reuse tests failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking ForceNew port scope"
+& (Join-Path $scriptRoot "dev\test-force-new-port-scope.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "ForceNew port scope tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking release checklist commands"
