@@ -168,7 +168,7 @@ function Stop-MatchingLlamaServer {
 }
 
 if ([string]::IsNullOrWhiteSpace($ServerExe)) {
-	$serverName = if ($IsLinux -or $IsMacOS) { "llama-server" } else { "llama-server.exe" }
+	$serverName = if (Test-OfxGgmlWindowsHost) { "llama-server.exe" } else { "llama-server" }
 	$ServerExe = Resolve-OfxGgmlFirstFile @(
 		(Join-Path $addonRoot "libs\llama\bin\$serverName"),
 		(Join-Path $addonRoot "libs\llama.cpp\build\bin\Release\$serverName"),

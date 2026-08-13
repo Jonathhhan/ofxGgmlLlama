@@ -6,7 +6,7 @@ function Write-OfxGgmlStep {
 }
 
 function Test-OfxGgmlWindowsHost {
-	return !($IsLinux -or $IsMacOS)
+	return [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 }
 
 function Normalize-OfxGgmlWindowsPathEnvironment {
@@ -147,7 +147,7 @@ function Find-OfxGgmlLlamaCli {
 		[string]$ExampleRoot
 	)
 
-	$llamaNames = if ($IsWindows -or $env:OS -eq "Windows_NT") {
+	$llamaNames = if (Test-OfxGgmlWindowsHost) {
 		@("llama-cli.exe", "main.exe", "llama.exe")
 	} else {
 		@("llama-cli", "main", "llama")

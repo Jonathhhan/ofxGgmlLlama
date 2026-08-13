@@ -39,6 +39,7 @@ if (Test-Path -LiteralPath $scratchRoot) {
 New-Item -ItemType Directory -Force -Path $scratchRoot | Out-Null
 
 Write-Step "Checking path normalization"
+Assert-Equal (Test-OfxGgmlWindowsHost) ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) "platform detection"
 Assert-Equal (Normalize-OfxGgmlPathText '  "C:\models\local.gguf"  ') "C:\models\local.gguf" "quoted path normalization"
 Assert-Equal (Normalize-OfxGgmlPathText "   ") "" "blank path normalization"
 
@@ -90,7 +91,7 @@ Write-Step "Checking llama CLI discovery"
 $exampleCliRoot = Join-Path $scratchRoot "ExampleCli"
 $llamaBin = Join-Path $scratchRoot "libs\llama\bin"
 New-Item -ItemType Directory -Force -Path $llamaBin, $exampleCliRoot | Out-Null
-$cliName = if (($env:OS -eq "Windows_NT") -or ($PSVersionTable.PSEdition -eq "Desktop" -and !$IsLinux -and !$IsMacOS)) {
+$cliName = if (Test-OfxGgmlWindowsHost) {
 	"llama-cli.exe"
 } else {
 	"llama-cli"
