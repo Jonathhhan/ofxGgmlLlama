@@ -53,6 +53,12 @@ Runtime changes should name whether the path uses CLI fallback, server text,
 server chat, or server embeddings, and should identify which local server,
 model, and generated artifacts are required.
 
+`scripts/start-llama-server.ps1` reuses an already reachable endpoint only
+after `/v1/models` confirms the requested alias. A port occupied by a different
+model is rejected with the actual and expected identities instead of silently
+routing a text, embedding, vision, RAG, video, or agent request to the wrong
+runtime. Companion addons should delegate this check to the Llama launcher.
+
 The lane-owned runtime smoke is a headless `llama-cli` check. It discovers the
 bundled CLI and GGUF model, runs a short deterministic prompt with CPU or CUDA
 GPU-layer settings, and reports parseable timing/text metadata. It does not

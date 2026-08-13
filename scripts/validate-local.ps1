@@ -353,6 +353,7 @@ foreach ($scriptName in @(
 	"dev\release-candidate.ps1",
 	"dev\test-addon.ps1",
 	"dev\test-launch-utils.ps1",
+	"dev\test-server-identity.ps1",
 	"dev\test-release-checklist.ps1",
 	"dev\test-launch-dry-run.ps1",
 	"dev\test-artifact-hygiene.ps1",
@@ -372,6 +373,12 @@ Write-Step "Checking launch utility helpers"
 & (Join-Path $scriptRoot "dev\test-launch-utils.ps1")
 if ($LASTEXITCODE -ne 0) {
 	throw "Launch utility helper tests failed with exit code $LASTEXITCODE"
+}
+
+Write-Step "Checking server identity reuse"
+& (Join-Path $scriptRoot "dev\test-server-identity.ps1")
+if ($LASTEXITCODE -ne 0) {
+	throw "Server identity reuse tests failed with exit code $LASTEXITCODE"
 }
 
 Write-Step "Checking release checklist commands"

@@ -226,14 +226,26 @@ $serverUrlEnvName = if ($Embeddings) { "OFXGGML_EMBEDDING_SERVER_URL" } else { "
 if (!$NoHealthCheck -and !$DryRun) {
 	$existing = Test-LlamaServer $serverUrl
 	if ($existing.Reachable -and !$ForceNew) {
+		$modelEvidence = Get-OfxGgmlServedModelEvidence `
+			-ApiRoot ($serverUrl.TrimEnd("/") + "/v1") `
+			-ExpectedModel $Alias `
+			-TimeoutSeconds 2
+		if (!$modelEvidence.Reachable) {
+			throw "A server is reachable at $serverUrl, but its model identity could not be read from /v1/models: $($modelEvidence.Message)"
+		}
+		if (!$modelEvidence.ExpectedModelServed) {
+			$actualModels = if ($modelEvidence.Models.Count -gt 0) { $modelEvidence.Models -join ", " } else { "<none>" }
+			throw "A different model is already served at $serverUrl (reported: $actualModels; expected: $Alias). Choose another port or stop that server before launching this model."
+		}
 		Write-Host "llama-server is already reachable."
 		Write-Host "  url:       $serverUrl"
 		Write-Host "  health:    HTTP $($existing.StatusCode) $(if ($existing.Ready) { '(ready)' } else { '(starting/busy)' })"
+		Write-Host "  model:     $Alias (identity verified)"
 		if (![string]::IsNullOrWhiteSpace($existing.Message)) {
 			Write-Host "  response:  $($existing.Message)"
 		}
 		Write-Host ""
-		Write-Host "Reusing the existing server. Pass -ForceNew to start another process anyway."
+		Write-Host "Reusing the existing matching server. Pass -ForceNew to replace matching addon server processes."
 		Write-Host "Use $serverUrlEnvName=$serverUrl"
 		return
 	}
