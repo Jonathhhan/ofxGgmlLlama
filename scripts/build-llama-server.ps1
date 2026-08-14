@@ -1,5 +1,5 @@
 param(
-	[string]$Revision = "b9453",
+	[string]$Revision = "b10423",
 	[string]$Repo = "https://github.com/ggml-org/llama.cpp.git",
 	[string]$SourceDir = "",
 	[string]$BuildDir = "",
@@ -322,8 +322,15 @@ function Stop-RuntimeProcesses {
 	}
 	foreach ($process in $running) {
 		Stop-Process -Id $process.Id -Force -ErrorAction Stop
+		if (!$process.WaitForExit(10000)) {
+			throw "Timed out waiting for $($process.ProcessName)($($process.Id)) to release the llama.cpp runtime."
+		}
 	}
-	Start-Sleep -Milliseconds 500
+	$stillRunning = @(Get-RuntimeProcesses)
+	if ($stillRunning.Count -gt 0) {
+		$labels = @($stillRunning | ForEach-Object { "$($_.ProcessName)($($_.Id))" })
+		throw "llama.cpp runtime processes did not stop: $($labels -join ', ')"
+	}
 }
 
 function Get-BuiltRuntimeFiles {
@@ -416,13 +423,13 @@ if ($Refetch) {
 New-Item -ItemType Directory -Path (Split-Path -Parent $SourceDir),$InstallDir -Force | Out-Null
 if (!(Test-Path -LiteralPath $SourceDir)) {
 	Write-Step "Cloning llama.cpp $Revision"
-	Invoke-CheckedNative "git clone llama.cpp" "git" @("clone", "--depth", "1", "--branch", $Revision, $Repo, $SourceDir)
+	Invoke-CheckedNative "git clone llama.cpp" "git" @("-c", "core.longpaths=true", "clone", "--depth", "1", "--branch", $Revision, $Repo, $SourceDir)
 } elseif (Test-SourceRevisionMatches $SourceDir $Revision) {
 	Write-Step "llama.cpp source already at $Revision; skipping fetch"
 } else {
 	Write-Step "Fetching llama.cpp $Revision"
-	Invoke-CheckedNative "git fetch llama.cpp" "git" @("-C", $SourceDir, "fetch", "--depth", "1", "origin", $Revision)
-	Invoke-CheckedNative "git checkout llama.cpp" "git" @("-C", $SourceDir, "checkout", "--detach", "FETCH_HEAD")
+	Invoke-CheckedNative "git fetch llama.cpp" "git" @("-c", "core.longpaths=true", "-C", $SourceDir, "fetch", "--depth", "1", "origin", $Revision)
+	Invoke-CheckedNative "git checkout llama.cpp" "git" @("-c", "core.longpaths=true", "-C", $SourceDir, "checkout", "--detach", "FETCH_HEAD")
 }
 
 if ($Clean -and (Test-Path -LiteralPath $BuildDir)) {

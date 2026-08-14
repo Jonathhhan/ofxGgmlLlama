@@ -11,6 +11,7 @@
                          "tests",
                          "docs",
                          "README.md",
+                         "CHANGELOG.md",
                          "ofxggml-addon.json",
                          "AGENTS.md"
                      ],

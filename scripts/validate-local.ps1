@@ -111,7 +111,9 @@ Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaSer
 Assert-FileContains (Join-Path $addonRoot "src\ofxGgmlLlama.h") "ofxGgmlLlamaServerEmbeddingBackend.h" "public header"
 Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "ADDON_DEPENDENCIES\s*\+=\s*ofxGgmlCore" "addon config"
 Assert-FileContains (Join-Path $addonRoot "addon_config.mk") "\.\./ofxGgmlCore/src" "addon config"
-Assert-FileContains (Join-Path $addonRoot "scripts\build-llama-server.ps1") '\$Revision = "b9453"' "llama.cpp build revision"
+Assert-FileContains (Join-Path $addonRoot "scripts\build-llama-server.ps1") '\$Revision = "b10423"' "llama.cpp build revision"
+Assert-FileContains (Join-Path $addonRoot "scripts\build-llama-server.ps1") 'WaitForExit\(10000\)' "llama.cpp runtime stop wait"
+Assert-FileContains (Join-Path $addonRoot "scripts\build-llama-server.ps1") 'core\.longpaths=true.*clone' "llama.cpp Windows long-path clone"
 Assert-Path (Join-Path $addonRoot "tests\CMakeLists.txt") "test CMakeLists"
 Assert-Path (Join-Path $addonRoot "tests\test_main.cpp") "test source"
 
@@ -553,10 +555,8 @@ if ($LASTEXITCODE -ne 0) {
 if ($agentRunCommandCheck.status -ne "verified" -or !$agentRunCommandCheck.commandsOk -or !$agentRunCommandCheck.commands[0].runner) {
 	throw "Local agent run command gate did not execute through a detected PowerShell runner"
 }
+$LASTEXITCODE = 0
 $agentRunContractCheck = & (Join-Path $scriptRoot "check-local-agent-run.ps1") -DryRun -ContractPath (Join-Path $addonRoot "ofxGgmlLlamaCodexLocalExample\local-agent-run.example.json") -Json | ConvertFrom-Json
-if ($LASTEXITCODE -ne 0) {
-	throw "Local agent contract run gate failed with exit code $LASTEXITCODE"
-}
 if ($agentRunContractCheck.status -ne "verified" -or
 	$agentRunContractCheck.allowedPaths -notcontains "src/codex" -or
 	$agentRunContractCheck.allowedPaths -notcontains "tests") {

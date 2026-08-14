@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Updated the default llama.cpp runtime pin to upstream release `b10423`.
+- Wait for stopped local llama.cpp processes to exit before replacing their
+  runtime DLLs during rebuilds.
+- Enable repository-local Git long-path handling when fetching llama.cpp so
+  current upstream UI source paths can be checked out on Windows.
+
 ## v1.0.2 - 2026-06-02
 
 - Pinned the default llama.cpp runtime build revision to upstream release
