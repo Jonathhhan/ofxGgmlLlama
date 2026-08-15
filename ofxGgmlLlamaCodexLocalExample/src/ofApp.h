@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "ofxGgmlLlama.h"
 #include "ofxImGui.h"
+#include "inference/ofxGgmlLlamaDefaults.h"
 
 #include <atomic>
 #include <cstdint>
@@ -52,6 +53,10 @@ private:
     void copyTextToClipboard(const std::string & label, const std::string & text);
     void rebuildLines();
     void joinWorker();
+    void resetDefaults();
+    void requestStopServer();
+    void runStopServerWorker();
+    void collectGpuInfo();
 
     ofxGgmlLlamaCodexProviderConfig makeCodexConfig() const;
     ofxGgmlLlamaServerStartSettings makeServerSettings() const;
@@ -86,6 +91,59 @@ private:
     std::string servedModelStatus;
     std::vector<std::string> servedModelAliases;
     std::vector<std::string> lines;
+
+    // Stop server (Task #4)
+    bool serverKilled = false;
+
+    // Status bar GPU/VRAM (Task #6)
+    std::string gpuInfo;
+    std::string vramInfo;
+
+    // Reset defaults (Task #10)
+    int defaultGpuLayers { ofxGgmlLlamaDefaults::kDefaultCodexGpuLayers };
+    int defaultContextSize { ofxGgmlLlamaDefaults::kDefaultCodexContextSize };
+    int defaultParallel = 1;
+    int defaultBatchSize { ofxGgmlLlamaDefaults::kDefaultCodexBatchSize };
+    int defaultUbatchSize { ofxGgmlLlamaDefaults::kDefaultCodexUbatchSize };
+    int defaultThreads { ofxGgmlLlamaDefaults::kDefaultCodexThreads };
+    int defaultThreadsBatch = 0;
+    int defaultThreadsHttp = 0;
+    int defaultCacheReuse { ofxGgmlLlamaDefaults::kDefaultCodexCacheReuse };
+    std::string defaultKvCacheKeyType = "q4_0";
+    std::string defaultKvCacheValueType = "q4_0";
+    std::string defaultSpecType;
+    std::string defaultDraftModelPath;
+    std::string defaultDraftGpuLayers;
+    int defaultDraftMaxTokens = 0;
+    int defaultDraftMinTokens = 0;
+    float defaultDraftPSplit = -1.0f;
+    float defaultDraftPMin = -1.0f;
+    int defaultModelContextWindow = 65536;
+    int defaultModelAutoCompactTokenLimit = 56000;
+    int defaultToolOutputTokenLimit = 12000;
+    int defaultAgentMaxConcurrentThreadsPerSession = 1;
+    int defaultAgentMaxDepth = 0;
+    int defaultAgentMinWaitTimeoutMs = 2500;
+    int defaultAgentMaxWaitTimeoutMs = 180000;
+    int defaultAgentDefaultWaitTimeoutMs = 30000;
+    int defaultReasoningEffortIndex = 2;
+    int defaultStartupTimeoutSeconds = 600;
+    float defaultTemperature { ofxGgmlLlamaDefaults::kDefaultCodexTemperature };
+    float defaultTopP { ofxGgmlLlamaDefaults::kDefaultCodexTopP };
+    float defaultMinP { ofxGgmlLlamaDefaults::kDefaultCodexMinP };
+    bool defaultGpuLayersAll = true;
+    bool defaultNoCudaGraphs = false;
+    bool defaultSkipChatParsing = false;
+    bool defaultAutoConfig = true;
+    int defaultCodexProviderMode = 0;
+    std::string defaultBaseUrl = "http://127.0.0.1:8001/v1";
+    std::string defaultServerUrl { ofxGgmlLlamaDefaults::kDefaultCodexServerUrl };
+    std::string defaultModelAlias = "local/Qwen3.6-27B-Q4_0";
+    std::string defaultOpenAiModelAlias = "gpt-5";
+    std::string defaultCodexSandbox = "workspace-write";
+    std::string defaultCodexProfile = "ofxggml_local";
+    std::string defaultWebSearch = "live";
+    std::string defaultWireApi = "responses";
 
     int gpuLayers = 999;
     int contextSize = 65536;

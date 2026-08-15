@@ -372,16 +372,27 @@ $configText = if (![string]::IsNullOrWhiteSpace($resolvedConfig) -and (Test-Path
 } else {
 	""
 }
+$escapedApiRoot = [regex]::Escape($apiRoot)
+$escapedModel = [regex]::Escape($resolvedModel)
 $configState = [ordered]@{
 	Path = $resolvedConfig
 	Exists = (![string]::IsNullOrWhiteSpace($resolvedConfig) -and (Test-Path -LiteralPath $resolvedConfig -PathType Leaf))
 	HasProvider = ($configText -match "\[model_providers\.llama_cpp\]")
 	HasProfile = ($configText -match "\[profiles\.$([regex]::Escape($resolvedProfile))\]")
 	HasModelProviderSelection = ($configText -match "model_provider\s*=\s*`"llama_cpp`"")
+	HasMatchingModel = (![string]::IsNullOrWhiteSpace($resolvedModel) -and $configText -match "(?m)^\s*model\s*=\s*`"$escapedModel`"")
+	HasMatchingBaseUrl = ($configText -match "(?m)^\s*base_url\s*=\s*`"$escapedApiRoot`"")
+	HasResponsesWireApi = ($configText -match "(?m)^\s*wire_api\s*=\s*`"responses`"")
 	ProviderOverrideProvided = $false
 	ReadyForLocalAgents = $false
 }
-$configState.ReadyForLocalAgents = [bool]($configState.HasProvider -and $configState.HasModelProviderSelection)
+$configState.ReadyForLocalAgents = [bool](
+	$configState.HasProvider -and
+	$configState.HasModelProviderSelection -and
+	$configState.HasMatchingModel -and
+	$configState.HasMatchingBaseUrl -and
+	$configState.HasResponsesWireApi
+)
 $launchArguments = @(
 	"--no-alt-screen",
 	"--disable", "apps",
